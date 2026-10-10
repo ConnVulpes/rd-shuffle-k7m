@@ -106,6 +106,11 @@ main{padding:20px}
 body.no-cap .cap{display:none}
 .card-link{display:block; color:inherit; text-decoration:none}
 .icon-btn[aria-pressed="true"]{color:var(--text); background:var(--field)}
+body.cur-idle, body.cur-idle *{cursor:none !important}
+body.cur-idle .grid{pointer-events:none}
+body.cur-idle .rd-btn{opacity:0 !important}
+#curToggle{display:none}
+@media (hover:hover){ #curToggle{display:inline-block} }
 .more{padding:24px 0 8px; text-align:center; color:var(--muted); font-size:13px}
 
 #peek{
@@ -189,6 +194,7 @@ dialog input{width:100%; margin-bottom:14px}
   <span class="status" id="status" aria-live="polite"></span>
   <button type="button" class="shuffle" id="shuffle">シャッフル</button>
   <button type="button" class="icon-btn" id="capToggle" aria-pressed="true" title="タグとコレクションの表示を切り替えます（キー C）">キャプション</button>
+  <button type="button" class="icon-btn" id="curToggle" aria-pressed="true" title="マウスを止めて少したつとカーソルを隠します。隠れている間はカードに反応しません（キー H）">カーソル非表示</button>
   <button type="button" class="icon-btn" id="refresh" title="Raindrop から最新のブックマークを読み込み直します">更新</button>
   <button type="button" class="icon-btn" id="settings" aria-label="設定">設定</button>
 </header>
@@ -246,6 +252,7 @@ const state = {
   tag: store.get('tag', ''),
   count: store.get('count', 40),
   cap: store.get('cap', true),
+  hideCur: store.get('hidecur', true),
   col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
 };
 // cache: { savedAt, items:[{i,t,l,c,d,k,g}], colls:[{id,label,parent}], tags:[{name,count}] }
@@ -821,6 +828,40 @@ function toggleCap(){
 }
 capBtn.addEventListener('click', toggleCap);
 
+// マウスを止めて少したつとカーソルを隠す。隠れている間はカードに反応しない
+const curBtn = $('curToggle');
+const canHover = matchMedia('(hover:hover)').matches;
+const IDLE_MS = 1500;
+let idleTimer = 0, lastX = null, lastY = null;
+function setIdle(on){ document.body.classList.toggle('cur-idle', on); }
+function armIdle(){
+  clearTimeout(idleTimer);
+  if(!state.hideCur || !canHover) return;
+  idleTimer = setTimeout(() => {
+    if(dlg.open || peek.open) return armIdle();
+    setIdle(true);
+  }, IDLE_MS);
+}
+function wake(){ setIdle(false); armIdle(); }
+document.addEventListener('mousemove', e => {
+  // スクロールだけで発生する見かけの移動は無視し、手で動かしたときだけ起こす
+  if(lastX !== null && Math.abs(e.screenX - lastX) + Math.abs(e.screenY - lastY) < 3) return;
+  lastX = e.screenX; lastY = e.screenY;
+  wake();
+}, {passive:true});
+document.addEventListener('mousedown', wake, true);
+document.documentElement.addEventListener('mouseleave', () => clearTimeout(idleTimer));
+function applyCur(){
+  curBtn.setAttribute('aria-pressed', String(state.hideCur));
+  if(state.hideCur) armIdle(); else { clearTimeout(idleTimer); setIdle(false); }
+}
+function toggleCur(){
+  state.hideCur = !state.hideCur;
+  store.set('hidecur', state.hideCur);
+  applyCur();
+}
+curBtn.addEventListener('click', toggleCur);
+
 new IntersectionObserver(entries => {
   if(entries.some(e => e.isIntersecting) && shownCount < poolSize) appendMore();
 }, { rootMargin:'1200px 0px' }).observe(moreEl);
@@ -877,6 +918,7 @@ document.addEventListener('keydown', e => {
   const tag = (e.target.tagName || '').toLowerCase();
   if(['input', 'select', 'textarea'].includes(tag) || dlg.open || peek.open) return;
   if(e.key === 'c' || e.key === 'C') toggleCap();
+  if(e.key === 'h' || e.key === 'H') toggleCur();
   if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); shuffle(); }
   if(e.key === '1') setSize(170);
   if(e.key === '2') setSize(250);
@@ -884,6 +926,7 @@ document.addEventListener('keydown', e => {
 });
 
 applyCap();
+applyCur();
 applySize();
 countSel.value = String(state.count);
 if(!['20', '40', '80'].includes(countSel.value)){ countSel.value = '40'; state.count = 40; }
