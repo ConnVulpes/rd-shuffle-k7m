@@ -79,13 +79,13 @@ select{max-width:280px}
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
 
 main{padding:20px}
-.grid{column-width:var(--col,250px); column-gap:16px}
+.grid{display:flex; align-items:flex-start; gap:16px}
+.col{flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:16px}
 .card{
-  display:block; break-inside:avoid; margin:0 0 16px;
+  position:relative; display:block;
   background:var(--card); border-radius:6px; overflow:hidden;
   color:inherit; text-decoration:none;
 }
-.card{position:relative}
 .card .thumb{display:block; width:100%; height:auto; background:var(--ph)}
 .badge{
   position:absolute; top:8px; left:8px;
@@ -98,11 +98,41 @@ main{padding:20px}
   aspect-ratio:4/3; background:var(--ph); color:var(--muted);
   font-size:42px; font-weight:700;
 }
-.cap{display:flex; flex-direction:column; gap:2px; padding:8px 10px 10px}
-.title{font-size:13px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
-.domain{font-size:12px; color:var(--muted)}
+.cap{display:flex; flex-direction:column; gap:6px; padding:8px 10px 10px}
+.coll{font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.tags{display:flex; flex-wrap:wrap; gap:4px}
+.tag{font-size:11px; line-height:1.4; padding:1px 7px; border-radius:999px; color:var(--text); background:var(--field); border:1px solid var(--line)}
+.none{font-size:11px; color:var(--muted); font-style:italic}
+body.no-cap .cap{display:none}
 .card-link{display:block; color:inherit; text-decoration:none}
-.card-link:hover .title{text-decoration:underline}
+.icon-btn[aria-pressed="true"]{color:var(--text); background:var(--field)}
+.more{padding:24px 0 8px; text-align:center; color:var(--muted); font-size:13px}
+
+#peek{
+  width:min(960px,94vw); height:min(88vh,1000px); padding:0;
+  display:none; flex-direction:column; overflow:hidden;
+}
+#peek[open]{display:flex}
+.peek-head{display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line)}
+.peek-titles{flex:1; min-width:0}
+.peek-title{font-size:16px; font-weight:700; margin:0; line-height:1.4; overflow-wrap:anywhere}
+.peek-url{font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.peek-actions{display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end}
+.peek-actions a{text-decoration:none; display:inline-flex; align-items:center}
+.peek-body{flex:1; min-height:0; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:14px}
+.peek-media{display:flex; justify-content:center; background:var(--ph); border-radius:6px; overflow:hidden}
+.peek-media .thumb,.peek-media img{max-width:100%; max-height:62vh; width:auto; height:auto; display:block}
+.peek-media .ph{width:100%}
+.peek-frame{width:100%; flex:1; min-height:60vh; border:0; border-radius:6px; background:#fff}
+.peek-embed{width:100%; min-height:62vh; border:0; border-radius:6px}
+.peek-meta{display:flex; flex-direction:column; gap:8px; font-size:13px}
+.peek-text{margin:0; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere}
+.peek-note{color:var(--muted); font-size:12px}
+@media (max-width:640px){
+  #peek{width:100vw; height:100dvh; max-width:100vw; max-height:100dvh; border-radius:0; border:0}
+  .peek-head{flex-wrap:wrap}
+  .peek-actions{width:100%; justify-content:flex-start}
+}
 .rd-btn{
   position:absolute; top:8px; right:8px;
   display:flex; align-items:center; justify-content:center;
@@ -145,10 +175,10 @@ dialog input{width:100%; margin-bottom:14px}
     <button type="button" data-mode="tag">タグ</button>
   </div>
   <select id="picker" aria-label="フォルダまたはタグ" hidden></select>
-  <select id="count" aria-label="表示する件数">
-    <option value="20">20件</option>
-    <option value="40">40件</option>
-    <option value="80">80件</option>
+  <select id="count" aria-label="一度に読み込む件数">
+    <option value="20">20件ずつ</option>
+    <option value="40">40件ずつ</option>
+    <option value="80">80件ずつ</option>
   </select>
   <label class="sizer" for="size" title="表示サイズ（キー 1・2・3 で小・中・大）">
     <span aria-hidden="true">小</span>
@@ -158,17 +188,35 @@ dialog input{width:100%; margin-bottom:14px}
   <span class="spacer"></span>
   <span class="status" id="status" aria-live="polite"></span>
   <button type="button" class="shuffle" id="shuffle">シャッフル</button>
+  <button type="button" class="icon-btn" id="capToggle" aria-pressed="true" title="タグとコレクションの表示を切り替えます（キー C）">キャプション</button>
   <button type="button" class="icon-btn" id="refresh" title="Raindrop から最新のブックマークを読み込み直します">更新</button>
   <button type="button" class="icon-btn" id="settings" aria-label="設定">設定</button>
 </header>
 
 <main>
   <div class="grid" id="grid"></div>
+  <div class="more" id="more" hidden></div>
   <div class="empty" id="empty">
     <p>シャッフルを押すと、ブックマークがランダムに並びます。</p>
-    <p>R キーでも並べ直せます。カード右上の水滴ボタンで Raindrop の編集画面が開きます。最初の読み込みだけ少し時間がかかります。</p>
+    <p>カードを押すとこのページの中でプレビューが開き、右上の水滴ボタンで Raindrop の編集画面が開きます。下までスクロールすると続きが読み込まれます。</p>
   </div>
 </main>
+
+<dialog id="peek" aria-labelledby="peekTitle">
+  <div class="peek-head">
+    <div class="peek-titles">
+      <h2 class="peek-title" id="peekTitle"></h2>
+      <div class="peek-url" id="peekUrl"></div>
+    </div>
+    <div class="peek-actions">
+      <button type="button" class="icon-btn" id="peekFrameBtn" title="サイト側が許可していれば、このページの中にサイトを表示します">ページを表示</button>
+      <a class="icon-btn" id="peekRd" target="_blank" rel="noopener">Raindrop で開く</a>
+      <a class="shuffle" id="peekOpen" target="_blank" rel="noopener noreferrer">サイトを開く</a>
+      <button type="button" class="icon-btn" id="peekClose">閉じる</button>
+    </div>
+  </div>
+  <div class="peek-body" id="peekBody"></div>
+</dialog>
 
 <dialog id="dlg">
   <form method="dialog" id="tokenForm">
@@ -197,12 +245,14 @@ const state = {
   coll: store.get('coll', ''),
   tag: store.get('tag', ''),
   count: store.get('count', 40),
+  cap: store.get('cap', true),
   col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
 };
 // cache: { savedAt, items:[{i,t,l,c,d,k,g}], colls:[{id,label,parent}], tags:[{name,count}] }
 let cache = store.get('cache', null);
 let kids = new Map();      // folder id -> child folder ids
 let folderCount = new Map();
+let collLabel = new Map();  // folder id -> "親 / 子" label
 let refreshing = false;
 
 const $ = id => document.getElementById(id);
@@ -320,6 +370,7 @@ function applyCache(){
   });
   const direct = new Map();
   cache.items.forEach(x => direct.set(x.k, (direct.get(x.k) || 0) + 1));
+  collLabel = new Map(cache.colls.map(c => [c.id, c.label]));
   folderCount = new Map();
   cache.colls.forEach(c => {
     let n = 0;
@@ -375,6 +426,11 @@ function shuffleArray(a){
 }
 
 // Shuffling happens entirely in the browser: no requests to Raindrop.
+// The whole filtered list is shuffled once; cards are added in batches as you scroll.
+let order = [];
+let shownCount = 0;
+let poolSize = 0;
+
 function shuffle(){
   if(!cache){ refreshAll(); return; }
   let pool = cache.items;
@@ -387,14 +443,69 @@ function shuffle(){
     if(!state.tag){ statusEl.textContent = 'タグを選んでください。'; return; }
     pool = pool.filter(x => x.g.includes(state.tag));
   }
-  if(!pool.length){
-    render([]);
+  order = shuffleArray(pool.slice());
+  poolSize = order.length;
+  shownCount = 0;
+  cardEls = [];
+  layout(true);
+  window.scrollTo({ top:0 });
+  empty.hidden = poolSize > 0;
+  if(!poolSize){
+    moreEl.hidden = true;
     statusEl.textContent = 'この条件のブックマークはありません。';
     return;
   }
-  const shown = shuffleArray(pool.slice()).slice(0, state.count);
-  render(shown);
-  statusEl.textContent = `${pool.length.toLocaleString()}件から${shown.length}件（${ago(cache.savedAt)}に更新）`;
+  appendMore();
+}
+
+function appendMore(){
+  const next = order.slice(shownCount, shownCount + state.count);
+  next.forEach(it => {
+    const el = card(it);
+    cardEls.push(el);
+    placeCard(el);
+  });
+  shownCount += next.length;
+  updateStatus();
+}
+
+function updateStatus(){
+  statusEl.textContent = `${poolSize.toLocaleString()}件中 ${shownCount.toLocaleString()}件を表示（${ago(cache.savedAt)}に更新）`;
+  moreEl.hidden = !poolSize;
+  moreEl.textContent = shownCount < poolSize ? '続きを読み込み中…' : 'これで全部です。シャッフルで並べ直せます。';
+}
+
+// Masonry: a fixed set of columns, each new card goes into the shortest one,
+// so cards added while scrolling never shuffle the ones already on screen.
+let cols = [];
+let colCount = 0;
+let cardEls = [];
+
+function wantedCols(){
+  const gap = 16;
+  const w = grid.clientWidth || document.documentElement.clientWidth;
+  return Math.max(1, Math.floor((w + gap) / (state.col + gap)));
+}
+
+function layout(force){
+  const n = wantedCols();
+  if(!force && n === colCount) return;
+  colCount = n;
+  grid.innerHTML = '';
+  cols = [];
+  for(let i = 0; i < n; i++){
+    const c = document.createElement('div');
+    c.className = 'col';
+    grid.append(c);
+    cols.push(c);
+  }
+  cardEls.forEach(placeCard);
+}
+
+function placeCard(el){
+  let best = cols[0];
+  for(const c of cols) if(c.offsetHeight < best.offsetHeight) best = c;
+  best.append(el);
 }
 
 function ago(t){
@@ -404,15 +515,6 @@ function ago(t){
   const h = Math.floor(m / 60);
   if(h < 24) return `${h}時間前`;
   return `${Math.floor(h / 24)}日前`;
-}
-
-function render(items){
-  grid.innerHTML = '';
-  empty.hidden = items.length > 0;
-  const frag = document.createDocumentFragment();
-  items.forEach(it => frag.append(card(it)));
-  grid.append(frag);
-  window.scrollTo({ top:0 });
 }
 
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
@@ -518,6 +620,39 @@ function raindropUrl(it){
 
 const RD_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2.5c-.4 0-.8.2-1 .6C9.3 5.8 5.5 11 5.5 14.6A6.5 6.5 0 0 0 12 21a6.5 6.5 0 0 0 6.5-6.4C18.5 11 14.7 5.8 13 3.1c-.2-.4-.6-.6-1-.6Z"/></svg>';
 
+function collName(it){
+  if(it.k === -1) return '未整理';
+  if(it.k === -99) return 'ゴミ箱';
+  return collLabel.get(it.k) || '';
+}
+
+function captionEl(it){
+  const cap = document.createElement('div');
+  cap.className = 'cap';
+  const c = document.createElement('div');
+  c.className = 'coll';
+  const name = collName(it);
+  if(name){ c.textContent = name; c.title = name; }
+  else { c.className = 'none'; c.textContent = 'コレクションなし'; }
+  const tags = document.createElement('div');
+  tags.className = 'tags';
+  if(it.g && it.g.length){
+    it.g.forEach(g => {
+      const t = document.createElement('span');
+      t.className = 'tag';
+      t.textContent = '#' + g;
+      tags.append(t);
+    });
+  }else{
+    const n = document.createElement('span');
+    n.className = 'none';
+    n.textContent = 'タグなし';
+    tags.append(n);
+  }
+  cap.append(c, tags);
+  return cap;
+}
+
 function card(it){
   const wrap = document.createElement('div');
   wrap.className = 'card';
@@ -526,18 +661,16 @@ function card(it){
   a.href = it.l;
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
+  a.title = it.t || it.l;
+  a.addEventListener('click', e => {
+    // A plain click opens the preview; ⌘-click or a middle click still opens the site.
+    if(e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    openPeek(it);
+  });
   const list = thumbs(it);
   a.append(mediaEl(it, list, 0));
-  const cap = document.createElement('div');
-  cap.className = 'cap';
-  const t = document.createElement('span');
-  t.className = 'title';
-  t.textContent = it.t || it.l;
-  const d = document.createElement('span');
-  d.className = 'domain';
-  d.textContent = it.d;
-  cap.append(t, d);
-  a.append(cap);
+  a.append(captionEl(it));
   wrap.append(a);
   if(it.y === 'video' || list.some(x => x.video)){
     const b = document.createElement('span');
@@ -556,6 +689,96 @@ function card(it){
   wrap.append(rd);
   return wrap;
 }
+
+// ---- Preview ----
+const peek = $('peek'), peekBody = $('peekBody');
+let peekItem = null;
+
+function embedFor(it){
+  let u;
+  try{ u = new URL(it.l); }catch(e){ return null; }
+  const host = u.hostname.replace(/^(www|m|mobile|music)\./, '');
+  if(host === 'youtube.com' || host === 'youtu.be'){
+    const id = host === 'youtu.be' ? u.pathname.slice(1) : (u.searchParams.get('v') || (u.pathname.match(/\/(?:shorts|embed|live)\/([\w-]+)/) || [])[1]);
+    if(id) return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`;
+  }
+  if(host === 'x.com' || host === 'twitter.com'){
+    const m = u.pathname.match(/status(?:es)?\/(\d+)/);
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    if(m) return `https://platform.twitter.com/embed/Tweet.html?id=${m[1]}&theme=${dark ? 'dark' : 'light'}&dnt=true`;
+  }
+  return null;
+}
+
+function openPeek(it){
+  peekItem = it;
+  $('peekTitle').textContent = it.t || it.l;
+  $('peekUrl').textContent = it.l;
+  $('peekOpen').href = it.l;
+  $('peekRd').href = raindropUrl(it);
+  $('peekFrameBtn').hidden = !!embedFor(it);
+  peekBody.innerHTML = '';
+
+  const embed = embedFor(it);
+  if(embed){
+    const f = document.createElement('iframe');
+    f.className = 'peek-embed';
+    f.src = embed;
+    f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+    f.referrerPolicy = 'strict-origin-when-cross-origin';
+    peekBody.append(f);
+  }else{
+    const box = document.createElement('div');
+    box.className = 'peek-media';
+    box.append(mediaEl(it, thumbs(it), 0));
+    peekBody.append(box);
+  }
+
+  const meta = document.createElement('div');
+  meta.className = 'peek-meta';
+  meta.append(captionEl(it));
+  const text = document.createElement('p');
+  text.className = 'peek-text';
+  meta.append(text);
+  peekBody.append(meta);
+
+  // Description and note are fetched on demand, one request per preview.
+  api(`/raindrop/${it.i}`).then(r => {
+    if(peekItem !== it) return;
+    const x = r.item || {};
+    const parts = [];
+    if(x.excerpt) parts.push(x.excerpt);
+    if(x.note) parts.push('メモ：' + x.note);
+    text.textContent = parts.join('\n\n');
+  }).catch(() => {});
+
+  if(!peek.open) peek.showModal();
+}
+
+function showFrame(){
+  const it = peekItem;
+  if(!it) return;
+  peekBody.innerHTML = '';
+  const note = document.createElement('p');
+  note.className = 'peek-note';
+  note.textContent = '真っ白やエラーのままなら、そのサイトは他のページの中での表示を許可していません。「サイトを開く」を使ってください。';
+  const f = document.createElement('iframe');
+  f.className = 'peek-frame';
+  f.src = it.l;
+  f.referrerPolicy = 'no-referrer';
+  f.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
+  peekBody.append(note, f);
+  $('peekFrameBtn').hidden = true;
+}
+
+function closePeek(){
+  if(peek.open) peek.close();
+}
+
+peek.addEventListener('close', () => { peekItem = null; peekBody.innerHTML = ''; });
+peek.addEventListener('click', e => { if(e.target === peek) closePeek(); });
+$('peekClose').addEventListener('click', closePeek);
+$('peekFrameBtn').addEventListener('click', showFrame);
 
 function placeholder(it){
   const div = document.createElement('div');
@@ -585,12 +808,36 @@ function openSettings(){
   tokenInput.focus();
 }
 
+const moreEl = $('more');
+const capBtn = $('capToggle');
+function applyCap(){
+  document.body.classList.toggle('no-cap', !state.cap);
+  capBtn.setAttribute('aria-pressed', String(state.cap));
+}
+function toggleCap(){
+  state.cap = !state.cap;
+  store.set('cap', state.cap);
+  applyCap();
+}
+capBtn.addEventListener('click', toggleCap);
+
+new IntersectionObserver(entries => {
+  if(entries.some(e => e.isIntersecting) && shownCount < poolSize) appendMore();
+}, { rootMargin:'1200px 0px' }).observe(moreEl);
+// Keep filling while the page is still shorter than the window.
+setInterval(() => {
+  if(shownCount < poolSize && document.documentElement.scrollHeight - innerHeight - scrollY < 1200) appendMore();
+}, 800);
+
+let resizeTimer = 0;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => layout(false), 150); });
+
 const sizeInput = $('size');
 function applySize(){
   const v = Number(state.col);
   state.col = Number.isFinite(v) ? Math.min(380, Math.max(170, v)) : 250;
-  grid.style.setProperty('--col', state.col + 'px');
   sizeInput.value = String(state.col);
+  layout(false);
 }
 function setSize(px){
   state.col = px;
@@ -608,7 +855,6 @@ picker.addEventListener('change', () => { savePick(); if(cache) shuffle(); });
 countSel.addEventListener('change', () => {
   state.count = Number(countSel.value);
   store.set('count', state.count);
-  if(cache) shuffle();
 });
 shuffleBtn.addEventListener('click', shuffle);
 refreshBtn.addEventListener('click', refreshAll);
@@ -622,20 +868,22 @@ $('tokenForm').addEventListener('submit', () => {
     cache = null;
     store.del('cache');
     fillPicker();
-    render([]);
+    order = []; poolSize = 0; shownCount = 0; cardEls = []; layout(true);
     if(state.token) refreshAll();
   }
 });
 document.addEventListener('keydown', e => {
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
-  if(['input', 'select', 'textarea'].includes(tag) || dlg.open) return;
+  if(['input', 'select', 'textarea'].includes(tag) || dlg.open || peek.open) return;
+  if(e.key === 'c' || e.key === 'C') toggleCap();
   if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); shuffle(); }
   if(e.key === '1') setSize(170);
   if(e.key === '2') setSize(250);
   if(e.key === '3') setSize(380);
 });
 
+applyCap();
 applySize();
 countSel.value = String(state.count);
 if(!['20', '40', '80'].includes(countSel.value)){ countSel.value = '40'; state.count = 40; }
