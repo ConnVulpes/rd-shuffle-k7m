@@ -832,7 +832,9 @@ capBtn.addEventListener('click', toggleCap);
 const curBtn = $('curToggle');
 const canHover = matchMedia('(hover:hover)').matches;
 const IDLE_MS = 1500;
-let idleTimer = 0, lastX = null, lastY = null;
+const WAKE_PX = 60;      // 隠れている間、ひと続きの動きでこれだけ動かしたら戻す
+const STROKE_GAP = 250;  // これ以上間があいたら別の動きとして数え直す
+let idleTimer = 0, lastX = null, lastY = null, travel = 0, lastMoveAt = 0;
 function setIdle(on){ document.body.classList.toggle('cur-idle', on); }
 function armIdle(){
   clearTimeout(idleTimer);
@@ -844,12 +846,21 @@ function armIdle(){
 }
 function wake(){ setIdle(false); armIdle(); }
 document.addEventListener('mousemove', e => {
-  // スクロールだけで発生する見かけの移動は無視し、手で動かしたときだけ起こす
-  if(lastX !== null && Math.abs(e.screenX - lastX) + Math.abs(e.screenY - lastY) < 3) return;
+  const d = lastX === null ? 0 : Math.hypot(e.screenX - lastX, e.screenY - lastY);
   lastX = e.screenX; lastY = e.screenY;
+  // スクロールだけで発生する見かけの移動は無視する
+  if(d < 1) return;
+  const now = performance.now();
+  if(document.body.classList.contains('cur-idle')){
+    // 隠れている間は、ちょっと触れた程度では戻さない
+    if(now - lastMoveAt > STROKE_GAP) travel = 0;
+    lastMoveAt = now;
+    travel += d;
+    if(travel < WAKE_PX) return;
+  }
+  travel = 0;
   wake();
 }, {passive:true});
-document.addEventListener('mousedown', wake, true);
 document.documentElement.addEventListener('mouseleave', () => clearTimeout(idleTimer));
 function applyCur(){
   curBtn.setAttribute('aria-pressed', String(state.hideCur));
