@@ -101,7 +101,20 @@ main{padding:20px}
 .cap{display:flex; flex-direction:column; gap:2px; padding:8px 10px 10px}
 .title{font-size:13px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
 .domain{font-size:12px; color:var(--muted)}
-.card:hover .title{text-decoration:underline}
+.card-link{display:block; color:inherit; text-decoration:none}
+.card-link:hover .title{text-decoration:underline}
+.rd-btn{
+  position:absolute; top:8px; right:8px;
+  display:flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:50%;
+  color:var(--accent-ink); background:var(--accent);
+  opacity:.85; box-shadow:0 1px 4px rgba(0,0,0,.35);
+}
+.rd-btn:hover{opacity:1}
+@media (hover:hover){
+  .rd-btn{opacity:0}
+  .card:hover .rd-btn,.rd-btn:focus-visible{opacity:.9}
+}
 
 .empty{max-width:520px; margin:12vh auto; text-align:center; color:var(--muted)}
 .empty p{margin:0 0 8px}
@@ -153,7 +166,7 @@ dialog input{width:100%; margin-bottom:14px}
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty">
     <p>シャッフルを押すと、ブックマークがランダムに並びます。</p>
-    <p>R キーでも並べ直せます。最初の読み込みだけ少し時間がかかります。</p>
+    <p>R キーでも並べ直せます。カード右上の水滴ボタンで Raindrop の編集画面が開きます。最初の読み込みだけ少し時間がかかります。</p>
   </div>
 </main>
 
@@ -497,20 +510,24 @@ function mediaEl(it, list, i){
   return el;
 }
 
+// The bookmark's own page in the Raindrop web app.
+function raindropUrl(it){
+  const coll = (it.k === 0 || it.k) ? it.k : 0;
+  return `https://app.raindrop.io/my/${coll}/item/${it.i}/edit`;
+}
+
+const RD_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 2.5c-.4 0-.8.2-1 .6C9.3 5.8 5.5 11 5.5 14.6A6.5 6.5 0 0 0 12 21a6.5 6.5 0 0 0 6.5-6.4C18.5 11 14.7 5.8 13 3.1c-.2-.4-.6-.6-1-.6Z"/></svg>';
+
 function card(it){
+  const wrap = document.createElement('div');
+  wrap.className = 'card';
   const a = document.createElement('a');
-  a.className = 'card';
+  a.className = 'card-link';
   a.href = it.l;
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
   const list = thumbs(it);
   a.append(mediaEl(it, list, 0));
-  if(it.y === 'video' || list.some(x => x.video)){
-    const b = document.createElement('span');
-    b.className = 'badge';
-    b.textContent = '動画';
-    a.append(b);
-  }
   const cap = document.createElement('div');
   cap.className = 'cap';
   const t = document.createElement('span');
@@ -521,7 +538,23 @@ function card(it){
   d.textContent = it.d;
   cap.append(t, d);
   a.append(cap);
-  return a;
+  wrap.append(a);
+  if(it.y === 'video' || list.some(x => x.video)){
+    const b = document.createElement('span');
+    b.className = 'badge';
+    b.textContent = '動画';
+    wrap.append(b);
+  }
+  const rd = document.createElement('a');
+  rd.className = 'rd-btn';
+  rd.href = raindropUrl(it);
+  rd.target = '_blank';
+  rd.rel = 'noopener';
+  rd.title = 'Raindrop で開く';
+  rd.setAttribute('aria-label', 'Raindrop で開く');
+  rd.innerHTML = RD_ICON;
+  wrap.append(rd);
+  return wrap;
 }
 
 function placeholder(it){
