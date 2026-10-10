@@ -109,8 +109,11 @@ body.no-cap .cap{display:none}
 body.cur-idle, body.cur-idle *{cursor:none !important}
 body.cur-idle .grid{pointer-events:none}
 body.cur-idle .rd-btn{opacity:0 !important}
-#curToggle{display:none}
-@media (hover:hover){ #curToggle{display:inline-block} }
+.cur-group{display:none; align-items:center; gap:10px}
+@media (hover:hover){ .cur-group{display:inline-flex} }
+.cur-group .sizer input{width:100px}
+.wake-val{min-width:4.2em; font-variant-numeric:tabular-nums}
+.cur-group.off .sizer{opacity:.45}
 .more{padding:24px 0 8px; text-align:center; color:var(--muted); font-size:13px}
 
 #peek{
@@ -194,7 +197,14 @@ dialog input{width:100%; margin-bottom:14px}
   <span class="status" id="status" aria-live="polite"></span>
   <button type="button" class="shuffle" id="shuffle">シャッフル</button>
   <button type="button" class="icon-btn" id="capToggle" aria-pressed="true" title="タグとコレクションの表示を切り替えます（キー C）">キャプション</button>
-  <button type="button" class="icon-btn" id="curToggle" aria-pressed="true" title="マウスを止めて少したつとカーソルを隠します。隠れている間はカードに反応しません（キー H）">カーソル非表示</button>
+  <span class="cur-group" id="curGroup">
+    <button type="button" class="icon-btn" id="curToggle" aria-pressed="true" title="マウスを止めて少したつとカーソルを隠します。隠れている間はカードに反応しません（キー H）">カーソル非表示</button>
+    <label class="sizer" for="wake" title="隠れたカーソルが戻るまでに必要な、ひと続きのマウス移動の距離">
+      <span aria-hidden="true">戻り</span>
+      <input type="range" id="wake" min="30" max="1200" step="10" aria-label="カーソルが戻るまでの移動距離">
+      <output id="wakeVal" for="wake" class="wake-val"></output>
+    </label>
+  </span>
   <button type="button" class="icon-btn" id="refresh" title="Raindrop から最新のブックマークを読み込み直します">更新</button>
   <button type="button" class="icon-btn" id="settings" aria-label="設定">設定</button>
 </header>
@@ -253,6 +263,7 @@ const state = {
   count: store.get('count', 40),
   cap: store.get('cap', true),
   hideCur: store.get('hidecur', true),
+  wakePx: store.get('wakepx', 360),
   col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
 };
 // cache: { savedAt, items:[{i,t,l,c,d,k,g}], colls:[{id,label,parent}], tags:[{name,count}] }
@@ -832,7 +843,6 @@ capBtn.addEventListener('click', toggleCap);
 const curBtn = $('curToggle');
 const canHover = matchMedia('(hover:hover)').matches;
 const IDLE_MS = 1500;
-const WAKE_PX = 60;      // 隠れている間、ひと続きの動きでこれだけ動かしたら戻す
 const STROKE_GAP = 250;  // これ以上間があいたら別の動きとして数え直す
 let idleTimer = 0, lastX = null, lastY = null, travel = 0, lastMoveAt = 0;
 function setIdle(on){ document.body.classList.toggle('cur-idle', on); }
@@ -856,14 +866,27 @@ document.addEventListener('mousemove', e => {
     if(now - lastMoveAt > STROKE_GAP) travel = 0;
     lastMoveAt = now;
     travel += d;
-    if(travel < WAKE_PX) return;
+    if(travel < state.wakePx) return;
   }
   travel = 0;
   wake();
 }, {passive:true});
 document.documentElement.addEventListener('mouseleave', () => clearTimeout(idleTimer));
+const wakeInput = $('wake'), wakeVal = $('wakeVal');
+function applyWake(){
+  const v = Number(state.wakePx);
+  state.wakePx = Number.isFinite(v) ? Math.min(1200, Math.max(30, v)) : 360;
+  wakeInput.value = String(state.wakePx);
+  wakeVal.textContent = state.wakePx + 'px';
+}
+wakeInput.addEventListener('input', () => {
+  state.wakePx = Number(wakeInput.value);
+  store.set('wakepx', state.wakePx);
+  applyWake();
+});
 function applyCur(){
   curBtn.setAttribute('aria-pressed', String(state.hideCur));
+  $('curGroup').classList.toggle('off', !state.hideCur);
   if(state.hideCur) armIdle(); else { clearTimeout(idleTimer); setIdle(false); }
 }
 function toggleCur(){
@@ -937,6 +960,7 @@ document.addEventListener('keydown', e => {
 });
 
 applyCap();
+applyWake();
 applyCur();
 applySize();
 countSel.value = String(state.count);
