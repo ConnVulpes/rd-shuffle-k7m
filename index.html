@@ -413,14 +413,69 @@ function thumbs(it){
     seen.add(url);
     list.push({ url, video: type === 'video' || VIDEO_EXT.test(url) });
   };
-  add(it.c, '');
-  (it.m || []).forEach(x => add(x.l, x.t));
+  const px = u => u.replace('://i.pximg.net/', '://i.pixiv.re/');
+  add(px(it.c || ''), '');
+  (it.m || []).forEach(x => add(px(x.l), x.t));
   return list;
+}
+
+// Thumbnails for sites that block direct embedding, found through public helper services.
+const thumbCache = store.get('thumbs', {});
+let thumbSaveTimer = 0;
+function rememberThumb(link, url){
+  thumbCache[link] = url;
+  clearTimeout(thumbSaveTimer);
+  thumbSaveTimer = setTimeout(() => {
+    const keys = Object.keys(thumbCache);
+    if(keys.length > 3000) keys.slice(0, keys.length - 3000).forEach(k => delete thumbCache[k]);
+    store.set('thumbs', thumbCache);
+  }, 1000);
+}
+
+async function siteThumbs(it){
+  let u;
+  try{ u = new URL(it.l); }catch(e){ return []; }
+  const host = u.hostname.replace(/^(www|mobile)\./, '');
+  if(host === 'pixiv.net'){
+    const m = u.pathname.match(/artworks\/(\d+)/) || (u.searchParams.get('illust_id') || '').match(/(\d+)/);
+    if(!m) return [];
+    return [`https://pixiv.re/${m[1]}.jpg`, `https://pixiv.re/${m[1]}-1.jpg`];
+  }
+  if(host === 'x.com' || host === 'twitter.com'){
+    const m = u.pathname.match(/status(?:es)?\/(\d+)/);
+    if(!m) return [];
+    if(it.l in thumbCache) return thumbCache[it.l] ? [thumbCache[it.l]] : [];
+    try{
+      const r = await fetch(`https://api.fxtwitter.com/status/${m[1]}`);
+      const j = r.ok ? await r.json() : null;
+      const media = j && j.tweet && j.tweet.media || {};
+      const photo = media.photos && media.photos[0] && media.photos[0].url;
+      const video = media.videos && media.videos[0] && media.videos[0].thumbnail_url;
+      const mosaic = media.mosaic && media.mosaic.formats && media.mosaic.formats.jpeg;
+      let url = photo || video || mosaic || '';
+      if(url && /pbs\.twimg\.com\/media\//.test(url) && !url.includes('?')) url += '?name=small';
+      if(r.ok || r.status === 404) rememberThumb(it.l, url);
+      return url ? [url] : [];
+    }catch(e){
+      return [];
+    }
+  }
+  return [];
 }
 
 // Shows the first candidate that loads; falls back to the next one, then to a letter tile.
 function mediaEl(it, list, i){
-  if(i >= list.length) return placeholder(it);
+  if(i >= list.length){
+    if(list.extra) return placeholder(it);
+    const ph = placeholder(it);
+    siteThumbs(it).then(urls => {
+      if(!urls.length || !ph.isConnected) return;
+      const more = urls.map(url => ({ url, video:false }));
+      more.extra = true;
+      ph.replaceWith(mediaEl(it, more, 0));
+    });
+    return ph;
+  }
   const cand = list[i];
   let el;
   if(cand.video){
