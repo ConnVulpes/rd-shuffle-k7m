@@ -85,7 +85,14 @@ main{padding:20px}
   background:var(--card); border-radius:6px; overflow:hidden;
   color:inherit; text-decoration:none;
 }
-.card img{display:block; width:100%; height:auto; background:var(--ph)}
+.card{position:relative}
+.card .thumb{display:block; width:100%; height:auto; background:var(--ph)}
+.badge{
+  position:absolute; top:8px; left:8px;
+  font-size:11px; font-weight:700; line-height:1;
+  padding:4px 7px; border-radius:4px;
+  color:var(--accent-ink); background:var(--accent);
+}
 .ph{
   display:flex; align-items:center; justify-content:center;
   aspect-ratio:4/3; background:var(--ph); color:var(--muted);
@@ -212,7 +219,9 @@ function compact(it){
     i: it._id,
     t: it.title || '',
     l: it.link,
-    c: it.cover || (it.media && it.media[0] && it.media[0].link) || '',
+    c: it.cover || '',
+    m: (it.media || []).filter(x => x && x.link).slice(0, 6).map(x => ({ l:x.link, t:x.type || '' })),
+    y: it.type || '',
     d: it.domain || '',
     k: k,
     g: it.tags || []
@@ -269,6 +278,7 @@ async function refreshAll(){
       items.push(compact(it));
     }));
     cache = {
+      v: 2,
       savedAt: Date.now(),
       items,
       colls: buildColls(roots, children),
@@ -392,23 +402,59 @@ function render(items){
   window.scrollTo({ top:0 });
 }
 
+const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
+
+// Thumbnail candidates in order: the cover, then each attached media item.
+function thumbs(it){
+  const list = [];
+  const seen = new Set();
+  const add = (url, type) => {
+    if(!url || seen.has(url)) return;
+    seen.add(url);
+    list.push({ url, video: type === 'video' || VIDEO_EXT.test(url) });
+  };
+  add(it.c, '');
+  (it.m || []).forEach(x => add(x.l, x.t));
+  return list;
+}
+
+// Shows the first candidate that loads; falls back to the next one, then to a letter tile.
+function mediaEl(it, list, i){
+  if(i >= list.length) return placeholder(it);
+  const cand = list[i];
+  let el;
+  if(cand.video){
+    el = document.createElement('video');
+    el.muted = true;
+    el.playsInline = true;
+    el.preload = 'metadata';
+    el.src = cand.url + (cand.url.includes('#') ? '' : '#t=0.1');
+  }else{
+    el = new Image();
+    el.loading = 'lazy';
+    el.decoding = 'async';
+    el.alt = '';
+    el.referrerPolicy = 'no-referrer';
+    el.src = cand.url;
+  }
+  el.className = 'thumb';
+  el.addEventListener('error', () => el.replaceWith(mediaEl(it, list, i + 1)), { once:true });
+  return el;
+}
+
 function card(it){
   const a = document.createElement('a');
   a.className = 'card';
   a.href = it.l;
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
-  if(it.c){
-    const img = new Image();
-    img.loading = 'lazy';
-    img.decoding = 'async';
-    img.alt = '';
-    img.referrerPolicy = 'no-referrer';
-    img.onerror = () => img.replaceWith(placeholder(it));
-    img.src = it.c;
-    a.append(img);
-  }else{
-    a.append(placeholder(it));
+  const list = thumbs(it);
+  a.append(mediaEl(it, list, 0));
+  if(it.y === 'video' || list.some(x => x.video)){
+    const b = document.createElement('span');
+    b.className = 'badge';
+    b.textContent = '動画';
+    a.append(b);
   }
   const cap = document.createElement('div');
   cap.className = 'cap';
@@ -505,7 +551,7 @@ document.addEventListener('keydown', e => {
 applySize();
 countSel.value = String(state.count);
 if(!['20', '40', '80'].includes(countSel.value)){ countSel.value = '40'; state.count = 40; }
-if(cache && !(cache.items && cache.colls && cache.tags)) cache = null;
+if(cache && !(cache.v === 2 && cache.items && cache.colls && cache.tags)) cache = null;
 if(cache) applyCache(); else fillPicker();
 if(!state.token){
   openSettings();
