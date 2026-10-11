@@ -80,8 +80,8 @@ select{max-width:280px}
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
 
 main{padding:20px}
-.grid{display:flex; align-items:flex-start; gap:16px}
-.col{flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:16px}
+.grid{display:flex; align-items:flex-start; justify-content:center; gap:var(--gap,16px)}
+.col{flex:0 0 var(--colw,250px); width:var(--colw,250px); min-width:0; display:flex; flex-direction:column; gap:var(--gap,16px)}
 .card{
   position:relative; display:block;
   background:var(--card); border-radius:6px; overflow:hidden;
@@ -100,7 +100,10 @@ main{padding:20px}
   font-size:42px; font-weight:700;
 }
 .cap{display:flex; flex-direction:column; gap:6px; padding:8px 10px 10px}
-.coll{font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cap-top{display:flex; align-items:baseline; gap:8px; min-width:0}
+.coll{flex:1; min-width:0; font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cap-top .none{flex:1; min-width:0; white-space:nowrap}
+.saved{flex:none; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
 .tags{display:flex; flex-wrap:wrap; gap:4px}
 .tag{font-size:11px; line-height:1.4; padding:1px 7px; border-radius:999px; color:var(--text); background:var(--field); border:1px solid var(--line)}
 .none{font-size:11px; color:var(--muted); font-style:italic}
@@ -167,23 +170,62 @@ dialog h2{font-size:16px; margin:0 0 10px}
 dialog p{font-size:13px; color:var(--muted); margin:0 0 12px}
 dialog input{width:100%; margin-bottom:14px}
 .row{display:flex; gap:10px; justify-content:flex-end}
+#tagBtn{max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text)}
+#tagDlg{width:min(520px,94vw); padding:18px}
+#tagDlg[open]{display:flex; flex-direction:column; gap:10px; max-height:86vh}
+#tagDlg h2{margin:0}
+#tagDlg input[type=search]{width:100%; margin:0}
+#tagMatchSeg{align-self:flex-start}
+#tagDlg h2:focus{outline:none}
+.tag-picked{display:flex; flex-wrap:wrap; gap:6px; min-height:24px}
+.tag-picked .tag{cursor:pointer; font:inherit; font-size:12px}
+.tag-picked .tag::after{content:" ×"; color:var(--muted)}
+.tag-list{flex:1; min-height:120px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:4px 0}
+.tag-list label{display:flex; align-items:center; gap:10px; padding:7px 12px; cursor:pointer; font-size:14px}
+.tag-list label:hover{background:var(--field)}
+.tag-list input{width:auto; margin:0; accent-color:var(--accent)}
+.tag-list .cnt{margin-left:auto; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums}
+.tag-foot{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.tag-foot .hit{color:var(--muted); font-size:13px; margin-right:auto}
+@media (max-width:640px){
+  #tagBtn{max-width:100%}
+  #tagDlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
+  #tagDlg[open]{max-height:100dvh}
+  .tag-foot .hit{flex-basis:100%}
+  .tag-foot #tagClear{margin-right:auto}
+}
 
+#barToggle{display:none}
 @media (max-width:640px){
   header{padding:10px 16px}
   main{padding:16px}
   select{max-width:100%}
+  /* スマホでは上のバーをたためる */
+  #barToggle{
+    display:inline-flex; align-items:center; justify-content:center;
+    margin-left:auto; width:36px; height:36px; padding:0;
+  }
+  #barToggle svg{transition:transform .2s}
+  body.bar-collapsed header > :not(h1):not(#shuffle):not(#barToggle){display:none}
+  body.bar-collapsed header{padding:8px 16px}
+  body.bar-collapsed h1{flex:1}
+  body.bar-collapsed #shuffle{padding:6px 16px}
+  body.bar-collapsed #barToggle{margin-left:0; order:2}
+  body.bar-collapsed #barToggle svg{transform:rotate(180deg)}
 }
 </style>
 </head>
 <body>
 <header>
   <h1>Raindrop シャッフル</h1>
+  <button type="button" class="icon-btn" id="barToggle" aria-expanded="true" aria-label="メニューをたたむ"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 10l4.5-4.5 4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   <div class="seg" id="modeSeg" role="group" aria-label="範囲">
     <button type="button" data-mode="all">すべて</button>
     <button type="button" data-mode="folder">フォルダ</button>
     <button type="button" data-mode="tag">タグ</button>
   </div>
-  <select id="picker" aria-label="フォルダまたはタグ" hidden></select>
+  <select id="picker" aria-label="フォルダ" hidden></select>
+  <button type="button" class="icon-btn" id="tagBtn" hidden>タグを選ぶ</button>
   <select id="count" aria-label="一度に読み込む件数">
     <option value="20">20件ずつ</option>
     <option value="40">40件ずつ</option>
@@ -191,7 +233,7 @@ dialog input{width:100%; margin-bottom:14px}
   </select>
   <label class="sizer" for="size" title="表示サイズ（キー 1・2・3 で小・中・大）">
     <span aria-hidden="true">小</span>
-    <input type="range" id="size" min="170" max="380" step="5" aria-label="表示サイズ">
+    <input type="range" id="size" min="90" max="380" step="5" aria-label="表示サイズ">
     <span aria-hidden="true">大</span>
   </label>
   <span class="spacer"></span>
@@ -235,6 +277,23 @@ dialog input{width:100%; margin-bottom:14px}
   <div class="peek-body" id="peekBody"></div>
 </dialog>
 
+<dialog id="tagDlg" aria-labelledby="tagDlgTitle">
+  <h2 id="tagDlgTitle" tabindex="-1" autofocus>タグを選ぶ</h2>
+  <input type="search" id="tagSearch" placeholder="タグを絞り込む" autocomplete="off">
+  <div class="seg" id="tagMatchSeg" role="group" aria-label="複数選んだときの条件">
+    <button type="button" data-match="any">どれかを含む</button>
+    <button type="button" data-match="all">すべて含む</button>
+  </div>
+  <div class="tag-picked" id="tagPicked"></div>
+  <div class="tag-list" id="tagList"></div>
+  <div class="tag-foot">
+    <span class="hit" id="tagHit"></span>
+    <button type="button" class="icon-btn" id="tagClear">選択を解除</button>
+    <button type="button" class="icon-btn" id="tagCancel">キャンセル</button>
+    <button type="button" class="shuffle" id="tagOk">決定</button>
+  </div>
+</dialog>
+
 <dialog id="dlg">
   <form method="dialog" id="tokenForm">
     <h2>Raindrop のトークン</h2>
@@ -261,9 +320,12 @@ const state = {
   mode: store.get('mode', 'all'),
   coll: store.get('coll', ''),
   tag: store.get('tag', ''),
+  tags: store.get('tags', null),
+  tagMatch: store.get('tagmatch', 'any'),
   count: store.get('count', 40),
   cap: store.get('cap', true),
   hideCur: store.get('hidecur', true),
+  barOpen: store.get('bar', true),
   wakePx: store.get('wakepx', 360),
   col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
 };
@@ -306,7 +368,8 @@ function compact(it){
     y: it.type || '',
     d: it.domain || '',
     k: k,
-    g: it.tags || []
+    g: it.tags || [],
+    a: (it.created || '').slice(0, 10)
   };
 }
 
@@ -411,8 +474,10 @@ function descendants(id){
 
 function fillPicker(){
   document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)));
-  picker.hidden = state.mode === 'all';
+  picker.hidden = state.mode !== 'folder';
+  tagBtn.hidden = state.mode !== 'tag';
   picker.innerHTML = '';
+  if(state.mode === 'tag'){ syncTags(); return; }
   if(state.mode === 'all') return;
   if(!cache){
     picker.append(new Option('読み込み中…', ''));
@@ -435,6 +500,91 @@ function savePick(){
   if(state.mode === 'folder'){ state.coll = picker.value; store.set('coll', state.coll); }
   if(state.mode === 'tag'){ state.tag = picker.value; store.set('tag', state.tag); }
 }
+
+// ---- タグの複数選択 ----
+const tagBtn = $('tagBtn'), tagDlg = $('tagDlg'), tagListEl = $('tagList'), tagSearch = $('tagSearch');
+if(!Array.isArray(state.tags)) state.tags = state.tag ? [state.tag] : [];
+let draftTags = new Set(), draftMatch = 'any';
+
+function tagFilter(tags, match){
+  const set = new Set(tags);
+  return match === 'all'
+    ? x => tags.every(t => x.g.includes(t))
+    : x => x.g.some(t => set.has(t));
+}
+// 消えたタグを選択から外し、ボタンの表示を合わせる
+function syncTags(){
+  if(cache){
+    const names = new Set(cache.tags.map(t => t.name));
+    const kept = state.tags.filter(t => names.has(t));
+    if(kept.length !== state.tags.length){ state.tags = kept; store.set('tags', kept); }
+  }
+  const n = state.tags.length;
+  tagBtn.textContent = !n ? 'タグを選ぶ'
+    : state.tags.map(t => '#' + t).join(state.tagMatch === 'all' ? ' かつ ' : ' / ');
+  tagBtn.title = n ? (state.tagMatch === 'all' ? 'すべて含む: ' : 'どれかを含む: ') + state.tags.join('、') : '';
+}
+function renderTagDlg(){
+  document.querySelectorAll('#tagMatchSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.match === draftMatch)));
+  const picked = $('tagPicked');
+  picked.innerHTML = '';
+  if(!draftTags.size){
+    const n = document.createElement('span'); n.className = 'none'; n.textContent = 'まだ選んでいません';
+    picked.append(n);
+  }
+  draftTags.forEach(t => {
+    const chip = document.createElement('button');
+    chip.type = 'button'; chip.className = 'tag'; chip.textContent = '#' + t;
+    chip.title = '外す';
+    chip.addEventListener('click', () => { draftTags.delete(t); renderTagDlg(); });
+    picked.append(chip);
+  });
+  const q = tagSearch.value.trim().toLowerCase();
+  tagListEl.innerHTML = '';
+  const tags = cache ? cache.tags : [];
+  tags.filter(t => !q || t.name.toLowerCase().includes(q)).forEach(t => {
+    const row = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = draftTags.has(t.name);
+    cb.addEventListener('change', () => { cb.checked ? draftTags.add(t.name) : draftTags.delete(t.name); renderTagDlg(); });
+    const name = document.createElement('span'); name.textContent = t.name;
+    const cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.textContent = t.count;
+    row.append(cb, name, cnt);
+    tagListEl.append(row);
+  });
+  if(!tagListEl.children.length){
+    const n = document.createElement('div'); n.className = 'none'; n.style.padding = '8px 12px';
+    n.textContent = tags.length ? '該当するタグがありません' : 'タグがありません';
+    tagListEl.append(n);
+  }
+  const hit = draftTags.size && cache ? cache.items.filter(tagFilter([...draftTags], draftMatch)).length : 0;
+  $('tagHit').textContent = draftTags.size ? `該当 ${hit.toLocaleString()}件` : '';
+  $('tagOk').disabled = !draftTags.size;
+}
+function openTagDlg(){
+  draftTags = new Set(state.tags);
+  draftMatch = state.tagMatch;
+  tagSearch.value = '';
+  renderTagDlg();
+  const y = tagListEl.scrollTop;
+  tagDlg.showModal();
+  tagListEl.scrollTop = y;
+}
+tagBtn.addEventListener('click', openTagDlg);
+tagSearch.addEventListener('input', renderTagDlg);
+document.querySelectorAll('#tagMatchSeg button').forEach(b => b.addEventListener('click', () => { draftMatch = b.dataset.match; renderTagDlg(); }));
+$('tagClear').addEventListener('click', () => { draftTags.clear(); renderTagDlg(); });
+$('tagCancel').addEventListener('click', () => tagDlg.close());
+$('tagOk').addEventListener('click', () => {
+  state.tags = [...draftTags];
+  state.tagMatch = draftMatch;
+  store.set('tags', state.tags);
+  store.set('tagmatch', state.tagMatch);
+  tagDlg.close();
+  syncTags();
+  if(cache) shuffle();
+});
+tagDlg.addEventListener('click', e => { if(e.target === tagDlg) tagDlg.close(); });
 
 function shuffleArray(a){
   for(let i = a.length - 1; i > 0; i--){
@@ -459,8 +609,8 @@ function shuffle(){
     pool = pool.filter(x => ids.has(x.k));
   }
   if(state.mode === 'tag'){
-    if(!state.tag){ statusEl.textContent = 'タグを選んでください。'; return; }
-    pool = pool.filter(x => x.g.includes(state.tag));
+    if(!state.tags.length){ statusEl.textContent = 'タグを選んでください。'; return; }
+    pool = pool.filter(tagFilter(state.tags, state.tagMatch));
   }
   order = shuffleArray(pool.slice());
   poolSize = order.length;
@@ -500,14 +650,20 @@ let cols = [];
 let colCount = 0;
 let cardEls = [];
 
+// 小さいカードほど隙間も詰める
+function gapFor(col){ return Math.round(Math.min(16, Math.max(8, col * 0.07))); }
 function wantedCols(){
-  const gap = 16;
+  const gap = gapFor(state.col);
   const w = grid.clientWidth || document.documentElement.clientWidth;
   return Math.max(1, Math.floor((w + gap) / (state.col + gap)));
 }
 
 function layout(force){
   const n = wantedCols();
+  // カードは指定した幅のまま並べる（横幅いっぱいに引き伸ばさない）
+  const w = grid.clientWidth || document.documentElement.clientWidth;
+  grid.style.setProperty('--gap', gapFor(state.col) + 'px');
+  grid.style.setProperty('--colw', Math.min(state.col, w) + 'px');
   if(!force && n === colCount) return;
   colCount = n;
   grid.innerHTML = '';
@@ -653,6 +809,16 @@ function captionEl(it){
   const name = collName(it);
   if(name){ c.textContent = name; c.title = name; }
   else { c.className = 'none'; c.textContent = 'コレクションなし'; }
+  const top = document.createElement('div');
+  top.className = 'cap-top';
+  top.append(c);
+  if(it.a){
+    const dt = document.createElement('span');
+    dt.className = 'saved';
+    dt.textContent = it.a.replace(/-/g, '/');
+    dt.title = '保存日';
+    top.append(dt);
+  }
   const tags = document.createElement('div');
   tags.className = 'tags';
   if(it.g && it.g.length){
@@ -668,7 +834,7 @@ function captionEl(it){
     n.textContent = 'タグなし';
     tags.append(n);
   }
-  cap.append(c, tags);
+  cap.append(top, tags);
   return cap;
 }
 
@@ -851,7 +1017,7 @@ function armIdle(){
   clearTimeout(idleTimer);
   if(!state.hideCur || !canHover) return;
   idleTimer = setTimeout(() => {
-    if(dlg.open || peek.open) return armIdle();
+    if(dlg.open || peek.open || tagDlg.open) return armIdle();
     setIdle(true);
   }, IDLE_MS);
 }
@@ -911,7 +1077,7 @@ addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setT
 const sizeInput = $('size');
 function applySize(){
   const v = Number(state.col);
-  state.col = Number.isFinite(v) ? Math.min(380, Math.max(170, v)) : 250;
+  state.col = Number.isFinite(v) ? Math.min(380, Math.max(90, v)) : 250;
   sizeInput.value = String(state.col);
   layout(false);
 }
@@ -951,7 +1117,7 @@ $('tokenForm').addEventListener('submit', () => {
 document.addEventListener('keydown', e => {
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
-  if(['input', 'select', 'textarea'].includes(tag) || dlg.open || peek.open) return;
+  if(['input', 'select', 'textarea'].includes(tag) || dlg.open || peek.open || tagDlg.open) return;
   if(e.key === 'c' || e.key === 'C') toggleCap();
   if(e.key === 'h' || e.key === 'H') toggleCur();
   if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); shuffle(); }
@@ -960,6 +1126,20 @@ document.addEventListener('keydown', e => {
   if(e.key === '3') setSize(380);
 });
 
+// スマホで上のバーをたたむ
+const barBtn = $('barToggle');
+function applyBar(){
+  document.body.classList.toggle('bar-collapsed', !state.barOpen);
+  barBtn.setAttribute('aria-expanded', String(state.barOpen));
+  barBtn.setAttribute('aria-label', state.barOpen ? 'メニューをたたむ' : 'メニューをひらく');
+}
+barBtn.addEventListener('click', () => {
+  state.barOpen = !state.barOpen;
+  store.set('bar', state.barOpen);
+  applyBar();
+});
+
+applyBar();
 applyCap();
 applyWake();
 applyCur();
@@ -972,7 +1152,9 @@ if(!state.token){
   openSettings();
 }else if(cache){
   shuffle();
-  if(Date.now() - cache.savedAt > DAY) refreshAll();
+  // 保存日を持っていない古いキャッシュは、表示したまま裏で取り直す
+  const noDates = cache.items.length && !('a' in cache.items[0]);
+  if(noDates || Date.now() - cache.savedAt > DAY) refreshAll();
 }else{
   refreshAll();
 }
