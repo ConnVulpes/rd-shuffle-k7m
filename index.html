@@ -335,6 +335,61 @@ body.cur-idle .rd-btn{opacity:0 !important}
   .card:hover .rd-btn,.rd-btn:focus-visible{opacity:.9}
 }
 
+/* 複数選択：左上のチェック・選んだカード・下のバー */
+.sel-box{
+  position:absolute; top:8px; left:8px; z-index:1; width:26px; height:26px; padding:4px; border-radius:7px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  color:transparent; background:rgba(20,22,25,.45); border:1.5px solid rgba(255,255,255,.85);
+  box-shadow:0 1px 4px rgba(0,0,0,.35); opacity:0; transition:opacity .12s;
+}
+.sel-box svg{width:100%; height:100%}
+@media (hover:hover){ .card:hover .sel-box, .sel-box:focus-visible{opacity:1} }
+body.selecting .sel-box{opacity:1}
+.card.picked .sel-box{color:var(--accent-ink); background:var(--accent); border-color:var(--accent)}
+.card.picked{outline:3px solid var(--accent); outline-offset:-3px}
+.card.picked .card-link{opacity:.82}
+.badge{transition:left .12s}
+@media (hover:hover){ .card:hover .badge{left:42px} }
+body.selecting .badge{left:42px}
+.card-link{-webkit-touch-callout:none}
+/* 今の絞り込みから外れたカード（移動したものなど）は薄く */
+.card.gone{opacity:.32}
+.card.gone:hover{opacity:.7}
+body.selecting main{padding-bottom:96px}
+.selbar{
+  position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:4;
+  width:min(760px, calc(100% - 24px)); display:flex; flex-direction:column; gap:8px;
+}
+.selbar[hidden]{display:none}
+.sel-row{
+  display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:12px;
+  background:var(--card); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4);
+}
+.sel-count{font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
+.sel-btn{font:inherit; font-size:13px; white-space:nowrap; height:34px; padding:0 12px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer}
+.sel-btn.main[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.sel-x{font:inherit; font-size:18px; line-height:1; width:34px; height:34px; flex:none; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
+.sel-pop{
+  max-height:min(60vh, 520px); overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:10px; padding:14px;
+  background:var(--card); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.4); font-size:14px;
+}
+.sel-pop[hidden]{display:none}
+.sel-pop .ed-list{max-height:none}
+.sel-go{margin-left:auto; height:32px; padding:0 14px; font-size:13px}
+.sel-go:disabled{opacity:.5; cursor:default}
+.ed-picker, .ed-chooser{display:flex; flex-direction:column; gap:8px}
+.ed-tag:disabled{opacity:.45; cursor:default}
+.ed-drop{display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 12px; border:1.5px dashed var(--line); border-radius:10px; text-align:center; font-size:12px; color:var(--muted)}
+.ed-drop.over{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent)}
+/* お知らせをページの下に出すとき（プレビューの外） */
+.lb-toast.page{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:6}
+body.selecting .lb-toast.page{bottom:calc(84px + env(safe-area-inset-bottom))}
+@media (max-width:640px){
+  .sel-row{gap:6px; padding:8px}
+  .sel-btn{padding:0 9px}
+  #selAll{display:none}
+}
+
 .empty{max-width:520px; margin:12vh auto; text-align:center; color:var(--muted)}
 .empty p{margin:0 0 8px}
 
@@ -470,6 +525,18 @@ dialog input{width:100%; margin-bottom:14px}
   </div>
 </main>
 
+<div class="selbar" id="selBar" hidden>
+  <div class="sel-pop" id="selPop" hidden></div>
+  <div class="sel-row">
+    <button type="button" class="sel-x" id="selClose" aria-label="選択をやめる" title="選択をやめる（Esc）">×</button>
+    <span class="sel-count" id="selCount"></span>
+    <button type="button" class="sel-btn" id="selAll" title="今表示しているカードを全部選ぶ">全部選ぶ</button>
+    <span class="spacer"></span>
+    <button type="button" class="sel-btn main" id="selMove" aria-pressed="false">フォルダへ移動</button>
+    <button type="button" class="sel-btn main" id="selTag" aria-pressed="false">タグを追加</button>
+  </div>
+</div>
+
 <dialog id="peek" aria-label="プレビュー">
   <div class="lb-top">
     <span class="peek-pos" id="peekPos"></span>
@@ -562,11 +629,11 @@ const state = {
   wakePx: store.get('wakepx', 360),
   col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
 };
-// cache: { savedAt, items:[{i,t,l,c,d,k,g}], colls:[{id,label,parent}], tags:[{name,count}] }
+// cache: { savedAt, items:[{i:ID, t:タイトル, l:URL, c:カバー, m:添付, y:種類, d:ドメイン, k:フォルダID, g:タグ, a:保存日}], colls:[{id,label,parent}], tags:[{name,count}] }
 let cache = store.get('cache', null);
-let kids = new Map();      // folder id -> child folder ids
-let folderCount = new Map();
-let collLabel = new Map();  // folder id -> "親 / 子" label
+let kids = new Map();       // フォルダID → 子フォルダのID
+let folderCount = new Map(); // フォルダID → 中の件数（子フォルダも含む）
+let collLabel = new Map();   // フォルダID → 「親 / 子」の表示名
 let refreshing = false;
 
 const $ = id => document.getElementById(id);
@@ -574,17 +641,25 @@ const grid = $('grid'), empty = $('empty'), statusEl = $('status');
 const countSel = $('count'), shuffleBtn = $('shuffle'), refreshBtn = $('refresh');
 const dlg = $('dlg'), tokenInput = $('tokenInput');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// 要素を作る小さな道具：el('div', 'クラス', '中の文字')
+const el = (tag, cls, text) => { const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; };
 
-async function api(path, tries = 0){
+// Raindrop への問い合わせはすべてここを通す。
+// 読み込みが上限に当たったら少し待ってやり直す。書き込みはすぐ失敗として返す（元に戻せるように）
+async function api(path, { method = 'GET', body } = {}, tries = 0){
+  const headers = { Authorization:'Bearer ' + state.token };
+  let payload;
+  if(body instanceof FormData) payload = body;
+  else if(body !== undefined){ headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
   let res;
-  try{ res = await fetch(API + path, { headers:{ Authorization:'Bearer ' + state.token } }); }
+  try{ res = await fetch(API + path, { method, headers, body:payload }); }
   catch(e){ throw new Error('network'); }
   if(res.status === 401) throw new Error('auth');
   if(res.status === 429){
-    if(tries >= 3) throw new Error('rate');
+    if(method !== 'GET' || tries >= 3) throw new Error('rate');
     statusEl.textContent = '読み込みの上限に近いので、少し待っています…';
     await sleep(20000);
-    return api(path, tries + 1);
+    return api(path, { method, body }, tries + 1);
   }
   if(!res.ok) throw new Error('http');
   return res.json();
@@ -618,7 +693,18 @@ function buildColls(roots, children){
     .sort((a, b) => a.label.localeCompare(b.label, 'ja'));
 }
 
-// Loads every bookmark once, a few pages at a time, and keeps a compact copy in this browser.
+// フォルダとタグの一覧を取る（全部読み込み直すときと、新着を取るときの両方で使う）
+async function loadMeta(){
+  const [roots, children, tagRes] = await Promise.all([
+    api('/collections'), api('/collections/childrens'), api('/tags/0')
+  ]);
+  return {
+    colls: buildColls(roots, children),
+    tags: (tagRes.items || []).map(t => ({ name:t._id, count:t.count || 0 })).sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+  };
+}
+
+// ブックマークを全部、数ページずつ並行して読み込み、軽くした形でこのブラウザに保存する
 async function refreshAll(){
   if(!state.token){ openSettings(); return; }
   if(refreshing) return;
@@ -626,9 +712,7 @@ async function refreshAll(){
   refreshBtn.disabled = true;
   if(!cache) setShuffleBusy(true);
   try{
-    const [roots, children, tagRes] = await Promise.all([
-      api('/collections'), api('/collections/childrens'), api('/tags/0')
-    ]);
+    const meta = await loadMeta();
     const first = await api(`/raindrops/0?perpage=${PER}&page=0`);
     const total = first.count || 0;
     const pages = Math.ceil(total / PER);
@@ -655,14 +739,7 @@ async function refreshAll(){
       seen.add(it._id);
       items.push(compact(it));
     }));
-    cache = {
-      v: 2,
-      savedAt: Date.now(),
-      items,
-      colls: buildColls(roots, children),
-      tags: (tagRes.items || []).map(t => ({ name:t._id, count:t.count || 0 }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
-    };
+    cache = { v:2, savedAt:Date.now(), items, colls:meta.colls, tags:meta.tags };
     const saved = store.set('cache', cache);
     applyCache();
     newNote = '';
@@ -712,17 +789,7 @@ function descendants(id){
 const NO_TAG = '\u0000none';
 const TYPE_LABEL = { image:'画像', video:'動画', article:'記事', link:'リンク', document:'ドキュメント', audio:'音声' };
 const emptyFilter = () => ({ fi:[], fx:[], ti:[], tx:[], tm:'any', type:'', q:'' });
-// 前の版の設定（すべて／フォルダ／タグ、種類）を引き継ぐ
-if(!state.filter){
-  const f = emptyFilter();
-  const mode = store.get('mode', 'all');
-  if(mode === 'folder' && store.get('coll', '')) f.fi = [Number(store.get('coll', ''))];
-  if(mode === 'tag'){ const t = store.get('tags', null); f.ti = Array.isArray(t) ? t : (store.get('tag', '') ? [store.get('tag', '')] : []); }
-  f.tm = store.get('tagmatch', 'any');
-  f.type = store.get('type', '');
-  state.filter = f;
-}
-state.filter = Object.assign(emptyFilter(), state.filter);
+state.filter = Object.assign(emptyFilter(), state.filter || {});
 
 function unionDesc(ids){
   const s = new Set();
@@ -747,7 +814,6 @@ function makeFilter(f){
     return true;
   };
 }
-const filterCount = f => f.fi.length + f.fx.length + f.ti.length + f.tx.length + (f.type ? 1 : 0) + (f.q ? 1 : 0);
 const folderShort = id => id === -1 ? '未整理' : ((collLabel.get(id) || '').split(' / ').pop() || '（消えたフォルダ）');
 const tagName = t => t === NO_TAG ? 'タグなし' : '#' + t;
 
@@ -796,15 +862,12 @@ function toggleIn(listIn, listEx, v, which){
   if(which === 'ex' && e < 0) listEx.push(v);
 }
 function triButtons(isIn, isEx, onIn, onEx){
-  const box = document.createElement('span');
-  box.className = 'tri';
-  const a = document.createElement('button');
-  a.type = 'button'; a.className = 'inc'; a.textContent = '含む'; a.setAttribute('aria-pressed', String(isIn));
-  a.addEventListener('click', onIn);
-  const b = document.createElement('button');
-  b.type = 'button'; b.className = 'exc'; b.textContent = '除く'; b.setAttribute('aria-pressed', String(isEx));
-  b.addEventListener('click', onEx);
-  box.append(a, b);
+  const box = el('span', 'tri');
+  [['inc', '含む', isIn, onIn], ['exc', '除く', isEx, onEx]].forEach(([cls, label, on, fn]) => {
+    const b = el('button', cls, label); b.type = 'button'; b.setAttribute('aria-pressed', String(on));
+    b.addEventListener('click', fn);
+    box.append(b);
+  });
   return box;
 }
 function renderFilterDlg(){
@@ -813,8 +876,7 @@ function renderFilterDlg(){
   const picked = $('fdPicked');
   picked.innerHTML = '';
   const chip = (text, ex, onRemove) => {
-    const c = document.createElement('button');
-    c.type = 'button'; c.className = 'chip' + (ex ? ' ex' : ''); c.textContent = text; c.title = '外す';
+    const c = el('button', 'chip' + (ex ? ' ex' : ''), text); c.type = 'button'; c.title = '外す';
     c.addEventListener('click', () => { onRemove(); renderFilterDlg(); });
     picked.append(c);
   };
@@ -824,10 +886,7 @@ function renderFilterDlg(){
   f.tx.forEach(t => chip('除く ' + tagName(t), true, () => toggleIn(f.ti, f.tx, t, '')));
   if(f.type) chip(TYPE_LABEL[f.type], false, () => { f.type = ''; });
   if(f.q) chip(`「${f.q}」`, false, () => { f.q = ''; $('fdQ').value = ''; });
-  if(!picked.children.length){
-    const n = document.createElement('span'); n.className = 'none'; n.textContent = '条件なし（すべてを表示）';
-    picked.append(n);
-  }
+  if(!picked.children.length) picked.append(el('span', 'none', '条件なし（すべてを表示）'));
 
   document.querySelectorAll('#fdTabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === fdTab)));
   $('fdListPane').hidden = fdTab === 'other';
@@ -853,27 +912,18 @@ function renderFilterDlg(){
     }
     rows.filter(r => !q || r.label.toLowerCase().includes(q)).forEach(r => {
       const isIn = r.inL.includes(r.key), isEx = r.exL.includes(r.key);
-      const row = document.createElement('div');
-      row.className = 'fd-row' + (isIn ? ' in' : isEx ? ' ex' : '');
-      const nm = document.createElement('span');
-      nm.className = 'nm';
+      const row = el('div', 'fd-row' + (isIn ? ' in' : isEx ? ' ex' : ''));
+      const nm = el('span', 'nm');
       const segs = r.label.split(' / ');
-      if(segs.length > 1){
-        const path = document.createElement('span'); path.className = 'path'; path.textContent = segs.slice(0, -1).join(' / ') + ' / ';
-        nm.append(path, document.createTextNode(segs[segs.length - 1]));
-      }else nm.textContent = r.label;
+      if(segs.length > 1) nm.append(el('span', 'path', segs.slice(0, -1).join(' / ') + ' / '), segs[segs.length - 1]);
+      else nm.textContent = r.label;
       nm.title = r.label;
-      const cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.textContent = r.count.toLocaleString();
-      row.append(nm, cnt, triButtons(isIn, isEx,
+      row.append(nm, el('span', 'cnt', r.count.toLocaleString()), triButtons(isIn, isEx,
         () => { toggleIn(r.inL, r.exL, r.key, 'in'); renderFilterDlg(); },
         () => { toggleIn(r.inL, r.exL, r.key, 'ex'); renderFilterDlg(); }));
       fdList.append(row);
     });
-    if(!fdList.children.length){
-      const n = document.createElement('div'); n.className = 'none'; n.style.padding = '10px 12px';
-      n.textContent = '見つかりません';
-      fdList.append(n);
-    }
+    if(!fdList.children.length){ const n = el('div', 'none', '見つかりません'); n.style.padding = '10px 12px'; fdList.append(n); }
     fdList.scrollTop = y;
   }
   const hit = cache ? cache.items.filter(makeFilter(f)).length : 0;
@@ -916,8 +966,8 @@ function shuffleArray(a){
   return a;
 }
 
-// Shuffling happens entirely in the browser: no requests to Raindrop.
-// The whole filtered list is shuffled once; cards are added in batches as you scroll.
+// 並べ替えはすべてブラウザの中で行う（Raindrop には問い合わせない）。
+// 条件に合う全件を一度に並べ、スクロールに合わせて少しずつカードを足していく
 let newNote = '';
 // 新しく保存したブックマークだけを取りに行く（数リクエストで済む）
 let lastSync = 0;
@@ -940,14 +990,11 @@ async function syncNew(){
       if(p === 4){ refreshAll(); return; }  // 多すぎるときは全部読み直す
     }
     if(!fresh.length || refreshing) return;
-    const [roots, children, tagRes] = await Promise.all([
-      api('/collections'), api('/collections/childrens'), api('/tags/0')
-    ]);
+    const meta = await loadMeta();
     if(refreshing) return;
     cache.items = fresh.concat(cache.items);
-    cache.colls = buildColls(roots, children);
-    cache.tags = (tagRes.items || []).map(t => ({ name:t._id, count:t.count || 0 }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    cache.colls = meta.colls;
+    cache.tags = meta.tags;
     store.set('cache', cache);
     applyCache();
     if(state.sort === 'new' && window.scrollY < 200 && !peek.open){ newNote = ''; render(); }
@@ -989,6 +1036,7 @@ function shuffle(){
 function render(){
   if(!cache){ refreshAll(); return; }
   newNote = '';
+  clearSelection();
   const pool = cache.items.filter(makeFilter(state.filter));
   order = sortPool(pool);
   poolSize = order.length;
@@ -1012,16 +1060,16 @@ let placeGen = 0, placeQueue = Promise.resolve(), placing = 0;
 function appendMore(){
   const next = order.slice(shownCount, shownCount + state.count);
   const gen = placeGen;
-  const els = next.map(it => { const el = card(it); cardEls.push(el); return el; });
+  const els = next.map(it => { const c = card(it); cardEls.push(c); return c; });
   shownCount += next.length;
   placing += els.length;
   placeQueue = placeQueue.then(async () => {
-    for(const el of els){
+    for(const c of els){
       if(gen !== placeGen) return;
-      await Promise.race([el._ready, sleep(3000)]);
+      await Promise.race([c._ready, sleep(3000)]);
       if(gen !== placeGen) return;
-      el._placed = true;
-      placeCard(el);
+      c._placed = true;
+      placeCard(c);
       placing--;
     }
   });
@@ -1036,8 +1084,8 @@ function updateStatus(){
   if(newNote) statusEl.textContent += newNote;
 }
 
-// Masonry: a fixed set of columns, each new card goes into the shortest one,
-// so cards added while scrolling never shuffle the ones already on screen.
+// 石積みのような並べ方：列の数を決めておき、新しいカードはいちばん短い列に足す。
+// 後から足しても、もう表示しているカードは動かない
 let cols = [];
 let colCount = 0;
 let cardEls = [];
@@ -1066,7 +1114,7 @@ function layout(force){
     grid.append(c);
     cols.push(c);
   }
-  cardEls.filter(el => el._placed).forEach(placeCard);
+  cardEls.filter(c => c._placed).forEach(placeCard);
 }
 
 function placeCard(el){
@@ -1086,7 +1134,7 @@ function ago(t){
 
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 
-// Thumbnail candidates in order: the cover, then each attached media item.
+// サムネの候補を順に：カバー画像、続いて添付されている画像・動画
 function thumbs(it){
   const list = [];
   const seen = new Set();
@@ -1101,7 +1149,7 @@ function thumbs(it){
   return list;
 }
 
-// Thumbnails for sites that block direct embedding, found through public helper services.
+// 直接は画像を取れないサイト（pixiv・X）のサムネを、公開されている中継サービスで探す
 const thumbCache = store.get('thumbs', {});
 let thumbSaveTimer = 0;
 function rememberThumb(link, url){
@@ -1114,6 +1162,18 @@ function rememberThumb(link, url){
   }, 1000);
 }
 
+// X の投稿の情報（fxtwitter 経由）。サムネと動画の両方で同じ結果を使い回す。
+// sure = 「画像なし」と確定してよいか（通信の失敗では確定しない）
+const fxCache = new Map();
+function fxTweet(id){
+  if(!fxCache.has(id)){
+    fxCache.set(id, fetch(`https://api.fxtwitter.com/status/${id}`)
+      .then(r => r.ok ? r.json().then(j => ({ tweet:j.tweet || null, sure:true })) : { tweet:null, sure:r.status === 404 })
+      .catch(() => { fxCache.delete(id); return { tweet:null, sure:false }; }));
+  }
+  return fxCache.get(id);
+}
+
 async function siteThumbs(it){
   let u;
   try{ u = new URL(it.l); }catch(e){ return []; }
@@ -1123,36 +1183,27 @@ async function siteThumbs(it){
     if(!m) return [];
     return [`https://pixiv.re/${m[1]}.jpg`, `https://pixiv.re/${m[1]}-1.jpg`];
   }
-  if(host === 'x.com' || host === 'twitter.com'){
-    const m = u.pathname.match(/status(?:es)?\/(\d+)/);
-    if(!m) return [];
-    // '-' = 確認済みで画像なし。古い版が残した '' はもう一度確かめる
-    const hit = thumbCache[it.l];
-    if(hit === '-') return [];
-    if(hit) return [hit];
-    try{
-      const r = await fetch(`https://api.fxtwitter.com/status/${m[1]}`);
-      const j = r.ok ? await r.json() : null;
-      const media = j && j.tweet && j.tweet.media || {};
-      const photo = media.photos && media.photos[0] && media.photos[0].url;
-      const video = media.videos && media.videos[0] && media.videos[0].thumbnail_url;
-      const mosaic = media.mosaic && media.mosaic.formats && media.mosaic.formats.jpeg;
-      const qm = j && j.tweet && j.tweet.quote && j.tweet.quote.media || {};
-      const quote = (qm.photos && qm.photos[0] && qm.photos[0].url) || (qm.videos && qm.videos[0] && qm.videos[0].thumbnail_url);
-      const card = j && j.tweet && j.tweet.card && j.tweet.card.image && j.tweet.card.image.url;
-      let url = photo || video || mosaic || quote || card || '';
-      if(url && /pbs\.twimg\.com\/media\//.test(url) && !url.includes('?')) url += '?name=small';
-      if(r.ok || r.status === 404) rememberThumb(it.l, url || '-');
-      return url ? [url] : [];
-    }catch(e){
-      return [];
-    }
-  }
-  return [];
+  const id = xId(it.l);
+  if(!id) return [];
+  // '-' = 確認済みで画像なし
+  const hit = thumbCache[it.l];
+  if(hit === '-') return [];
+  if(hit) return [hit];
+  const { tweet, sure } = await fxTweet(id);
+  const t = tweet || {};
+  const first = (list, key) => list && list[0] && list[0][key];
+  const media = t.media || {}, qm = (t.quote && t.quote.media) || {};
+  let url = first(media.photos, 'url') || first(media.videos, 'thumbnail_url')
+    || (media.mosaic && media.mosaic.formats && media.mosaic.formats.jpeg)
+    || first(qm.photos, 'url') || first(qm.videos, 'thumbnail_url')
+    || (t.card && t.card.image && t.card.image.url) || '';
+  if(url && /pbs\.twimg\.com\/media\//.test(url) && !url.includes('?')) url += '?name=small';
+  if(sure) rememberThumb(it.l, url || '-');
+  return url ? [url] : [];
 }
 
-// Shows the first candidate that loads; falls back to the next one, then to a letter tile.
-// done() is called once the final element's size is known (used to place cards in balanced columns).
+// 候補を順に試して、最初に読み込めたものを表示する。全部だめならタイトルの文字で見せる。
+// done() は大きさが決まった時点で呼ぶ（列に偏りなく並べるのに使う）
 function mediaEl(it, list, i, done = () => {}, eager = false, big = false){
   if(i >= list.length){
     if(list.extra){ done(); return placeholder(it); }
@@ -1168,30 +1219,30 @@ function mediaEl(it, list, i, done = () => {}, eager = false, big = false){
   const cand = list[i];
   // 大きく見せるときは X の画像を大きいサイズで取る
   const src = big ? cand.url.replace(/([?&]name=)(small|medium|thumb|\w+x\w+)/, '$1large') : cand.url;
-  let el;
+  let node;
   if(cand.video){
-    el = document.createElement('video');
-    el.muted = true;
-    el.playsInline = true;
-    el.preload = 'metadata';
-    el.src = src + (src.includes('#') ? '' : '#t=0.1');
-    if(big){ el.controls = true; el.loop = true; }
-    el.addEventListener('loadedmetadata', done, { once:true });
+    node = document.createElement('video');
+    node.muted = true;
+    node.playsInline = true;
+    node.preload = 'metadata';
+    node.src = src + (src.includes('#') ? '' : '#t=0.1');
+    if(big){ node.controls = true; node.loop = true; }
+    node.addEventListener('loadedmetadata', done, { once:true });
   }else{
-    el = new Image();
-    el.loading = eager ? 'eager' : 'lazy';
-    el.addEventListener('load', done, { once:true });
-    el.decoding = 'async';
-    el.alt = '';
-    el.referrerPolicy = 'no-referrer';
-    el.src = src;
+    node = new Image();
+    node.loading = eager ? 'eager' : 'lazy';
+    node.addEventListener('load', done, { once:true });
+    node.decoding = 'async';
+    node.alt = '';
+    node.referrerPolicy = 'no-referrer';
+    node.src = src;
   }
-  el.className = 'thumb';
-  el.addEventListener('error', () => el.replaceWith(mediaEl(it, list, i + 1, done, eager, big)), { once:true });
-  return el;
+  node.className = 'thumb';
+  node.addEventListener('error', () => node.replaceWith(mediaEl(it, list, i + 1, done, eager, big)), { once:true });
+  return node;
 }
 
-// The bookmark's own page in the Raindrop web app.
+// Raindrop のアプリでのそのブックマークの編集ページ
 function raindropUrl(it){
   const coll = (it.k === 0 || it.k) ? it.k : 0;
   return `https://app.raindrop.io/my/${coll}/item/${it.i}/edit`;
@@ -1205,54 +1256,37 @@ function collName(it){
   return collLabel.get(it.k) || '';
 }
 
+// カードの下の文字：フォルダ名・保存日・タグ
 function captionEl(it){
-  const cap = document.createElement('div');
-  cap.className = 'cap';
-  const c = document.createElement('div');
-  c.className = 'coll';
   const name = collName(it);
-  if(name){ c.textContent = name; c.title = name; }
-  else { c.className = 'none'; c.textContent = 'コレクションなし'; }
-  const top = document.createElement('div');
-  top.className = 'cap-top';
+  const c = name ? el('div', 'coll', name) : el('div', 'none', 'コレクションなし');
+  if(name) c.title = name;
+  const top = el('div', 'cap-top');
   top.append(c);
-  if(it.a){
-    const dt = document.createElement('span');
-    dt.className = 'saved';
-    dt.textContent = it.a.replace(/-/g, '/');
-    dt.title = '保存日';
-    top.append(dt);
-  }
-  const tags = document.createElement('div');
-  tags.className = 'tags';
-  if(it.g && it.g.length){
-    it.g.forEach(g => {
-      const t = document.createElement('span');
-      t.className = 'tag';
-      t.textContent = '#' + g;
-      tags.append(t);
-    });
-  }else{
-    const n = document.createElement('span');
-    n.className = 'none';
-    n.textContent = 'タグなし';
-    tags.append(n);
-  }
+  if(it.a){ const dt = el('span', 'saved', it.a.replace(/-/g, '/')); dt.title = '保存日'; top.append(dt); }
+  const tags = el('div', 'tags');
+  if(it.g && it.g.length) it.g.forEach(g => tags.append(el('span', 'tag', '#' + g)));
+  else tags.append(el('span', 'none', 'タグなし'));
+  const cap = el('div', 'cap');
   cap.append(top, tags);
   return cap;
 }
 
+const cardOf = new WeakMap();   // ブックマーク → 表示しているカード
+const CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 function card(it){
-  const wrap = document.createElement('div');
-  wrap.className = 'card';
-  const a = document.createElement('a');
-  a.className = 'card-link';
+  const wrap = el('div', 'card');
+  const a = el('a', 'card-link');
   a.href = it.l;
   a.target = '_blank';
   a.rel = 'noopener noreferrer';
   a.title = it.t || it.l;
   a.addEventListener('click', e => {
-    // A plain click opens the preview; ⌘-click or a middle click still opens the site.
+    // 長押しで選んだ直後の「離した」クリックは無視する
+    if(wrap._long){ e.preventDefault(); wrap._long = false; return; }
+    // 選んでいる最中は、押すと選択の切り替え（Shift で範囲）
+    if(selected.size){ e.preventDefault(); pickCard(it, e.shiftKey); return; }
+    // 普通のクリックはプレビュー。⌘クリックや中ボタンはサイトを開く
     if(e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     openPeek(it);
@@ -1265,24 +1299,27 @@ function card(it){
   // X の GIF はサムネイルの URL で見分けられる
   const isGif = /tweet_video_thumb/.test(it.c || '');
   if(isGif || it.y === 'video' || list.some(x => x.video) || /(amplify|ext_tw)_video_thumb/.test(it.c || '')){
-    const b = document.createElement('span');
-    b.className = 'badge' + (isGif ? ' gif' : '');
-    b.textContent = isGif ? 'GIF' : '動画';
-    wrap.append(b);
+    wrap.append(el('span', 'badge' + (isGif ? ' gif' : ''), isGif ? 'GIF' : '動画'));
   }
-  const rd = document.createElement('a');
-  rd.className = 'rd-btn';
+  const rd = el('a', 'rd-btn');
   rd.href = raindropUrl(it);
   rd.target = '_blank';
   rd.rel = 'noopener';
   rd.title = 'Raindrop で開く';
   rd.setAttribute('aria-label', 'Raindrop で開く');
   rd.innerHTML = RD_ICON;
-  wrap.append(rd);
+  // 左上のチェック：押すと複数選択が始まる
+  const box = el('button', 'sel-box'); box.type = 'button';
+  box.title = '選択（Shift で範囲）'; box.setAttribute('aria-label', '選択');
+  box.innerHTML = CHECK_SVG;
+  box.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); pickCard(it, e.shiftKey); });
+  wrap.append(rd, box);
+  if(selected.has(it)) wrap.classList.add('picked');
+  cardOf.set(it, wrap);
   return wrap;
 }
 
-// ---- Preview ----
+// ---- プレビュー ----
 const peek = $('peek'), peekBody = $('peekBody');
 let peekItem = null;
 
@@ -1328,24 +1365,15 @@ function xId(url){
   if(host !== 'x.com' && host !== 'twitter.com') return '';
   return (u.pathname.match(/status(?:es)?\/(\d+)/) || [])[1] || '';
 }
-const xVideoCache = new Map();
 async function xVideo(id){
-  if(xVideoCache.has(id)) return xVideoCache.get(id);
-  let v = null;
-  try{
-    const j = await fetch(`https://api.fxtwitter.com/status/${id}`).then(r => r.ok ? r.json() : null);
-    const t = j && j.tweet || {};
-    const vids = (t.media && t.media.videos) || (t.quote && t.quote.media && t.quote.media.videos) || [];
-    const x = vids[0];
-    if(x && x.url){
-      // どのブラウザでも再生できる H.264 の mp4 を選ぶ（m3u8 や HEVC は避ける）
-      const mp4 = (x.formats || x.variants || []).filter(f => f.url && (f.container === 'mp4' || /\.mp4/.test(f.url)) && (!f.codec || /264|avc/i.test(f.codec)))
-        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
-      v = { url:(mp4[0] && mp4[0].url) || x.url, gif:x.type === 'gif', poster:x.thumbnail_url || '' };
-    }
-  }catch(e){}
-  xVideoCache.set(id, v);
-  return v;
+  const t = (await fxTweet(id)).tweet || {};
+  const vids = (t.media && t.media.videos) || (t.quote && t.quote.media && t.quote.media.videos) || [];
+  const x = vids[0];
+  if(!x || !x.url) return null;
+  // どのブラウザでも再生できる H.264 の mp4 を選ぶ（m3u8 や HEVC は避ける）
+  const mp4 = (x.formats || x.variants || []).filter(f => f.url && (f.container === 'mp4' || /\.mp4/.test(f.url)) && (!f.codec || /264|avc/i.test(f.codec)))
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  return { url:(mp4[0] && mp4[0].url) || x.url, gif:x.type === 'gif', poster:x.thumbnail_url || '' };
 }
 function showPeekMedia(it){
   resetZoom(false);
@@ -1365,22 +1393,22 @@ function showPeekMedia(it){
   if(xid){
     xVideo(xid).then(v => {
       if(!v || peekItem !== it) return;
-      const el = document.createElement('video');
-      el.className = 'thumb';
-      el.src = v.url;
-      if(v.poster) el.poster = v.poster;
-      el.muted = true; el.loop = true; el.autoplay = true; el.playsInline = true;
-      if(!v.gif) el.controls = true;   // GIF は音なしでループ、動画は操作できるように
+      const vid = document.createElement('video');
+      vid.className = 'thumb';
+      vid.src = v.url;
+      if(v.poster) vid.poster = v.poster;
+      vid.muted = true; vid.loop = true; vid.autoplay = true; vid.playsInline = true;
+      if(!v.gif) vid.controls = true;   // GIF は音なしでループ、動画は操作できるように
       const keep = [...zoomer.childNodes];
       // 読み込めなかったら画像に戻して、その旨を出す
-      el.addEventListener('error', () => {
+      vid.addEventListener('error', () => {
         if(peekItem !== it) return;
         zoomer.innerHTML = ''; zoomer.append(...keep);
         showToast('動画を読み込めませんでした（「サイト」から X で見られます）', null);
       }, { once:true });
       zoomer.innerHTML = '';
-      zoomer.append(el);
-      el.play().catch(() => {});
+      zoomer.append(vid);
+      vid.play().catch(() => {});
     });
   }
 }
@@ -1391,7 +1419,7 @@ function openPeek(it){
   $('peekOpen').href = it.l;
   $('peekRd').href = raindropUrl(it);
   showPeekMedia(it);
-  edView = ''; edSugIndex = -1;
+  edView = '';
   if(!peek.open){ lockScroll(); peek.showModal(); }
   applyEditOpen();
 }
@@ -1401,60 +1429,76 @@ const edPanel = $('edPanel'), edToast = $('edToast');
 let editOpen = store.get('editing', false);
 let pins = store.get('pins', []);
 let autoNext = store.get('autonext', true);
-let edView = '';           // '' | 'folder' | 'pins'
-let edSugIndex = -1;
+let edView = '';           // 開いている小さな画面：'' | 'folder' | 'cover' | 'pins'
 let cacheSaveTimer = 0, toastTimer = 0;
 const editQueue = new WeakMap();
 
-async function apiWrite(method, path, body){
-  let res;
-  try{
-    res = await fetch(API + path, { method, headers:{ Authorization:'Bearer ' + state.token, 'Content-Type':'application/json' }, body:JSON.stringify(body) });
-  }catch(e){ throw new Error('network'); }
-  if(res.status === 401) throw new Error('auth');
-  if(res.status === 429) throw new Error('rate');
-  if(!res.ok) throw new Error('http');
-  return res.json();
-}
 function recountTags(){
   const m = new Map();
   cache.items.forEach(x => (x.g || []).forEach(t => m.set(t, (m.get(t) || 0) + 1)));
   cache.tags = [...m].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 }
-function afterLocalChange(it){
-  hayCache.delete(it);
+// カードの画像だけを作り直す（サムネを変えたとき）
+function refreshCardMedia(c, it){
+  const a = c.querySelector('.card-link');
+  if(a && a.firstChild) a.firstChild.replaceWith(mediaEl(it, thumbs(it), 0, undefined, true));
+}
+// 手元で変えたあとの後始末：数え直し・保存・カードとプレビューの表示を合わせる
+function afterLocalChange(items, { media = false } = {}){
+  items = [].concat(items);
+  items.forEach(it => hayCache.delete(it));
   recountTags();
   applyCache();
   clearTimeout(cacheSaveTimer);
   cacheSaveTimer = setTimeout(() => store.set('cache', cache), 800);
-  const el = cardEls.find(e => e._item === it);
-  if(el){ const old = el.querySelector('.cap'); if(old) old.replaceWith(captionEl(it)); }
-  if(peekItem === it) renderEdit();
+  const match = makeFilter(state.filter);
+  items.forEach(it => {
+    const c = cardOf.get(it);
+    if(!c) return;
+    const old = c.querySelector('.cap');
+    if(old) old.replaceWith(captionEl(it));
+    if(media) refreshCardMedia(c, it);
+    // 今の絞り込みから外れたものは薄くする（並べ直すと消える）
+    c.classList.toggle('gone', !match(it));
+  });
+  if(peekItem && items.includes(peekItem)){
+    renderEdit();
+    if(media) showPeekMedia(peekItem);
+  }
 }
+const whyText = e => ({ auth:'トークンが無効です', network:'ネットにつながっていません', rate:'少し待ってからもう一度' })[e && e.message] || 'もう一度試してください';
+// 下に出るお知らせ（「元に戻す」付き）。プレビュー中はプレビューの中に、そうでなければページの下に出す
 function showToast(msg, undo){
+  const host = peek.open ? peek : document.body;
+  if(edToast.parentNode !== host) host.append(edToast);
+  edToast.classList.toggle('page', !peek.open);
   $('edToastMsg').textContent = msg;
   $('edUndo').hidden = !undo;
   $('edUndo').onclick = () => { edToast.hidden = true; if(undo) undo(); };
   edToast.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { edToast.hidden = true; }, 4500);
+  toastTimer = setTimeout(() => { edToast.hidden = true; }, undo ? 6000 : 4500);
 }
-// 変更はすぐ画面に反映し、Raindrop には後ろで送る。失敗したら元に戻す
+// 1件の変更：すぐ画面に反映し、Raindrop には後ろで送る。失敗したら元に戻す。
+// patch に使えるのは g（タグ）・k（フォルダ）・c（サムネ）
 function updateItem(it, patch, label, isUndo){
-  const before = { g:(it.g || []).slice(), k:it.k };
+  // 元に戻すときは、変えた項目だけを前の値で送り直す
+  const before = {};
+  Object.keys(patch).forEach(k => { before[k] = k === 'g' ? (it.g || []).slice() : it[k]; });
+  const media = 'c' in patch;
   Object.assign(it, patch);
-  afterLocalChange(it);
+  afterLocalChange(it, { media });
   const body = {};
   if('g' in patch) body.tags = patch.g;
   if('k' in patch) body.collection = { $id:patch.k };
-  const run = () => apiWrite('PUT', `/raindrop/${it.i}`, body).then(r => {
-    if(r && r.item){ it.g = r.item.tags || it.g; afterLocalChange(it); }
+  if('c' in patch) body.cover = patch.c;
+  const run = () => api(`/raindrop/${it.i}`, { method:'PUT', body }).then(r => {
+    if(r && r.item){ it.g = r.item.tags || it.g; if(media) it.c = r.item.cover || it.c; afterLocalChange(it); }
     showToast(label, isUndo ? null : () => updateItem(it, before, '元に戻しました', true));
   }).catch(e => {
     Object.assign(it, before);
-    afterLocalChange(it);
-    const why = { auth:'トークンが無効です', network:'ネットにつながっていません', rate:'少し待ってからもう一度' }[e.message] || 'もう一度試してください';
-    showToast(`保存できませんでした（${why}）`, null);
+    afterLocalChange(it, { media });
+    showToast(`保存できませんでした（${whyText(e)}）`, null);
   });
   const q = (editQueue.get(it) || Promise.resolve()).then(run, run);
   editQueue.set(it, q);
@@ -1471,15 +1515,97 @@ function removeTag(it, name){
 function toggleTag(it, name){ (it.g || []).includes(name) ? removeTag(it, name) : addTag(it, name); }
 function moveTo(it, id){
   if(it.k === id) return;
-  const name = id === -1 ? '未整理' : (collLabel.get(id) || '').split(' / ').pop();
-  updateItem(it, { k:id }, `「${name}」に移しました`);
+  updateItem(it, { k:id }, `「${folderShort(id)}」に移しました`);
   if(autoNext) setTimeout(() => { if(peekItem === it) stepPeek(1); }, 350);
+}
+// サムネを画像のアドレスで変える
+function setCover(it, url){ updateItem(it, { c:url }, 'サムネを変えました'); }
+// サムネを画像そのもの（貼り付け・ファイル）で変える。Raindrop に画像を送って、その住所をカバーにする
+async function uploadCover(it, file){
+  const before = it.c;
+  showToast('サムネを送っています…', null);
+  const fd = new FormData();
+  fd.append('cover', file, file.name || 'cover.png');
+  try{
+    const r = await api(`/raindrop/${it.i}/cover`, { method:'PUT', body:fd });
+    it.c = (r && r.item && r.item.cover) || it.c;
+    afterLocalChange(it, { media:true });
+    showToast('サムネを変えました', () => updateItem(it, { c:before }, '元に戻しました', true));
+  }catch(e){
+    showToast(`サムネを保存できませんでした（${whyText(e)}）`, null);
+  }
+}
+
+// ---- まとめて変える（複数選択から）----
+// Raindrop の「まとめて更新」はフォルダごとにしか送れないので、今いるフォルダごとに分けて送る
+function groupBy(list, keyOf){
+  const m = new Map();
+  list.forEach(x => { const k = keyOf(x); if(!m.has(k)) m.set(k, []); m.get(k).push(x); });
+  return m;
+}
+// groups（フォルダID → ブックマーク）を100件ずつ送る。失敗したものを返す
+async function putMany(groups, body){
+  const failed = [];
+  for(const [k, list] of groups){
+    for(let i = 0; i < list.length; i += 100){
+      const part = list.slice(i, i + 100);
+      try{ await api(`/raindrops/${k}`, { method:'PUT', body:{ ids:part.map(x => x.i), ...body } }); }
+      catch(e){ failed.push(...part); failed.err = e; }
+    }
+  }
+  return failed;
+}
+async function runLimited(list, n, fn){
+  let i = 0;
+  await Promise.all(Array.from({ length:Math.min(n, list.length) }, async () => { while(i < list.length) await fn(list[i++]); }));
+}
+async function moveMany(items, to){
+  const list = items.filter(x => x.k !== to);
+  if(!list.length){ showToast(`もう「${folderShort(to)}」に入っています`, null); return; }
+  const from = new Map(list.map(x => [x, x.k]));
+  const groups = groupBy(list, x => x.k);
+  list.forEach(x => { x.k = to; });
+  afterLocalChange(list);
+  const failed = await putMany(groups, { collection:{ $id:to } });
+  if(failed.length){ failed.forEach(x => { x.k = from.get(x); }); afterLocalChange(failed); }
+  const ok = list.filter(x => !failed.includes(x));
+  if(!ok.length){ showToast(`移せませんでした（${whyText(failed.err)}）`, null); return; }
+  showToast(`${ok.length}件を「${folderShort(to)}」に移しました` + (failed.length ? `（${failed.length}件は失敗）` : ''), async () => {
+    // 元のフォルダごとに戻す
+    ok.forEach(x => { x.k = from.get(x); });
+    afterLocalChange(ok);
+    const fails = [];
+    for(const [k, part] of groupBy(ok, x => from.get(x))) fails.push(...await putMany(new Map([[to, part]]), { collection:{ $id:k } }));
+    if(fails.length){ fails.forEach(x => { x.k = to; }); afterLocalChange(fails); }
+    showToast(fails.length ? `${fails.length}件は戻せませんでした` : '元に戻しました', null);
+  });
+}
+async function addTagsMany(items, tags){
+  const list = items.filter(x => tags.some(t => !(x.g || []).includes(t)));
+  if(!list.length){ showToast('もう付いています', null); return; }
+  const before = new Map(list.map(x => [x, (x.g || []).slice()]));
+  const groups = groupBy(list, x => x.k);
+  list.forEach(x => { x.g = [...new Set([...(x.g || []), ...tags])]; });
+  afterLocalChange(list);
+  const failed = await putMany(groups, { tags });   // まとめて更新の tags は「付け足し」になる
+  if(failed.length){ failed.forEach(x => { x.g = before.get(x); }); afterLocalChange(failed); }
+  const ok = list.filter(x => !failed.includes(x));
+  const label = tags.map(t => '#' + t).join(' ');
+  if(!ok.length){ showToast(`付けられませんでした（${whyText(failed.err)}）`, null); return; }
+  showToast(`${ok.length}件に ${label} を付けました` + (failed.length ? `（${failed.length}件は失敗）` : ''), async () => {
+    // まとめて特定のタグだけ外す方法がないので、1件ずつ元のタグに戻す
+    ok.forEach(x => { x.g = before.get(x); });
+    afterLocalChange(ok);
+    let fails = 0;
+    await runLimited(ok, 3, x => api(`/raindrop/${x.i}`, { method:'PUT', body:{ tags:before.get(x) } }).catch(() => { fails++; }));
+    showToast(fails ? `${fails}件は戻せませんでした（「全部読み込み直す」で正しい状態になります）` : '元に戻しました', null);
+  });
 }
 
 let sheetFull = store.get('sheetfull', false);   // スマホ：画面いっぱいに広げているか
 let sideW = store.get('sidew', 380);              // PC：左パネルの幅
 let tagSort = store.get('tagsort', 'count');      // 'count' よく使う順 | 'name' 名前順
-let edFilter = '', edFilterFor = null;
+let edFilter = { text:'' }, edFilterFor = null;
 let sheetDragH = 0;                               // つまみをドラッグ中の高さ
 const wideUI = () => window.innerWidth >= 760;
 
@@ -1552,26 +1678,128 @@ function startSideResize(e){
   };
   addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
 }
-const el = (tag, cls, text) => { const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; };
+// ---- 選ぶための部品（編集パネルと複数選択の両方で使う）----
+// フォルダ：絞り込み欄＋一覧。cur は今のフォルダ（色を付ける）
+function folderPicker(cur, onPick){
+  const box = el('div', 'ed-picker');
+  const search = el('input', 'ed-search'); search.type = 'search'; search.placeholder = 'フォルダを絞り込む'; search.autocomplete = 'off';
+  const list = el('div', 'ed-list');
+  const fill = () => {
+    const q = search.value.trim().toLowerCase();
+    list.innerHTML = '';
+    [{ id:-1, label:'未整理' }, ...cache.colls].filter(c => !q || c.label.toLowerCase().includes(q)).forEach(c => {
+      const b = el('button', cur === c.id ? 'cur' : ''); b.type = 'button';
+      const segs = c.label.split(' / ');
+      if(segs.length > 1) b.append(el('span', 'path', segs.slice(0, -1).join(' / ') + ' /'));
+      b.append(el('span', '', segs[segs.length - 1]), el('span', 'cnt', (folderCount.get(c.id) || 0).toLocaleString()));
+      b.addEventListener('click', () => onPick(c.id));
+      list.append(b);
+    });
+    if(!list.children.length){ const n = el('div', 'ed-note', '見つかりません'); n.style.padding = '8px 10px'; list.append(n); }
+  };
+  search.addEventListener('input', fill);
+  search.addEventListener('keydown', e => {
+    // 候補が1つに絞れていたら Enter で決める
+    if(e.key === 'Enter'){ e.preventDefault(); const b = list.querySelectorAll('button'); if(b.length === 1) b[0].click(); }
+  });
+  fill();
+  box.append(search, list);
+  return { box, search };
+}
+// タグ：絞り込み欄・並び順・タグのボタン一覧。
+// isOn(名前) 押された状態か / onPick(名前) 押したとき / onNew(名前) 新しいタグ（null なら作れない）
+// isDisabled(名前, on) 押せない状態か / extra まだ一覧にないけれど出したいタグ / text 絞り込み欄の文字（{text}）
+function tagChooser({ isOn, onPick, onNew = null, isDisabled = () => false, extra = [], placeholder, text, id, onBackspace }){
+  const box = el('div', 'ed-chooser');
+  const tools = el('div', 'ed-tools');
+  const input = el('input', 'ed-search'); input.type = 'search'; input.autocomplete = 'off'; input.placeholder = placeholder;
+  if(id) input.id = id;
+  input.value = text.text;
+  const seg = el('div', 'ed-seg');
+  const segBtns = [['count', 'よく使う順'], ['name', '名前順']].map(([v, label]) => {
+    const b = el('button', '', label); b.type = 'button';
+    b.addEventListener('click', () => { tagSort = v; store.set('tagsort', v); paintSeg(); draw(); });
+    seg.append(b);
+    return [v, b];
+  });
+  const paintSeg = () => segBtns.forEach(([v, b]) => b.setAttribute('aria-pressed', String(tagSort === v)));
+  paintSeg();
+  tools.append(input, seg);
+  const grid = el('div', 'ed-grid');
+  let shown = [];
+  const draw = () => {
+    const q = text.text.trim().replace(/^#/, '');
+    const ql = q.toLowerCase();
+    if(!cache.tags.length && cache.items.some(x => (x.g || []).length)) recountTags();
+    let list = cache.tags.slice();
+    if(tagSort === 'count') list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ja'));
+    const missing = extra.filter(t => !list.some(x => x.name === t)).map(t => ({ name:t, count:0 }));
+    list = [...missing, ...list];
+    if(ql) list = list.filter(t => t.name.toLowerCase().includes(ql));
+    shown = list;
+    grid.innerHTML = '';
+    list.forEach(t => {
+      const on = isOn(t.name);
+      const b = el('button', 'ed-tag' + (on ? ' on' : '')); b.type = 'button';
+      b.setAttribute('aria-pressed', String(on));
+      b.append(el('span', '', '#' + t.name));
+      if(t.count) b.append(el('span', 'cnt', t.count.toLocaleString()));
+      b.disabled = isDisabled(t.name, on);
+      b.addEventListener('click', () => onPick(t.name));
+      grid.append(b);
+    });
+    if(onNew && q && !list.some(t => t.name === q)){
+      const b = el('button', 'ed-tag new'); b.type = 'button';
+      b.append(el('span', '', `＋ 新しいタグ「#${q}」`));
+      b.addEventListener('click', () => { text.text = ''; input.value = ''; onNew(q); });
+      grid.append(b);
+    }
+    if(!grid.children.length) grid.append(el('span', 'ed-note', 'タグがありません'));
+  };
+  input.addEventListener('input', () => { text.text = input.value; draw(); });
+  input.addEventListener('keydown', e => {
+    if(e.key === 'Enter'){
+      // ぴったり同じ名前か、候補が1つならそれを押す。何もなければ新しいタグにする
+      e.preventDefault();
+      const q = text.text.trim().replace(/^#/, '');
+      if(!q) return;
+      const exact = shown.find(t => t.name === q);
+      const pick = exact ? exact.name : (shown.length === 1 ? shown[0].name : null);
+      if(!pick && (shown.length || !onNew)) return;
+      text.text = ''; input.value = '';
+      if(pick) onPick(pick); else onNew(q);
+      draw();
+    }else if(e.key === 'Backspace' && !input.value && onBackspace) onBackspace();
+  });
+  draw();
+  box.append(tools, grid);
+  return { box, grid, input, draw };
+}
 
+// ---- 編集パネルの中身 ----
 function renderEdit(){
   const it = peekItem;
   if(!it || edPanel.hidden) return;
-  if(edFilterFor !== it){ edFilter = ''; edFilterFor = it; }
+  if(edFilterFor !== it){ edFilter = { text:'' }; edFilterFor = it; }
   const oldScroll = edPanel.querySelector('.ed-scroll');
   const scrollY = oldScroll ? oldScroll.scrollTop : 0;
-  const keepFocus = document.activeElement && document.activeElement.id === 'edTagInput';
+  const focusTag = document.activeElement && document.activeElement.id === 'edTagInput';
   edPanel.innerHTML = '';
-
-  const grip = el('div', 'ed-grip'); grip.title = '上下にドラッグで大きさを変える';
-  grip.addEventListener('pointerdown', startSheetDrag);
+  const body = el('div', 'ed-scroll');
+  edPanel.append(...editFrame(), body);
+  body.append(editFolderSec(it), editCoverSec(it), editPinsRow(it), editTagSec(it));
+  layoutEdit();
+  body.scrollTop = scrollY;
+  if(focusTag){ const i = $('edTagInput'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+}
+// 枠：幅を変えるつまみ（PC）・高さを変えるつまみ（スマホ）・見出し
+function editFrame(){
   const rz = el('div', 'ed-resize'); rz.title = 'ドラッグで幅を変える';
   rz.addEventListener('pointerdown', startSideResize);
-
-  // 見出し：整理モードのスイッチ・広げる・閉じる
+  const grip = el('div', 'ed-grip'); grip.title = '上下にドラッグで大きさを変える';
+  grip.addEventListener('pointerdown', startSheetDrag);
   const head = el('div', 'ed-head');
   head.addEventListener('pointerdown', startSheetDrag);
-  head.append(el('strong', '', 'タグ・フォルダ'));
   const sw = el('label', 'switch');
   sw.title = 'フォルダを選んだら、自動で次のブックマークに進みます';
   const swIn = el('input'); swIn.type = 'checkbox'; swIn.checked = autoNext;
@@ -1581,72 +1809,93 @@ function renderEdit(){
   size.addEventListener('click', () => setSheetFull(!sheetFull));
   const x = el('button', 'ed-x', '×'); x.type = 'button'; x.setAttribute('aria-label', '編集を閉じる');
   x.addEventListener('click', () => setEditOpen(false));
-  head.append(sw, size, x);
-
-  const body = el('div', 'ed-scroll');
-  edPanel.append(rz, grip, head, body);
-
-  // フォルダ
-  const fSec = el('div', 'ed-sec');
-  const fLine = el('div', 'ed-line');
-  fLine.append(el('span', 'ed-lab', 'フォルダ'));
-  const fBtn = el('button', 'ed-folder'); fBtn.type = 'button';
-  fBtn.append(el('span', '', collName(it) || '未整理'), el('span', '', edView === 'folder' ? '▴' : '▾'));
-  fBtn.addEventListener('click', () => { edView = edView === 'folder' ? '' : 'folder'; renderEdit(); });
-  fLine.append(fBtn);
-  fSec.append(fLine);
+  head.append(el('strong', '', 'タグ・フォルダ'), sw, size, x);
+  return [rz, grip, head];
+}
+function editFolderSec(it){
+  const sec = el('div', 'ed-sec');
+  const line = el('div', 'ed-line');
+  const btn = el('button', 'ed-folder'); btn.type = 'button';
+  btn.append(el('span', '', collName(it) || '未整理'), el('span', '', edView === 'folder' ? '▴' : '▾'));
+  btn.addEventListener('click', () => { edView = edView === 'folder' ? '' : 'folder'; renderEdit(); });
+  line.append(el('span', 'ed-lab', 'フォルダ'), btn);
+  sec.append(line);
   if(edView === 'folder'){
-    const search = el('input', 'ed-search'); search.type = 'search'; search.placeholder = 'フォルダを絞り込む'; search.id = 'edFolderSearch';
-    const list = el('div', 'ed-list');
-    const fill = () => {
-      const q = search.value.trim().toLowerCase();
-      list.innerHTML = '';
-      [{ id:-1, label:'未整理' }, ...cache.colls].filter(c => !q || c.label.toLowerCase().includes(q)).forEach(c => {
-        const b = el('button', it.k === c.id ? 'cur' : ''); b.type = 'button';
-        const segs = c.label.split(' / ');
-        if(segs.length > 1) b.append(el('span', 'path', segs.slice(0, -1).join(' / ') + ' /'));
-        b.append(el('span', '', segs[segs.length - 1]), el('span', 'cnt', (folderCount.get(c.id) || 0).toLocaleString()));
-        b.addEventListener('click', () => { edView = ''; moveTo(it, c.id); });
-        list.append(b);
-      });
-    };
-    search.addEventListener('input', fill);
-    fill();
-    fSec.append(search, list);
+    const p = folderPicker(it.k, id => { edView = ''; moveTo(it, id); });
+    sec.append(p.box);
   }
-  body.append(fSec);
-
-  // よく使うタグ（固定）：押すと付け外し。Mac は 1〜9 キー
-  const pSec = el('div', 'ed-line');
-  pSec.append(el('span', 'ed-lab', '固定'));
-  const pEdit = el('button', 'ed-link', edView === 'pins' ? '完了' : (pins.length ? '選び直す' : '固定するタグを選ぶ')); pEdit.type = 'button';
-  pEdit.title = 'よく使うタグを最大9個まで固定すると、ここから1回で付け外しできます';
-  pEdit.addEventListener('click', () => { edView = edView === 'pins' ? '' : 'pins'; renderEdit(); });
-  const pWrap = el('div', 'ed-wrap');
+  return sec;
+}
+// サムネ：画像の貼り付け（⌘V）・ドロップ・ファイル選択・画像のアドレスで変える
+function editCoverSec(it){
+  const sec = el('div', 'ed-sec');
+  const line = el('div', 'ed-line');
+  const wrap = el('div', 'ed-wrap');
+  if(edView !== 'cover') wrap.append(el('span', 'ed-note', it.c ? '' : 'なし（取れなかったサイト）'));
+  const btn = el('button', 'ed-link', edView === 'cover' ? '閉じる' : (it.c ? '変える' : '設定する')); btn.type = 'button';
+  btn.addEventListener('click', () => { edView = edView === 'cover' ? '' : 'cover'; renderEdit(); });
+  wrap.append(btn);
+  line.append(el('span', 'ed-lab', 'サムネ'), wrap);
+  sec.append(line);
+  if(edView !== 'cover') return sec;
+  const drop = el('div', 'ed-drop');
+  drop.append(el('div', '', canHover ? '画像をコピーして ⌘V で貼り付け、またはここにドロップ' : '画像を選ぶか、画像のアドレスを貼り付け'));
+  const file = el('input'); file.type = 'file'; file.accept = 'image/*'; file.hidden = true;
+  file.addEventListener('change', () => { if(file.files[0]){ edView = ''; uploadCover(it, file.files[0]); } });
+  const pick = el('button', 'ed-link', 'ファイルから選ぶ'); pick.type = 'button';
+  pick.addEventListener('click', () => file.click());
+  drop.append(pick, file);
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('over');
+    const f = [...(e.dataTransfer.files || [])].find(x => x.type.startsWith('image/'));
+    if(f){ edView = ''; uploadCover(it, f); return; }
+    const u = (e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || '').trim().split('\n')[0];
+    if(/^https?:\/\//.test(u)){ edView = ''; setCover(it, u); }
+  });
+  const url = el('input', 'ed-search'); url.type = 'url'; url.id = 'edCoverUrl'; url.placeholder = '画像のアドレス（https://…）を入れて Enter'; url.autocomplete = 'off';
+  url.addEventListener('keydown', e => {
+    if(e.key !== 'Enter') return;
+    e.preventDefault();
+    const v = url.value.trim();
+    if(/^https?:\/\//.test(v)){ edView = ''; setCover(it, v); }
+    else showToast('https:// から始まる画像のアドレスを入れてください', null);
+  });
+  sec.append(drop, url);
+  return sec;
+}
+// よく使うタグ（固定）：押すと付け外し。Mac は 1〜9 キー
+function editPinsRow(it){
+  const line = el('div', 'ed-line');
+  const wrap = el('div', 'ed-wrap');
   pins.forEach((t, i) => {
     const b = el('button', 'ed-pin'); b.type = 'button';
     b.setAttribute('aria-pressed', String((it.g || []).includes(t)));
     if(canHover) b.append(el('kbd', '', String(i + 1)));
-    b.append(document.createTextNode('#' + t));
+    b.append('#' + t);
     b.addEventListener('click', () => toggleTag(it, t));
-    pWrap.append(b);
+    wrap.append(b);
   });
-  pWrap.append(pEdit);
-  pSec.append(pWrap);
-  body.append(pSec);
-
-  // タグ：一覧から選ぶ（押すと付く／外れる）
+  const edit = el('button', 'ed-link', edView === 'pins' ? '完了' : (pins.length ? '選び直す' : '固定するタグを選ぶ')); edit.type = 'button';
+  edit.title = 'よく使うタグを最大9個まで固定すると、ここから1回で付け外しできます';
+  edit.addEventListener('click', () => { edView = edView === 'pins' ? '' : 'pins'; renderEdit(); });
+  wrap.append(edit);
+  line.append(el('span', 'ed-lab', '固定'), wrap);
+  return line;
+}
+// タグ：一覧から選ぶ（押すと付く／外れる）。「固定を選ぶ」中は固定するタグを選ぶ
+function editTagSec(it){
   const pinMode = edView === 'pins';
-  const tSec = el('div', 'ed-sec');
   const have = new Set(it.g || []);
-  const tH = el('div', 'ed-h', `タグ（${have.size}）`);
-  tSec.append(tH);
+  const sec = el('div', 'ed-sec');
+  sec.append(el('div', 'ed-h', `タグ（${have.size}）`));
   if(pinMode){
     const bn = el('div', 'ed-banner', `固定するタグを選んでいます（${pins.length}/9）`);
     const done = el('button', 'ed-link', '完了'); done.type = 'button';
     done.addEventListener('click', () => { edView = ''; renderEdit(); });
     bn.append(done);
-    tSec.append(bn);
+    sec.append(bn);
   }else if(have.size){
     const cur = el('div', 'ed-wrap');
     (it.g || []).forEach(t => {
@@ -1656,82 +1905,25 @@ function renderEdit(){
       c.append(rm);
       cur.append(c);
     });
-    tSec.append(cur);
+    sec.append(cur);
   }
-  const tools = el('div', 'ed-tools');
-  const input = el('input', 'ed-search'); input.type = 'search'; input.id = 'edTagInput'; input.autocomplete = 'off';
-  input.placeholder = pinMode ? 'タグを絞り込む' : '絞り込む・新しいタグ（Enter）';
-  input.value = edFilter;
-  const seg = el('div', 'ed-seg');
-  [['count', 'よく使う順'], ['name', '名前順']].forEach(([v, label]) => {
-    const b = el('button', '', label); b.type = 'button'; b.setAttribute('aria-pressed', String(tagSort === v));
-    b.addEventListener('click', () => { tagSort = v; store.set('tagsort', v); renderEdit(); });
-    seg.append(b);
-  });
-  tools.append(input, seg);
-  tSec.append(tools);
-  const grid = el('div', 'ed-grid' + (pinMode ? ' pinmode' : ''));
-  tSec.append(grid);
-  body.append(tSec);
-
-  let shown = [];
-  const drawGrid = () => {
-    const q = edFilter.trim().replace(/^#/, '');
-    const ql = q.toLowerCase();
-    if(!cache.tags.length && cache.items.some(x => (x.g || []).length)) recountTags();
-    let list = cache.tags.slice();
-    if(tagSort === 'count') list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ja'));
-    // 付いているのにまだ一覧にないタグ（保存直後など）も出す
-    const missing = (it.g || []).filter(t => !list.some(x => x.name === t)).map(t => ({ name:t, count:1 }));
-    list = [...missing, ...list];
-    if(ql) list = list.filter(t => t.name.toLowerCase().includes(ql));
-    shown = list;
-    grid.innerHTML = '';
-    list.forEach(t => {
-      const on = pinMode ? pins.includes(t.name) : have.has(t.name);
-      const b = el('button', 'ed-tag' + (on ? ' on' : '')); b.type = 'button';
-      b.setAttribute('aria-pressed', String(on));
-      b.append(el('span', '', '#' + t.name), el('span', 'cnt', t.count.toLocaleString()));
-      if(pinMode && !on && pins.length >= 9) b.disabled = true;
-      b.addEventListener('click', () => pickTag(t.name));
-      grid.append(b);
-    });
-    if(!pinMode && q && !cache.tags.some(t => t.name === q) && !have.has(q)){
-      const b = el('button', 'ed-tag new'); b.type = 'button';
-      b.append(el('span', '', `＋ 新しいタグ「#${q}」`));
-      b.addEventListener('click', () => { edFilter = ''; addTag(it, q); });
-      grid.append(b);
-    }
-    if(!grid.children.length) grid.append(el('span', 'ed-note', 'タグがありません'));
-  };
-  const pickTag = name => {
-    if(pinMode){
+  const ch = tagChooser({
+    id:'edTagInput', text:edFilter, extra:it.g || [],
+    placeholder: pinMode ? 'タグを絞り込む' : '絞り込む・新しいタグ（Enter）',
+    isOn: name => pinMode ? pins.includes(name) : have.has(name),
+    isDisabled: (name, on) => pinMode && !on && pins.length >= 9,
+    onPick: name => {
+      if(!pinMode){ toggleTag(it, name); return; }
       pins = pins.includes(name) ? pins.filter(x => x !== name) : [...pins, name].slice(0, 9);
       store.set('pins', pins);
       renderEdit();
-    }else toggleTag(it, name);
-  };
-  input.addEventListener('input', () => { edFilter = input.value; drawGrid(); });
-  input.addEventListener('keydown', e => {
-    if(e.key === 'Enter'){
-      e.preventDefault();
-      const q = edFilter.trim().replace(/^#/, '');
-      if(!q) return;
-      const exact = shown.find(t => t.name === q);
-      const pick = exact ? exact.name : (shown.length === 1 ? shown[0].name : null);
-      edFilter = '';
-      if(pick) pickTag(pick);
-      else if(!pinMode && !shown.length) addTag(it, q);
-      else { edFilter = input.value; return; }
-      input.value = ''; drawGrid();
-    }
-    else if(e.key === 'Backspace' && !input.value && !pinMode && (it.g || []).length){ removeTag(it, it.g[it.g.length - 1]); }
+    },
+    onNew: pinMode ? null : name => addTag(it, name),
+    onBackspace: pinMode ? null : () => { if((it.g || []).length) removeTag(it, it.g[it.g.length - 1]); }
   });
-  drawGrid();
-
-  layoutEdit();
-  body.scrollTop = scrollY;
-  if(keepFocus){ input.focus(); input.setSelectionRange(input.value.length, input.value.length); }
+  ch.grid.classList.toggle('pinmode', pinMode);
+  sec.append(ch.box);
+  return sec;
 }
 $('peekEdit').addEventListener('click', () => setEditOpen(!editOpen));
 // 入力中の Esc はプレビューを閉じずに、入力や一覧だけを閉じる
@@ -1821,69 +2013,52 @@ addEventListener('pointerup', () => {
   dragStart = null;
   zoomer.classList.remove('drag');
 });
-// スマホ：2本指で拡大縮小、拡大中は1本指で移動
-let pinch = null;
+// スマホの指の操作：2本指で拡大縮小／拡大中は1本指で移動／等倍のときは左右スワイプで前後へ
+let touch = null;
+const center = (a, b) => ({ d:Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mx:(a.clientX + b.clientX) / 2, my:(a.clientY + b.clientY) / 2 });
 peekBody.addEventListener('touchstart', e => {
-  if(e.touches.length === 2){
-    const [a, b] = e.touches;
-    pinch = { d:Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mx:(a.clientX + b.clientX) / 2, my:(a.clientY + b.clientY) / 2 };
-  }else if(e.touches.length === 1 && zoom.s !== 1){
-    pinch = { pan:true, x:e.touches[0].clientX, y:e.touches[0].clientY, moved:false };
-  }
+  const t = e.touches;
+  if(t.length === 2) touch = { mode:'pinch', ...center(t[0], t[1]) };
+  else if(t.length === 1) touch = zoom.s !== 1
+    ? { mode:'pan', x:t[0].clientX, y:t[0].clientY, moved:false }
+    : { mode:'swipe', x:t[0].clientX, y:t[0].clientY };
 }, { passive:true });
 peekBody.addEventListener('touchmove', e => {
-  if(!pinch) return;
+  if(!touch || touch.mode === 'swipe') return;
   e.preventDefault();
-  if(e.touches.length === 2 && !pinch.pan){
-    const [a, b] = e.touches;
-    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    const mx = (a.clientX + b.clientX) / 2, my = (a.clientY + b.clientY) / 2;
-    zoom.x += mx - pinch.mx; zoom.y += my - pinch.my;
-    zoomAt(d / pinch.d, mx, my);
-    pinch.d = d; pinch.mx = mx; pinch.my = my;
-  }else if(pinch.pan && e.touches.length === 1){
+  if(touch.mode === 'pinch' && e.touches.length === 2){
+    const c = center(e.touches[0], e.touches[1]);
+    zoom.x += c.mx - touch.mx; zoom.y += c.my - touch.my;
+    zoomAt(c.d / touch.d, c.mx, c.my);
+    Object.assign(touch, c);
+  }else if(touch.mode === 'pan' && e.touches.length === 1){
     const t = e.touches[0];
-    const dx = t.clientX - pinch.x, dy = t.clientY - pinch.y;
-    if(Math.abs(dx) + Math.abs(dy) > 4) pinch.moved = true;
-    zoom.x += dx; zoom.y += dy; pinch.x = t.clientX; pinch.y = t.clientY;
+    const dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+    if(Math.abs(dx) + Math.abs(dy) > 4) touch.moved = true;
+    zoom.x += dx; zoom.y += dy; touch.x = t.clientX; touch.y = t.clientY;
     applyZoom(false);
   }
 }, { passive:false });
 peekBody.addEventListener('touchend', e => {
-  if(!pinch) return;
-  if(pinch.pan && pinch.moved) zoomDragged = true;
-  if(!e.touches.length) pinch = null;
-  else if(e.touches.length === 1 && zoom.s !== 1) pinch = { pan:true, x:e.touches[0].clientX, y:e.touches[0].clientY, moved:true };
+  if(!touch) return;
+  if(touch.mode === 'pan' && touch.moved) zoomDragged = true;
+  if(touch.mode === 'swipe' && !e.touches.length && zoom.s === 1){
+    const t = e.changedTouches[0], dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+    if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPeek(dx < 0 ? 1 : -1);
+  }
+  // 2本指のあと1本だけ残ったら、拡大中ならそのまま移動に切り替える
+  touch = (e.touches.length === 1 && zoom.s !== 1) ? { mode:'pan', x:e.touches[0].clientX, y:e.touches[0].clientY, moved:true } : null;
 }, { passive:true });
 $('peekPrev').addEventListener('click', () => stepPeek(-1));
 $('peekNext').addEventListener('click', () => stepPeek(1));
-// スマホ：プレビューを左右にスワイプで前後へ
-let touchX = null, touchY = 0;
-peekBody.addEventListener('touchstart', e => { const t = e.touches[0]; touchX = (e.touches.length === 1 && zoom.s === 1) ? t.clientX : null; touchY = t.clientY; }, {passive:true});
-peekBody.addEventListener('touchend', e => {
-  if(touchX === null || zoom.s !== 1) return;
-  const t = e.changedTouches[0], dx = t.clientX - touchX, dy = t.clientY - touchY;
-  touchX = null;
-  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPeek(dx < 0 ? 1 : -1);
-}, {passive:true});
 
+// 画像がないときの代わり：タイトルを文字で見せる（タイトルもなければサイトの頭文字）
 function placeholder(it){
-  const div = document.createElement('div');
   const title = (it.t || '').trim();
   const site = (it.d || '').replace(/^www\./, '');
-  if(!title){
-    div.className = 'ph';
-    div.textContent = ((site || '?')[0] || '?').toUpperCase();
-    return div;
-  }
-  div.className = 'ph ph-text';
-  const t = document.createElement('div');
-  t.className = 'ph-title';
-  t.textContent = title;
-  const d = document.createElement('div');
-  d.className = 'ph-site';
-  d.textContent = site;
-  div.append(t, d);
+  if(!title) return el('div', 'ph', ((site || '?')[0] || '?').toUpperCase());
+  const div = el('div', 'ph ph-text');
+  div.append(el('div', 'ph-title', title), el('div', 'ph-site', site));
   return div;
 }
 
@@ -1981,7 +2156,7 @@ curBtn.addEventListener('change', toggleCur);
 new IntersectionObserver(entries => {
   if(entries.some(e => e.isIntersecting) && shownCount < poolSize && !placing) appendMore();
 }, { rootMargin:'1200px 0px' }).observe(moreEl);
-// Keep filling while the page is still shorter than the window.
+// 画面がまだ埋まっていなければ、続きを足し続ける
 setInterval(() => {
   if(shownCount < poolSize && !placing && document.documentElement.scrollHeight - innerHeight - scrollY < 1200) appendMore();
 }, 800);
@@ -2019,7 +2194,6 @@ viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.h
 document.addEventListener('click', e => {
   if(!viewMenu.hidden && !e.target.closest('.menu-wrap')){ e.preventDefault(); e.stopPropagation(); setMenu(false); }
 }, true);
-document.addEventListener('keydown', e => { if(e.key === 'Escape' && !viewMenu.hidden) setMenu(false); });
 refreshBtn.addEventListener('click', () => { setMenu(false); refreshAll(); });
 $('settings').addEventListener('click', () => { setMenu(false); openSettings(); });
 $('cancel').addEventListener('click', () => dlg.close());
@@ -2035,7 +2209,116 @@ $('tokenForm').addEventListener('submit', () => {
     if(state.token) refreshAll();
   }
 });
+// ---- 複数選択：カード左上のチェックで選び、下のバーからまとめて移動・タグ付け ----
+const selected = new Set();
+let lastPick = null;
+const selBar = $('selBar'), selPop = $('selPop');
+let popKind = '';                  // 下のバーの上に開いている画面：'' | 'move' | 'tag'
+let popText = { text:'' }, popWant = new Set();
+
+function setPicked(it, on){
+  if(on) selected.add(it); else selected.delete(it);
+  const c = cardOf.get(it);
+  if(c) c.classList.toggle('picked', on);
+}
+// range = Shift を押しながら：前に押したものから今のものまでをまとめて選ぶ
+function pickCard(it, range){
+  if(range && lastPick && lastPick !== it){
+    const a = order.indexOf(lastPick), b = order.indexOf(it);
+    if(a >= 0 && b >= 0) order.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => { if(cardOf.has(x)) setPicked(x, true); });
+  }else setPicked(it, !selected.has(it));
+  lastPick = it;
+  syncSelection();
+}
+function clearSelection(){
+  [...selected].forEach(x => setPicked(x, false));
+  lastPick = null;
+  syncSelection();
+}
+function syncSelection(){
+  const n = selected.size;
+  document.body.classList.toggle('selecting', n > 0);
+  selBar.hidden = !n;
+  $('selCount').textContent = `${n.toLocaleString()}件`;
+  if(!n){ popKind = ''; }
+  renderSelPop();
+}
+function renderSelPop(){
+  selPop.hidden = !popKind;
+  $('selMove').setAttribute('aria-pressed', String(popKind === 'move'));
+  $('selTag').setAttribute('aria-pressed', String(popKind === 'tag'));
+  selPop.innerHTML = '';
+  if(!popKind) return;
+  const items = [...selected];
+  if(popKind === 'move'){
+    selPop.append(el('div', 'ed-h', `${items.length}件の移動先`));
+    const p = folderPicker(null, id => { popKind = ''; renderSelPop(); moveMany(items, id); });
+    selPop.append(p.box);
+    if(canHover) p.search.focus();
+    return;
+  }
+  // タグ：付けたいタグを選んでから、まとめて付ける
+  const head = el('div', 'ed-h', `${items.length}件に付けるタグ`);
+  const go = el('button', 'shuffle sel-go', popWant.size ? `${popWant.size}個を付ける` : 'タグを選んでください'); go.type = 'button';
+  go.disabled = !popWant.size;
+  go.addEventListener('click', () => {
+    const tags = [...popWant];
+    popWant = new Set(); popText = { text:'' }; popKind = '';
+    renderSelPop();
+    addTagsMany(items, tags);
+  });
+  head.append(go);
+  // 選んだもの全部に付いているタグは、押した状態の色を薄くして見せる
+  const onAll = new Set((items[0] && items[0].g || []).filter(t => items.every(x => (x.g || []).includes(t))));
+  const ch = tagChooser({
+    text:popText, extra:[...popWant],
+    placeholder:'絞り込む・新しいタグ（Enter）',
+    isOn: name => popWant.has(name),
+    isDisabled: name => onAll.has(name),
+    onPick: name => { popWant.has(name) ? popWant.delete(name) : popWant.add(name); renderSelPop(); },
+    onNew: name => { popWant.add(name); renderSelPop(); }
+  });
+  selPop.append(head, ch.box);
+  if(canHover){ ch.input.focus(); ch.input.setSelectionRange(ch.input.value.length, ch.input.value.length); }
+}
+$('selMove').addEventListener('click', () => { popKind = popKind === 'move' ? '' : 'move'; renderSelPop(); });
+$('selTag').addEventListener('click', () => { popKind = popKind === 'tag' ? '' : 'tag'; renderSelPop(); });
+$('selAll').addEventListener('click', () => { cardEls.forEach(c => setPicked(c._item, true)); syncSelection(); });
+$('selClose').addEventListener('click', clearSelection);
+
+// スマホ：カードを長押しで選択を始める
+let press = null;
+grid.addEventListener('pointerdown', e => {
+  if(e.pointerType !== 'touch') return;
+  const c = e.target.closest('.card');
+  if(!c || e.target.closest('.rd-btn, .sel-box')) return;
+  c._long = false;
+  press = { c, x:e.clientX, y:e.clientY, t:setTimeout(() => {
+    c._long = true;
+    pickCard(c._item, false);
+    if(navigator.vibrate) navigator.vibrate(10);
+  }, 450) };
+});
+const endPress = () => { if(press){ clearTimeout(press.t); press = null; } };
+grid.addEventListener('pointermove', e => { if(press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) endPress(); });
+grid.addEventListener('pointerup', endPress);
+grid.addEventListener('pointercancel', endPress);
+grid.addEventListener('contextmenu', e => { if(e.target.closest('.card') && (selected.size || (press && press.c._long))) e.preventDefault(); });
+
+// 編集パネルを開いているとき：画像を貼り付けたらサムネにする（アドレスの貼り付けはサムネの画面で）
+document.addEventListener('paste', e => {
+  if(!peek.open || !peekItem || edPanel.hidden) return;
+  const t = e.target, inCover = t && t.id === 'edCoverUrl';
+  if(t && /^(input|textarea)$/i.test(t.tagName) && !inCover) return;
+  const f = [...(e.clipboardData.files || [])].find(x => x.type.startsWith('image/'));
+  if(f){ e.preventDefault(); edView = ''; uploadCover(peekItem, f); return; }
+  const u = (e.clipboardData.getData('text') || '').trim();
+  if(edView === 'cover' && !inCover && /^https?:\/\/\S+$/.test(u)){ e.preventDefault(); edView = ''; setCover(peekItem, u); }
+});
+
+// キー操作（プレビュー中と一覧とで分ける）
 document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && !viewMenu.hidden){ setMenu(false); return; }
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
   const typing = ['input', 'select', 'textarea'].includes(tag);
@@ -2055,6 +2338,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if(typing || dlg.open || filterDlg.open) return;
+  if(e.key === 'Escape' && selected.size){ e.preventDefault(); if(popKind){ popKind = ''; renderSelPop(); } else clearSelection(); return; }
   if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); openFilter(); return; }
   if(e.key === '/'){ e.preventDefault(); openFilter('other'); return; }
   if(e.key === 'c' || e.key === 'C') toggleCap();
@@ -2077,9 +2361,8 @@ if(!state.token){
   openSettings();
 }else if(cache){
   render();
-  // 保存日を持っていない古いキャッシュは、表示したまま裏で取り直す
-  const noDates = cache.items.length && !('a' in cache.items[0]);
-  if(noDates || Date.now() - cache.savedAt > DAY) refreshAll();
+  // 1日以上たっていたら、表示したまま裏で全部取り直す
+  if(Date.now() - cache.savedAt > DAY) refreshAll();
   else syncNew();
 }else{
   refreshAll();
