@@ -45,13 +45,14 @@ body{
 }
 header{
   position:sticky; top:0; z-index:5;
-  display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px;
-  padding:12px 20px;
+  display:flex; align-items:center; gap:10px;
+  padding:10px 20px;
   background:var(--bar);
   -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
   border-bottom:1px solid var(--line);
 }
-h1{font-size:15px; font-weight:700; margin:0 8px 0 0; letter-spacing:.02em}
+h1{font-size:15px; font-weight:700; margin:0 6px 0 0; letter-spacing:.02em; white-space:nowrap}
+svg.ic{width:16px; height:16px; flex:none; display:block}
 .seg{display:inline-flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
 .seg button{
   font:inherit; color:var(--muted); background:transparent; border:0;
@@ -78,6 +79,54 @@ select{max-width:280px}
   border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer;
 }
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
+/* 上のバー：絞り込み・並び順・シャッフル・表示 の4つだけ */
+.filter-btn{
+  display:inline-flex; align-items:center; gap:8px; min-width:0; max-width:520px; height:36px;
+  font:inherit; font-size:14px; color:var(--text); background:var(--field);
+  border:1px solid var(--line); border-radius:8px; padding:0 12px; cursor:pointer;
+}
+.filter-btn span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.filter-btn.active{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.filter-btn .muted{color:var(--muted)}
+header select{height:36px; padding:0 8px}
+header .shuffle{display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 16px}
+.tool-btn{
+  display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; flex:none;
+  color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:8px; cursor:pointer;
+}
+.tool-btn[aria-expanded="true"]{color:var(--text); background:var(--field)}
+.menu-wrap{position:relative}
+/* 表示メニュー */
+.menu{
+  position:absolute; top:calc(100% + 8px); right:0; z-index:6; width:330px;
+  display:flex; flex-direction:column; gap:2px; padding:8px;
+  background:var(--card); border:1px solid var(--line); border-radius:10px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:14px;
+}
+.menu[hidden]{display:none}
+.menu-row > span:first-child{white-space:nowrap}
+.menu-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px; border-radius:6px; min-height:40px}
+label.menu-row{cursor:pointer}
+label.menu-row:hover{background:var(--field)}
+.menu-row.sub{padding-left:20px; color:var(--muted); font-size:13px}
+.menu-row .sizer input{width:110px}
+.menu-row select{height:32px; padding:0 8px}
+.menu hr{border:0; border-top:1px solid var(--line); margin:6px 0}
+.menu .btns{display:flex; gap:8px; padding:6px 8px 4px}
+.menu .btns .icon-btn{flex:1; font-size:13px}
+kbd{font:inherit; font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:0 5px; margin-left:6px}
+/* オン・オフのスイッチ */
+.switch input{
+  appearance:none; -webkit-appearance:none; flex:none; width:38px; height:22px; margin:0; padding:0;
+  border-radius:999px; background:var(--line); border:0; position:relative; cursor:pointer; transition:background .15s;
+}
+.switch input::after{
+  content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;
+  background:#fff; transition:transform .15s;
+}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{transform:translateX(16px)}
+.status{color:var(--muted); font-size:12px; margin:0 0 12px; min-height:1.6em}
 
 main{padding:20px}
 .grid{display:flex; align-items:flex-start; justify-content:center; gap:var(--gap,16px)}
@@ -123,15 +172,12 @@ body.no-cap .cap{display:none}
 body.cur-idle, body.cur-idle *{cursor:none !important}
 body.cur-idle .grid{pointer-events:none}
 body.cur-idle .rd-btn{opacity:0 !important}
-.cur-group{display:none; align-items:center; gap:10px}
-@media (hover:hover){ .cur-group{display:inline-flex} }
-.cur-group .sizer input{width:100px}
-.wake-val{min-width:4.2em; font-variant-numeric:tabular-nums}
-.cur-group.off .sizer{opacity:.45}
+.cur-group{display:none}
+@media (hover:hover){ .cur-group{display:block} }
+.wake-val{min-width:3.6em; text-align:right; font-variant-numeric:tabular-nums}
+.cur-group.off .sub{opacity:.45}
 .more{padding:24px 0 8px; text-align:center; color:var(--muted); font-size:13px}
 
-#q{width:180px}
-#q::placeholder{color:var(--muted)}
 /* プレビュー：画像を画面いっぱいに見せるだけ */
 #peek{
   position:fixed; inset:0; width:auto; height:auto; max-width:none; max-height:none;
@@ -200,111 +246,126 @@ dialog h2{font-size:16px; margin:0 0 10px}
 dialog p{font-size:13px; color:var(--muted); margin:0 0 12px}
 dialog input{width:100%; margin-bottom:14px}
 .row{display:flex; gap:10px; justify-content:flex-end}
-#tagBtn{max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text)}
-#tagDlg{width:min(520px,94vw); padding:18px}
-#tagDlg[open]{display:flex; flex-direction:column; gap:10px; max-height:86vh}
-#tagDlg h2{margin:0}
-#tagDlg input[type=search]{width:100%; margin:0}
-#tagMatchSeg{align-self:flex-start}
-#tagDlg h2:focus{outline:none}
-.tag-picked{display:flex; flex-wrap:wrap; gap:6px; min-height:24px}
-.tag-picked .tag{cursor:pointer; font:inherit; font-size:12px}
-.tag-picked .tag::after{content:" ×"; color:var(--muted)}
-.tag-list{flex:1; min-height:120px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:4px 0}
-.tag-list label{display:flex; align-items:center; gap:10px; padding:7px 12px; cursor:pointer; font-size:14px}
-.tag-list label:hover{background:var(--field)}
-.tag-list input{width:auto; margin:0; accent-color:var(--accent)}
-.tag-list .cnt{margin-left:auto; color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums}
-.tag-foot{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-.tag-foot .hit{color:var(--muted); font-size:13px; margin-right:auto}
+/* 絞り込み画面 */
+#filterDlg{width:min(560px,94vw); height:min(760px,90vh); padding:0; overflow:hidden}
+#filterDlg[open]{display:flex; flex-direction:column}
+.fd-head{display:flex; align-items:baseline; gap:12px; padding:16px 18px 8px}
+.fd-head h2{margin:0}
+.fd-head h2:focus{outline:none}
+.fd-hit{color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums}
+.fd-picked{display:flex; flex-wrap:wrap; gap:6px; padding:0 18px 10px; min-height:30px}
+.chip{
+  display:inline-flex; align-items:center; gap:4px; font:inherit; font-size:12px; line-height:1.5;
+  padding:2px 9px; border-radius:999px; cursor:pointer;
+  color:var(--text); background:var(--field); border:1px solid var(--line);
+}
+.chip::after{content:"×"; color:var(--muted); margin-left:2px}
+.chip.ex{border-style:dashed; color:var(--muted)}
+.fd-tabs{margin:0 18px; align-self:flex-start}
+.fd-pane{flex:1; min-height:0; display:flex; flex-direction:column; gap:10px; padding:12px 18px}
+.fd-pane[hidden]{display:none}
+.fd-pane input[type=search]{width:100%; margin:0}
+.fd-match{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--muted)}
+.fd-match[hidden]{display:none}
+.fd-match .seg button{padding:4px 12px; font-size:13px}
+.fd-list{flex:1; min-height:0; overflow:auto; border:1px solid var(--line); border-radius:8px}
+.fd-row{display:flex; align-items:center; gap:10px; padding:6px 8px 6px 12px; font-size:14px; border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent)}
+.fd-row:last-child{border-bottom:0}
+.fd-row .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fd-row .nm .path{color:var(--muted)}
+.fd-row .cnt{color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums}
+.fd-row.in{background:color-mix(in srgb, var(--accent) 14%, transparent)}
+.fd-row.ex .nm{color:var(--muted); text-decoration:line-through}
+.tri{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; flex:none}
+.tri button{font:inherit; font-size:12px; padding:3px 10px; border:0; background:transparent; color:var(--muted); cursor:pointer}
+.tri button+button{border-left:1px solid var(--line)}
+.tri button[aria-pressed="true"].inc{background:var(--accent); color:var(--accent-ink)}
+.tri button[aria-pressed="true"].exc{background:var(--muted); color:var(--card)}
+.fd-label{font-size:13px; font-weight:700}
+.fd-types{display:flex; flex-wrap:wrap; gap:6px}
+.fd-types button{font:inherit; font-size:13px; padding:5px 12px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
+.fd-types button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.fd-note{font-size:12px; color:var(--muted); margin:0; line-height:1.7}
+.fd-foot{display:flex; align-items:center; gap:10px; padding:12px 18px; border-top:1px solid var(--line)}
+.fd-foot .spacer{flex:1}
+.fd-foot button{white-space:nowrap}
 @media (max-width:640px){
-  #tagBtn{max-width:100%}
-  #tagDlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
-  #tagDlg[open]{max-height:100dvh}
-  .tag-foot .hit{flex-basis:100%}
-  .tag-foot #tagClear{margin-right:auto}
+  #filterDlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
+  .fd-tabs{align-self:stretch}
+  .fd-tabs button{flex:1}
+  .fd-foot{gap:8px; padding:12px}
+  .fd-foot button{padding:7px 12px}
 }
 
-#barToggle{display:none}
 @media (max-width:640px){
-  header{padding:10px 16px}
-  main{padding:16px}
-  select{max-width:100%}
-  #q{width:100%; order:0}
-  /* スマホでは上のバーをたためる */
-  #barToggle{
-    display:inline-flex; align-items:center; justify-content:center;
-    margin-left:auto; width:36px; height:36px; padding:0;
-  }
-  #barToggle svg{transition:transform .2s}
-  body.bar-collapsed header > :not(h1):not(#shuffle):not(#barToggle){display:none}
-  body.bar-collapsed header{padding:8px 16px}
-  body.bar-collapsed h1{flex:1}
-  body.bar-collapsed #shuffle{padding:6px 16px}
-  body.bar-collapsed #barToggle{margin-left:0; order:2}
-  body.bar-collapsed #barToggle svg{transform:rotate(180deg)}
+  header{padding:8px 12px; gap:8px}
+  h1{display:none}
+  main{padding:12px}
+  .filter-btn{flex:1}
+  header .spacer{display:none}
+  header select{max-width:118px}
+  header .shuffle{padding:0 11px}
+  header .shuffle .lbl{display:none}
+  .menu{position:fixed; top:58px; right:12px; left:12px; width:auto}
 }
 </style>
 </head>
 <body>
 <header>
   <h1>Raindrop シャッフル</h1>
-  <button type="button" class="icon-btn" id="barToggle" aria-expanded="true" aria-label="メニューをたたむ"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 10l4.5-4.5 4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-  <div class="seg" id="modeSeg" role="group" aria-label="範囲">
-    <button type="button" data-mode="all">すべて</button>
-    <button type="button" data-mode="folder">フォルダ</button>
-    <button type="button" data-mode="tag">タグ</button>
-  </div>
-  <select id="picker" aria-label="フォルダ" hidden></select>
-  <button type="button" class="icon-btn" id="tagBtn" hidden>タグを選ぶ</button>
-  <select id="typeSel" aria-label="種類">
-    <option value="">すべての種類</option>
-    <option value="image">画像</option>
-    <option value="video">動画</option>
-    <option value="article">記事</option>
-    <option value="link">リンク</option>
-    <option value="document">ドキュメント</option>
-    <option value="audio">音声</option>
-  </select>
-  <input type="search" id="q" placeholder="検索（/）" autocomplete="off" aria-label="タイトル・URL・タグ・フォルダで検索">
+  <button type="button" class="filter-btn" id="filterBtn" title="絞り込み（F）">
+    <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.6 5.6V13l-2.8-1.4V8.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+    <span id="filterLabel">すべて</span>
+  </button>
+  <span class="spacer" style="flex:1"></span>
   <select id="sortSel" aria-label="並び順">
-    <option value="shuffle">シャッフル</option>
+    <option value="shuffle">ランダム</option>
     <option value="new">新しい順</option>
     <option value="old">古い順</option>
     <option value="title">タイトル順</option>
   </select>
-  <select id="count" aria-label="一度に読み込む件数">
-    <option value="20">20件ずつ</option>
-    <option value="40">40件ずつ</option>
-    <option value="80">80件ずつ</option>
-  </select>
-  <label class="sizer" for="size" title="表示サイズ（キー 1・2・3 で小・中・大）">
-    <span aria-hidden="true">小</span>
-    <input type="range" id="size" min="90" max="380" step="5" aria-label="表示サイズ">
-    <span aria-hidden="true">大</span>
-  </label>
-  <span class="spacer"></span>
-  <span class="status" id="status" aria-live="polite"></span>
-  <button type="button" class="shuffle" id="shuffle">シャッフル</button>
-  <button type="button" class="icon-btn" id="capToggle" aria-pressed="true" title="タグとコレクションの表示を切り替えます（キー C）">キャプション</button>
-  <span class="cur-group" id="curGroup">
-    <button type="button" class="icon-btn" id="curToggle" aria-pressed="true" title="マウスを止めて少したつとカーソルを隠します。隠れている間はカードに反応しません（キー H）">カーソル非表示</button>
-    <label class="sizer" for="wake" title="隠れたカーソルが戻るまでに必要な、ひと続きのマウス移動の距離">
-      <span aria-hidden="true">戻り</span>
-      <input type="range" id="wake" min="30" max="1200" step="10" aria-label="カーソルが戻るまでの移動距離">
-      <output id="wakeVal" for="wake" class="wake-val"></output>
-    </label>
-  </span>
-  <button type="button" class="icon-btn" id="refresh" title="Raindrop から最新のブックマークを読み込み直します">更新</button>
-  <button type="button" class="icon-btn" id="settings" aria-label="設定">設定</button>
+  <button type="button" class="shuffle" id="shuffle" title="シャッフル（R）">
+    <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h2.2c1.4 0 2.4.7 3.2 1.9l1.2 1.8c.8 1.2 1.8 1.9 3.2 1.9H14M2 11.5h2.2c1.4 0 2.4-.7 3.2-1.9M9.2 6.4c.8-1.2 1.8-1.9 3.2-1.9H14M12 2.5l2 2-2 2M12 9.5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="lbl" id="shuffleLabel">シャッフル</span>
+  </button>
+  <div class="menu-wrap">
+    <button type="button" class="tool-btn" id="viewBtn" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu" title="表示の設定">
+      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M12 4h2M2 8h2M7 8h7M2 12h8M13 12h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="8" r="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="11.5" cy="12" r="1.6" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+    </button>
+    <div class="menu" id="viewMenu" hidden>
+      <div class="menu-row"><span>カードの大きさ</span>
+        <label class="sizer" for="size" title="キー 1・2・3 で小・中・大"><span aria-hidden="true">小</span><input type="range" id="size" min="90" max="380" step="5" aria-label="カードの大きさ"><span aria-hidden="true">大</span></label>
+      </div>
+      <div class="menu-row"><span>一度に読み込む数</span>
+        <select id="count" aria-label="一度に読み込む件数">
+          <option value="20">20件</option>
+          <option value="40">40件</option>
+          <option value="80">80件</option>
+        </select>
+      </div>
+      <label class="menu-row switch"><span>キャプション<kbd>C</kbd></span><input type="checkbox" id="capToggle"></label>
+      <div class="cur-group" id="curGroup">
+        <label class="menu-row switch" title="マウスを止めて少したつとカーソルを隠します。隠れている間はカードに反応しません"><span>カーソルを自動で隠す<kbd>H</kbd></span><input type="checkbox" id="curToggle"></label>
+        <div class="menu-row sub"><span>戻るまでの動き</span>
+          <label class="sizer" for="wake" title="隠れたカーソルが戻るまでに必要な、ひと続きのマウス移動の距離"><input type="range" id="wake" min="30" max="1200" step="10" aria-label="カーソルが戻るまでの移動距離"><output id="wakeVal" for="wake" class="wake-val"></output></label>
+        </div>
+      </div>
+      <hr>
+      <div class="btns">
+        <button type="button" class="icon-btn" id="refresh" title="Raindrop から全部を読み込み直します">全部読み込み直す</button>
+        <button type="button" class="icon-btn" id="settings">トークン設定</button>
+      </div>
+    </div>
+  </div>
 </header>
 
 <main>
+  <div class="status" id="status" aria-live="polite"></div>
   <div class="grid" id="grid"></div>
   <div class="more" id="more" hidden></div>
   <div class="empty" id="empty">
     <p>シャッフルを押すと、ブックマークがランダムに並びます。</p>
-    <p>カードを押すとこのページの中でプレビューが開き、右上の水滴ボタンで Raindrop の編集画面が開きます。下までスクロールすると続きが読み込まれます。</p>
+    <p>カードを押すと画像が大きく開き、右上の水滴ボタンで Raindrop の編集画面が開きます。左上の「絞り込み」でフォルダやタグを選べます。</p>
   </div>
 </main>
 
@@ -320,20 +381,48 @@ dialog input{width:100%; margin-bottom:14px}
   <div class="peek-body" id="peekBody" tabindex="-1" autofocus></div>
 </dialog>
 
-<dialog id="tagDlg" aria-labelledby="tagDlgTitle">
-  <h2 id="tagDlgTitle" tabindex="-1" autofocus>タグを選ぶ</h2>
-  <input type="search" id="tagSearch" placeholder="タグを絞り込む" autocomplete="off">
-  <div class="seg" id="tagMatchSeg" role="group" aria-label="複数選んだときの条件">
-    <button type="button" data-match="any">どれかを含む</button>
-    <button type="button" data-match="all">すべて含む</button>
+<dialog id="filterDlg" aria-labelledby="filterTitle">
+  <div class="fd-head">
+    <h2 id="filterTitle" tabindex="-1" autofocus>絞り込み</h2>
+    <span class="fd-hit" id="fdHit"></span>
   </div>
-  <div class="tag-picked" id="tagPicked"></div>
-  <div class="tag-list" id="tagList"></div>
-  <div class="tag-foot">
-    <span class="hit" id="tagHit"></span>
-    <button type="button" class="icon-btn" id="tagClear">選択を解除</button>
-    <button type="button" class="icon-btn" id="tagCancel">キャンセル</button>
-    <button type="button" class="shuffle" id="tagOk">決定</button>
+  <div class="fd-picked" id="fdPicked"></div>
+  <div class="seg fd-tabs" id="fdTabs" role="group" aria-label="絞り込みの種類">
+    <button type="button" data-tab="folder">フォルダ</button>
+    <button type="button" data-tab="tag">タグ</button>
+    <button type="button" data-tab="other">種類・言葉</button>
+  </div>
+  <div class="fd-pane" id="fdListPane">
+    <input type="search" id="fdSearch" autocomplete="off">
+    <div class="fd-match" id="fdMatch">
+      <span>「含む」のタグが2つ以上のとき</span>
+      <div class="seg" id="fdMatchSeg">
+        <button type="button" data-match="any">どれか1つ</button>
+        <button type="button" data-match="all">全部</button>
+      </div>
+    </div>
+    <div class="fd-list" id="fdList"></div>
+  </div>
+  <div class="fd-pane" id="fdOtherPane" hidden>
+    <div class="fd-label">種類</div>
+    <div class="fd-types" id="fdTypes">
+      <button type="button" data-type="">すべて</button>
+      <button type="button" data-type="image">画像</button>
+      <button type="button" data-type="video">動画</button>
+      <button type="button" data-type="article">記事</button>
+      <button type="button" data-type="link">リンク</button>
+      <button type="button" data-type="document">ドキュメント</button>
+      <button type="button" data-type="audio">音声</button>
+    </div>
+    <div class="fd-label">言葉で探す</div>
+    <input type="search" id="fdQ" placeholder="例：背景 夜" autocomplete="off">
+    <p class="fd-note">タイトル・URL・タグ名・フォルダ名の中から探します。スペースで区切ると、全部を含むものだけになります。ページの本文や Raindrop のメモは対象外です。</p>
+  </div>
+  <div class="fd-foot">
+    <button type="button" class="icon-btn" id="fdClear">すべて解除</button>
+    <span class="spacer"></span>
+    <button type="button" class="icon-btn" id="fdCancel">キャンセル</button>
+    <button type="button" class="shuffle" id="fdOk">表示する</button>
   </div>
 </dialog>
 
@@ -360,18 +449,11 @@ const store = {
 };
 const state = {
   token: store.get('token', ''),
-  mode: store.get('mode', 'all'),
-  coll: store.get('coll', ''),
-  tag: store.get('tag', ''),
-  tags: store.get('tags', null),
-  tagMatch: store.get('tagmatch', 'any'),
+  filter: store.get('filter', null),
   sort: store.get('sort', 'shuffle'),
-  type: store.get('type', ''),
-  q: '',
   count: store.get('count', 40),
   cap: store.get('cap', true),
   hideCur: store.get('hidecur', true),
-  barOpen: store.get('bar', true),
   wakePx: store.get('wakepx', 360),
   col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
 };
@@ -384,7 +466,7 @@ let refreshing = false;
 
 const $ = id => document.getElementById(id);
 const grid = $('grid'), empty = $('empty'), statusEl = $('status');
-const picker = $('picker'), countSel = $('count'), shuffleBtn = $('shuffle'), refreshBtn = $('refresh');
+const countSel = $('count'), shuffleBtn = $('shuffle'), refreshBtn = $('refresh');
 const dlg = $('dlg'), tokenInput = $('tokenInput');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -506,7 +588,8 @@ function applyCache(){
     descendants(c.id).forEach(id => { n += direct.get(id) || 0; });
     folderCount.set(c.id, n);
   });
-  fillPicker();
+  folderCount.set(-1, direct.get(-1) || 0);
+  syncFilter();
 }
 
 function descendants(id){
@@ -519,119 +602,206 @@ function descendants(id){
   return set;
 }
 
-function fillPicker(){
-  document.querySelectorAll('#modeSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)));
-  picker.hidden = state.mode !== 'folder';
-  tagBtn.hidden = state.mode !== 'tag';
-  picker.innerHTML = '';
-  if(state.mode === 'tag'){ syncTags(); return; }
-  if(state.mode === 'all') return;
-  if(!cache){
-    picker.append(new Option('読み込み中…', ''));
-    return;
-  }
-  const list = state.mode === 'folder'
-    ? cache.colls.map(c => ({ value:String(c.id), label:`${c.label}（${folderCount.get(c.id) || 0}）` }))
-    : cache.tags.map(t => ({ value:t.name, label:`${t.name}（${t.count}）` }));
-  if(!list.length){
-    picker.append(new Option(state.mode === 'folder' ? 'フォルダがありません' : 'タグがありません', ''));
-    return;
-  }
-  list.forEach(o => picker.append(new Option(o.label, o.value)));
-  const current = state.mode === 'folder' ? String(state.coll) : state.tag;
-  if(list.some(o => o.value === current)) picker.value = current;
-  else { picker.selectedIndex = 0; savePick(); }
+// ---- 絞り込み（フォルダ・タグの「含む／除く」、種類、言葉）----
+// fi/fx = 含む/除くフォルダ, ti/tx = 含む/除くタグ, tm = 含むタグが複数のとき any|all
+const NO_TAG = '\u0000none';
+const TYPE_LABEL = { image:'画像', video:'動画', article:'記事', link:'リンク', document:'ドキュメント', audio:'音声' };
+const emptyFilter = () => ({ fi:[], fx:[], ti:[], tx:[], tm:'any', type:'', q:'' });
+// 前の版の設定（すべて／フォルダ／タグ、種類）を引き継ぐ
+if(!state.filter){
+  const f = emptyFilter();
+  const mode = store.get('mode', 'all');
+  if(mode === 'folder' && store.get('coll', '')) f.fi = [Number(store.get('coll', ''))];
+  if(mode === 'tag'){ const t = store.get('tags', null); f.ti = Array.isArray(t) ? t : (store.get('tag', '') ? [store.get('tag', '')] : []); }
+  f.tm = store.get('tagmatch', 'any');
+  f.type = store.get('type', '');
+  state.filter = f;
 }
+state.filter = Object.assign(emptyFilter(), state.filter);
 
-function savePick(){
-  if(state.mode === 'folder'){ state.coll = picker.value; store.set('coll', state.coll); }
-  if(state.mode === 'tag'){ state.tag = picker.value; store.set('tag', state.tag); }
+function unionDesc(ids){
+  const s = new Set();
+  ids.forEach(id => descendants(Number(id)).forEach(v => s.add(v)));
+  return s;
 }
-
-// ---- タグの複数選択 ----
-const tagBtn = $('tagBtn'), tagDlg = $('tagDlg'), tagListEl = $('tagList'), tagSearch = $('tagSearch');
-if(!Array.isArray(state.tags)) state.tags = state.tag ? [state.tag] : [];
-let draftTags = new Set(), draftMatch = 'any';
-
-function tagFilter(tags, match){
-  const set = new Set(tags);
-  return match === 'all'
-    ? x => tags.every(t => x.g.includes(t))
-    : x => x.g.some(t => set.has(t));
+const hasTag = (x, t) => t === NO_TAG ? !(x.g && x.g.length) : x.g.includes(t);
+function typeOk(x, type){
+  return type === 'video' ? (x.y === 'video' || (x.m || []).some(m => m.t === 'video')) : x.y === type;
 }
-// 消えたタグを選択から外し、ボタンの表示を合わせる
-function syncTags(){
+function makeFilter(f){
+  const inF = f.fi.length ? unionDesc(f.fi) : null;
+  const exF = f.fx.length ? unionDesc(f.fx) : null;
+  const terms = (f.q || '').toLowerCase().split(/\s+/).filter(Boolean);
+  return x => {
+    if(inF && !inF.has(x.k)) return false;
+    if(exF && exF.has(x.k)) return false;
+    if(f.ti.length && !(f.tm === 'all' ? f.ti.every(t => hasTag(x, t)) : f.ti.some(t => hasTag(x, t)))) return false;
+    if(f.tx.length && f.tx.some(t => hasTag(x, t))) return false;
+    if(f.type && !typeOk(x, f.type)) return false;
+    if(terms.length){ const h = hayOf(x); if(!terms.every(t => h.includes(t))) return false; }
+    return true;
+  };
+}
+const filterCount = f => f.fi.length + f.fx.length + f.ti.length + f.tx.length + (f.type ? 1 : 0) + (f.q ? 1 : 0);
+const folderShort = id => id === -1 ? '未整理' : ((collLabel.get(id) || '').split(' / ').pop() || '（消えたフォルダ）');
+const tagName = t => t === NO_TAG ? 'タグなし' : '#' + t;
+
+// 上のバーのボタンに今の条件を短く出す
+function filterSummary(f){
+  const parts = [];
+  if(f.fi.length) parts.push(f.fi.map(folderShort).join(' / '));
+  if(f.ti.length) parts.push(f.ti.map(tagName).join(f.tm === 'all' ? ' かつ ' : ' / '));
+  if(f.type) parts.push(TYPE_LABEL[f.type]);
+  if(f.q) parts.push(`「${f.q}」`);
+  const ex = f.fx.length + f.tx.length;
+  if(ex) parts.push(`除外${ex}`);
+  return parts.join(' · ');
+}
+// 消えたフォルダやタグを条件から外して、ボタンの表示を合わせる
+function syncFilter(){
+  const f = state.filter;
   if(cache){
-    const names = new Set(cache.tags.map(t => t.name));
-    const kept = state.tags.filter(t => names.has(t));
-    if(kept.length !== state.tags.length){ state.tags = kept; store.set('tags', kept); }
+    const fids = new Set(cache.colls.map(c => c.id)); fids.add(-1);
+    const tnames = new Set(cache.tags.map(t => t.name)); tnames.add(NO_TAG);
+    const keepF = a => a.filter(id => fids.has(Number(id))).map(Number);
+    const keepT = a => a.filter(t => tnames.has(t));
+    const before = JSON.stringify(f);
+    f.fi = keepF(f.fi); f.fx = keepF(f.fx); f.ti = keepT(f.ti); f.tx = keepT(f.tx);
+    if(JSON.stringify(f) !== before) store.set('filter', f);
   }
-  const n = state.tags.length;
-  tagBtn.textContent = !n ? 'タグを選ぶ'
-    : state.tags.map(t => '#' + t).join(state.tagMatch === 'all' ? ' かつ ' : ' / ');
-  tagBtn.title = n ? (state.tagMatch === 'all' ? 'すべて含む: ' : 'どれかを含む: ') + state.tags.join('、') : '';
+  const sum = filterSummary(f);
+  const label = $('filterLabel');
+  label.textContent = sum || 'すべて';
+  label.className = sum ? '' : 'muted';
+  $('filterBtn').classList.toggle('active', !!sum);
+  $('filterBtn').title = (sum ? '絞り込み中：' + sum : 'すべてを表示中') + '（F で開く）';
 }
-function renderTagDlg(){
-  document.querySelectorAll('#tagMatchSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.match === draftMatch)));
-  const picked = $('tagPicked');
+
+// ---- 絞り込み画面 ----
+const filterDlg = $('filterDlg'), fdList = $('fdList'), fdSearch = $('fdSearch');
+let draft = emptyFilter(), fdTab = 'folder';
+const cloneF = f => JSON.parse(JSON.stringify(f));
+
+function toggleIn(listIn, listEx, v, which){
+  // which: 'in' | 'ex'。同じものをもう一度押すと解除
+  const i = listIn.indexOf(v), e = listEx.indexOf(v);
+  if(i >= 0) listIn.splice(i, 1);
+  if(e >= 0) listEx.splice(e, 1);
+  if(which === 'in' && i < 0) listIn.push(v);
+  if(which === 'ex' && e < 0) listEx.push(v);
+}
+function triButtons(isIn, isEx, onIn, onEx){
+  const box = document.createElement('span');
+  box.className = 'tri';
+  const a = document.createElement('button');
+  a.type = 'button'; a.className = 'inc'; a.textContent = '含む'; a.setAttribute('aria-pressed', String(isIn));
+  a.addEventListener('click', onIn);
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'exc'; b.textContent = '除く'; b.setAttribute('aria-pressed', String(isEx));
+  b.addEventListener('click', onEx);
+  box.append(a, b);
+  return box;
+}
+function renderFilterDlg(){
+  const f = draft;
+  // 選んでいる条件（押すと外れる）
+  const picked = $('fdPicked');
   picked.innerHTML = '';
-  if(!draftTags.size){
-    const n = document.createElement('span'); n.className = 'none'; n.textContent = 'まだ選んでいません';
+  const chip = (text, ex, onRemove) => {
+    const c = document.createElement('button');
+    c.type = 'button'; c.className = 'chip' + (ex ? ' ex' : ''); c.textContent = text; c.title = '外す';
+    c.addEventListener('click', () => { onRemove(); renderFilterDlg(); });
+    picked.append(c);
+  };
+  f.fi.forEach(id => chip(folderShort(id), false, () => toggleIn(f.fi, f.fx, id, '')));
+  f.ti.forEach(t => chip(tagName(t), false, () => toggleIn(f.ti, f.tx, t, '')));
+  f.fx.forEach(id => chip('除く ' + folderShort(id), true, () => toggleIn(f.fi, f.fx, id, '')));
+  f.tx.forEach(t => chip('除く ' + tagName(t), true, () => toggleIn(f.ti, f.tx, t, '')));
+  if(f.type) chip(TYPE_LABEL[f.type], false, () => { f.type = ''; });
+  if(f.q) chip(`「${f.q}」`, false, () => { f.q = ''; $('fdQ').value = ''; });
+  if(!picked.children.length){
+    const n = document.createElement('span'); n.className = 'none'; n.textContent = '条件なし（すべてを表示）';
     picked.append(n);
   }
-  draftTags.forEach(t => {
-    const chip = document.createElement('button');
-    chip.type = 'button'; chip.className = 'tag'; chip.textContent = '#' + t;
-    chip.title = '外す';
-    chip.addEventListener('click', () => { draftTags.delete(t); renderTagDlg(); });
-    picked.append(chip);
-  });
-  const q = tagSearch.value.trim().toLowerCase();
-  tagListEl.innerHTML = '';
-  const tags = cache ? cache.tags : [];
-  tags.filter(t => !q || t.name.toLowerCase().includes(q)).forEach(t => {
-    const row = document.createElement('label');
-    const cb = document.createElement('input');
-    cb.type = 'checkbox'; cb.checked = draftTags.has(t.name);
-    cb.addEventListener('change', () => { cb.checked ? draftTags.add(t.name) : draftTags.delete(t.name); renderTagDlg(); });
-    const name = document.createElement('span'); name.textContent = t.name;
-    const cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.textContent = t.count;
-    row.append(cb, name, cnt);
-    tagListEl.append(row);
-  });
-  if(!tagListEl.children.length){
-    const n = document.createElement('div'); n.className = 'none'; n.style.padding = '8px 12px';
-    n.textContent = tags.length ? '該当するタグがありません' : 'タグがありません';
-    tagListEl.append(n);
+
+  document.querySelectorAll('#fdTabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === fdTab)));
+  $('fdListPane').hidden = fdTab === 'other';
+  $('fdOtherPane').hidden = fdTab !== 'other';
+  $('fdMatch').hidden = fdTab !== 'tag';
+  document.querySelectorAll('#fdMatchSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.match === f.tm)));
+  document.querySelectorAll('#fdTypes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.type === f.type)));
+
+  if(fdTab !== 'other'){
+    fdSearch.placeholder = fdTab === 'folder' ? 'フォルダを探す' : 'タグを探す';
+    const q = fdSearch.value.trim().toLowerCase();
+    const y = fdList.scrollTop;
+    fdList.innerHTML = '';
+    const rows = [];
+    if(fdTab === 'folder'){
+      const unsorted = { id:-1, label:'未整理', count: folderCount.get(-1) || 0 };
+      [unsorted, ...(cache ? cache.colls.map(c => ({ id:c.id, label:c.label, count:folderCount.get(c.id) || 0 })) : [])]
+        .forEach(c => rows.push({ key:c.id, label:c.label, count:c.count, inL:f.fi, exL:f.fx }));
+    }else{
+      const none = cache ? cache.items.filter(x => !(x.g && x.g.length)).length : 0;
+      [{ name:NO_TAG, count:none }, ...(cache ? cache.tags : [])]
+        .forEach(t => rows.push({ key:t.name, label:t.name === NO_TAG ? 'タグなし' : t.name, count:t.count, inL:f.ti, exL:f.tx }));
+    }
+    rows.filter(r => !q || r.label.toLowerCase().includes(q)).forEach(r => {
+      const isIn = r.inL.includes(r.key), isEx = r.exL.includes(r.key);
+      const row = document.createElement('div');
+      row.className = 'fd-row' + (isIn ? ' in' : isEx ? ' ex' : '');
+      const nm = document.createElement('span');
+      nm.className = 'nm';
+      const segs = r.label.split(' / ');
+      if(segs.length > 1){
+        const path = document.createElement('span'); path.className = 'path'; path.textContent = segs.slice(0, -1).join(' / ') + ' / ';
+        nm.append(path, document.createTextNode(segs[segs.length - 1]));
+      }else nm.textContent = r.label;
+      nm.title = r.label;
+      const cnt = document.createElement('span'); cnt.className = 'cnt'; cnt.textContent = r.count.toLocaleString();
+      row.append(nm, cnt, triButtons(isIn, isEx,
+        () => { toggleIn(r.inL, r.exL, r.key, 'in'); renderFilterDlg(); },
+        () => { toggleIn(r.inL, r.exL, r.key, 'ex'); renderFilterDlg(); }));
+      fdList.append(row);
+    });
+    if(!fdList.children.length){
+      const n = document.createElement('div'); n.className = 'none'; n.style.padding = '10px 12px';
+      n.textContent = '見つかりません';
+      fdList.append(n);
+    }
+    fdList.scrollTop = y;
   }
-  const hit = draftTags.size && cache ? cache.items.filter(tagFilter([...draftTags], draftMatch)).length : 0;
-  $('tagHit').textContent = draftTags.size ? `該当 ${hit.toLocaleString()}件` : '';
-  $('tagOk').disabled = !draftTags.size;
+  const hit = cache ? cache.items.filter(makeFilter(f)).length : 0;
+  $('fdHit').textContent = `該当 ${hit.toLocaleString()}件`;
 }
-function openTagDlg(){
-  draftTags = new Set(state.tags);
-  draftMatch = state.tagMatch;
-  tagSearch.value = '';
-  renderTagDlg();
-  const y = tagListEl.scrollTop;
-  tagDlg.showModal();
-  tagListEl.scrollTop = y;
+function openFilter(tab){
+  draft = cloneF(state.filter);
+  if(tab) fdTab = tab;
+  fdSearch.value = '';
+  $('fdQ').value = draft.q || '';
+  renderFilterDlg();
+  filterDlg.showModal();
+  if(tab === 'other') $('fdQ').focus();
 }
-tagBtn.addEventListener('click', openTagDlg);
-tagSearch.addEventListener('input', renderTagDlg);
-document.querySelectorAll('#tagMatchSeg button').forEach(b => b.addEventListener('click', () => { draftMatch = b.dataset.match; renderTagDlg(); }));
-$('tagClear').addEventListener('click', () => { draftTags.clear(); renderTagDlg(); });
-$('tagCancel').addEventListener('click', () => tagDlg.close());
-$('tagOk').addEventListener('click', () => {
-  state.tags = [...draftTags];
-  state.tagMatch = draftMatch;
-  store.set('tags', state.tags);
-  store.set('tagmatch', state.tagMatch);
-  tagDlg.close();
-  syncTags();
+$('filterBtn').addEventListener('click', () => openFilter());
+document.querySelectorAll('#fdTabs button').forEach(b => b.addEventListener('click', () => { fdTab = b.dataset.tab; fdSearch.value = ''; fdList.scrollTop = 0; renderFilterDlg(); }));
+document.querySelectorAll('#fdMatchSeg button').forEach(b => b.addEventListener('click', () => { draft.tm = b.dataset.match; renderFilterDlg(); }));
+document.querySelectorAll('#fdTypes button').forEach(b => b.addEventListener('click', () => { draft.type = b.dataset.type; renderFilterDlg(); }));
+fdSearch.addEventListener('input', renderFilterDlg);
+let fdQTimer = 0;
+$('fdQ').addEventListener('input', () => { clearTimeout(fdQTimer); fdQTimer = setTimeout(() => { draft.q = $('fdQ').value.trim(); renderFilterDlg(); }, 200); });
+$('fdQ').addEventListener('keydown', e => { if(e.key === 'Enter'){ draft.q = $('fdQ').value.trim(); applyFilterDlg(); } });
+$('fdClear').addEventListener('click', () => { draft = emptyFilter(); $('fdQ').value = ''; renderFilterDlg(); });
+$('fdCancel').addEventListener('click', () => filterDlg.close());
+function applyFilterDlg(){
+  state.filter = cloneF(draft);
+  store.set('filter', state.filter);
+  filterDlg.close();
+  syncFilter();
   if(cache) render();
-});
-tagDlg.addEventListener('click', e => { if(e.target === tagDlg) tagDlg.close(); });
+}
+$('fdOk').addEventListener('click', applyFilterDlg);
+filterDlg.addEventListener('click', e => { if(e.target === filterDlg) filterDlg.close(); });
 
 function shuffleArray(a){
   for(let i = a.length - 1; i > 0; i--){
@@ -714,21 +884,7 @@ function shuffle(){
 function render(){
   if(!cache){ refreshAll(); return; }
   newNote = '';
-  let pool = cache.items;
-  if(state.mode === 'folder'){
-    if(!state.coll){ statusEl.textContent = 'フォルダを選んでください。'; return; }
-    const ids = descendants(Number(state.coll));
-    pool = pool.filter(x => ids.has(x.k));
-  }
-  if(state.mode === 'tag'){
-    if(!state.tags.length){ statusEl.textContent = 'タグを選んでください。'; return; }
-    pool = pool.filter(tagFilter(state.tags, state.tagMatch));
-  }
-  if(state.type){
-    pool = pool.filter(x => state.type === 'video' ? (x.y === 'video' || (x.m || []).some(m => m.t === 'video')) : x.y === state.type);
-  }
-  const terms = state.q.toLowerCase().split(/\s+/).filter(Boolean);
-  if(terms.length) pool = pool.filter(x => { const h = hayOf(x); return terms.every(t => h.includes(t)); });
+  const pool = cache.items.filter(makeFilter(state.filter));
   order = sortPool(pool);
   poolSize = order.length;
   shownCount = 0;
@@ -739,7 +895,7 @@ function render(){
   empty.hidden = poolSize > 0;
   if(!poolSize){
     moreEl.hidden = true;
-    statusEl.textContent = 'この条件のブックマークはありません。';
+    statusEl.textContent = 'この条件のブックマークはありません。左上の「絞り込み」で条件を変えてください。';
     return;
   }
   appendMore();
@@ -1122,7 +1278,7 @@ function handleError(e){
 
 function setShuffleBusy(b){
   shuffleBtn.disabled = b;
-  shuffleBtn.textContent = b ? '読み込み中…' : 'シャッフル';
+  $('shuffleLabel').textContent = b ? '読み込み中…' : 'シャッフル';
 }
 
 function openSettings(){
@@ -1135,14 +1291,14 @@ const moreEl = $('more');
 const capBtn = $('capToggle');
 function applyCap(){
   document.body.classList.toggle('no-cap', !state.cap);
-  capBtn.setAttribute('aria-pressed', String(state.cap));
+  capBtn.checked = state.cap;
 }
 function toggleCap(){
   state.cap = !state.cap;
   store.set('cap', state.cap);
   applyCap();
 }
-capBtn.addEventListener('click', toggleCap);
+capBtn.addEventListener('change', toggleCap);
 
 // マウスを止めて少したつとカーソルを隠す。隠れている間はカードに反応しない
 const curBtn = $('curToggle');
@@ -1155,7 +1311,7 @@ function armIdle(){
   clearTimeout(idleTimer);
   if(!state.hideCur || !canHover) return;
   idleTimer = setTimeout(() => {
-    if(dlg.open || peek.open || tagDlg.open) return armIdle();
+    if(dlg.open || peek.open || filterDlg.open) return armIdle();
     setIdle(true);
   }, IDLE_MS);
 }
@@ -1190,7 +1346,7 @@ wakeInput.addEventListener('input', () => {
   applyWake();
 });
 function applyCur(){
-  curBtn.setAttribute('aria-pressed', String(state.hideCur));
+  curBtn.checked = state.hideCur;
   $('curGroup').classList.toggle('off', !state.hideCur);
   if(state.hideCur) armIdle(); else { clearTimeout(idleTimer); setIdle(false); }
 }
@@ -1199,7 +1355,7 @@ function toggleCur(){
   store.set('hidecur', state.hideCur);
   applyCur();
 }
-curBtn.addEventListener('click', toggleCur);
+curBtn.addEventListener('change', toggleCur);
 
 new IntersectionObserver(entries => {
   if(entries.some(e => e.isIntersecting) && shownCount < poolSize && !placing) appendMore();
@@ -1225,34 +1381,26 @@ function setSize(px){
   applySize();
 }
 sizeInput.addEventListener('input', () => setSize(Number(sizeInput.value)));
-document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => {
-  state.mode = b.dataset.mode;
-  store.set('mode', state.mode);
-  fillPicker();
-  if(cache) render();
-}));
-picker.addEventListener('change', () => { savePick(); if(cache) render(); });
 countSel.addEventListener('change', () => {
   state.count = Number(countSel.value);
   store.set('count', state.count);
 });
 shuffleBtn.addEventListener('click', shuffle);
-const sortSel = $('sortSel'), typeSel = $('typeSel'), qInput = $('q');
+const sortSel = $('sortSel');
 sortSel.value = state.sort;
-typeSel.value = state.type;
 sortSel.addEventListener('change', () => { state.sort = sortSel.value; store.set('sort', state.sort); if(cache) render(); });
-typeSel.addEventListener('change', () => { state.type = typeSel.value; store.set('type', state.type); if(cache) render(); });
-let qTimer = 0;
-qInput.addEventListener('input', () => {
-  clearTimeout(qTimer);
-  qTimer = setTimeout(() => { state.q = qInput.value.trim(); if(cache) render(); }, 200);
-});
-qInput.addEventListener('keydown', e => {
-  if(e.key === 'Escape'){ qInput.value = ''; state.q = ''; qInput.blur(); if(cache) render(); }
-  if(e.key === 'Enter') qInput.blur();
-});
-refreshBtn.addEventListener('click', refreshAll);
-$('settings').addEventListener('click', openSettings);
+
+// 表示メニュー（大きさ・件数・キャプション・カーソル・読み込み直し・トークン）
+const viewBtn = $('viewBtn'), viewMenu = $('viewMenu');
+function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); }
+viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.hidden); });
+// メニューの外を押したときは閉じるだけにする（後ろのカードが開かないように）
+document.addEventListener('click', e => {
+  if(!viewMenu.hidden && !e.target.closest('.menu-wrap')){ e.preventDefault(); e.stopPropagation(); setMenu(false); }
+}, true);
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && !viewMenu.hidden) setMenu(false); });
+refreshBtn.addEventListener('click', () => { setMenu(false); refreshAll(); });
+$('settings').addEventListener('click', () => { setMenu(false); openSettings(); });
 $('cancel').addEventListener('click', () => dlg.close());
 $('tokenForm').addEventListener('submit', () => {
   const next = tokenInput.value.trim();
@@ -1261,7 +1409,7 @@ $('tokenForm').addEventListener('submit', () => {
     store.set('token', state.token);
     cache = null;
     store.del('cache');
-    fillPicker();
+    syncFilter();
     order = []; poolSize = 0; shownCount = 0; cardEls = []; placeGen++; placing = 0; layout(true);
     if(state.token) refreshAll();
   }
@@ -1270,8 +1418,9 @@ document.addEventListener('keydown', e => {
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
   if(peek.open && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){ e.preventDefault(); stepPeek(e.key === 'ArrowLeft' ? -1 : 1); return; }
-  if(['input', 'select', 'textarea'].includes(tag) || dlg.open || peek.open || tagDlg.open) return;
-  if(e.key === '/'){ e.preventDefault(); if(!state.barOpen){ state.barOpen = true; store.set('bar', true); applyBar(); } qInput.focus(); qInput.select(); return; }
+  if(['input', 'select', 'textarea'].includes(tag) || dlg.open || peek.open || filterDlg.open) return;
+  if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); openFilter(); return; }
+  if(e.key === '/'){ e.preventDefault(); openFilter('other'); return; }
   if(e.key === 'c' || e.key === 'C') toggleCap();
   if(e.key === 'h' || e.key === 'H') toggleCur();
   if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); shuffle(); }
@@ -1280,20 +1429,6 @@ document.addEventListener('keydown', e => {
   if(e.key === '3') setSize(380);
 });
 
-// スマホで上のバーをたたむ
-const barBtn = $('barToggle');
-function applyBar(){
-  document.body.classList.toggle('bar-collapsed', !state.barOpen);
-  barBtn.setAttribute('aria-expanded', String(state.barOpen));
-  barBtn.setAttribute('aria-label', state.barOpen ? 'メニューをたたむ' : 'メニューをひらく');
-}
-barBtn.addEventListener('click', () => {
-  state.barOpen = !state.barOpen;
-  store.set('bar', state.barOpen);
-  applyBar();
-});
-
-applyBar();
 applyCap();
 applyWake();
 applyCur();
@@ -1301,7 +1436,7 @@ applySize();
 countSel.value = String(state.count);
 if(!['20', '40', '80'].includes(countSel.value)){ countSel.value = '40'; state.count = 40; }
 if(cache && !(cache.v === 2 && cache.items && cache.colls && cache.tags)) cache = null;
-if(cache) applyCache(); else fillPicker();
+if(cache) applyCache(); else syncFilter();
 if(!state.token){
   openSettings();
 }else if(cache){
