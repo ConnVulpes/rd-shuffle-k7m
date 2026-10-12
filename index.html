@@ -109,8 +109,6 @@ main{padding:20px}
   display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:5;
 }
 .ph-text .ph-site{font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.peek-media .ph-text{min-height:200px; font-size:15px}
-.peek-media .ph-text .ph-title{-webkit-line-clamp:12}
 .cap{display:flex; flex-direction:column; gap:6px; padding:8px 10px 10px}
 .cap-top{display:flex; align-items:baseline; gap:8px; min-width:0}
 .coll{flex:1; min-width:0; font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -132,36 +130,48 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .cur-group.off .sizer{opacity:.45}
 .more{padding:24px 0 8px; text-align:center; color:var(--muted); font-size:13px}
 
-#peek{
-  width:min(960px,94vw); height:min(88vh,1000px); padding:0;
-  display:none; flex-direction:column; overflow:hidden;
-}
-#peek[open]{display:flex}
-.peek-head{display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border-bottom:1px solid var(--line)}
-.peek-titles{flex:1; min-width:0}
-.peek-title{font-size:16px; font-weight:700; margin:0; line-height:1.4; overflow-wrap:anywhere}
-.peek-url{font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.peek-actions{display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end}
-.peek-actions a{text-decoration:none; display:inline-flex; align-items:center}
-.peek-nav{display:inline-flex; align-items:center; gap:6px; margin-right:auto}
-.peek-nav .icon-btn{width:36px; padding:6px 0; font-size:18px; line-height:1}
-.peek-pos{color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; min-width:5.5em; text-align:center}
 #q{width:180px}
 #q::placeholder{color:var(--muted)}
-.peek-body{flex:1; min-height:0; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:14px}
-.peek-media{display:flex; justify-content:center; background:var(--ph); border-radius:6px; overflow:hidden}
-.peek-media .thumb,.peek-media img{max-width:100%; max-height:62vh; width:auto; height:auto; display:block}
-.peek-media .ph{width:100%}
-.peek-frame{width:100%; flex:1; min-height:60vh; border:0; border-radius:6px; background:#fff}
-.peek-embed{width:100%; min-height:62vh; border:0; border-radius:6px}
-.peek-meta{display:flex; flex-direction:column; gap:8px; font-size:13px}
-.peek-text{margin:0; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere}
-.peek-note{color:var(--muted); font-size:12px}
-@media (max-width:640px){
-  #peek{width:100vw; height:100dvh; max-width:100vw; max-height:100dvh; border-radius:0; border:0}
-  .peek-head{flex-wrap:wrap}
-  .peek-actions{width:100%; justify-content:flex-start}
+/* プレビュー：画像を画面いっぱいに見せるだけ */
+#peek{
+  width:100vw; height:100dvh; max-width:100vw; max-height:100dvh;
+  margin:0; padding:0; border:0; border-radius:0;
+  background:rgba(10,11,13,.98); color:#eee; overflow:hidden;
 }
+#peek[open]{display:block}
+#peek::backdrop{background:rgba(0,0,0,.6)}
+.peek-body:focus{outline:none}
+.peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:52px 12px 16px}
+.peek-body .thumb, .peek-body img, .peek-body video{
+  display:block; max-width:100%; max-height:100%; width:auto; height:auto;
+  object-fit:contain; border-radius:4px; background:transparent;
+}
+.peek-body .ph{width:min(560px,100%); border-radius:6px}
+.peek-body .ph-text{min-height:200px; font-size:16px}
+.peek-body .ph-text .ph-title{-webkit-line-clamp:14}
+.lb-top{
+  position:absolute; top:0; left:0; right:0; z-index:2;
+  display:flex; align-items:center; gap:8px; padding:8px 10px;
+  background:linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0));
+}
+.peek-pos{margin-right:auto; color:rgba(255,255,255,.7); font-size:12px; font-variant-numeric:tabular-nums; padding-left:6px}
+.lb-btn{
+  display:inline-flex; align-items:center; justify-content:center; height:34px; padding:0 12px;
+  font:inherit; font-size:13px; color:#fff; text-decoration:none; cursor:pointer;
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:8px;
+}
+.lb-btn:hover{background:rgba(255,255,255,.22)}
+#peekClose{width:34px; padding:0; font-size:20px; line-height:1}
+.lb-nav{
+  position:absolute; top:50%; z-index:2; transform:translateY(-50%);
+  width:44px; height:64px; border:0; border-radius:10px; cursor:pointer;
+  font-size:30px; line-height:1; color:#fff; background:rgba(255,255,255,.10);
+}
+.lb-nav:hover{background:rgba(255,255,255,.22)}
+.lb-nav:disabled{opacity:0; pointer-events:none}
+.lb-prev{left:10px}
+.lb-next{right:10px}
+@media (hover:none){ .lb-nav{display:none} }
 .rd-btn{
   position:absolute; top:8px; right:8px;
   display:flex; align-items:center; justify-content:center;
@@ -295,25 +305,16 @@ dialog input{width:100%; margin-bottom:14px}
   </div>
 </main>
 
-<dialog id="peek" aria-labelledby="peekTitle">
-  <div class="peek-head">
-    <div class="peek-titles">
-      <h2 class="peek-title" id="peekTitle"></h2>
-      <div class="peek-url" id="peekUrl"></div>
-    </div>
-    <div class="peek-actions">
-      <span class="peek-nav">
-        <button type="button" class="icon-btn" id="peekPrev" aria-label="前へ" title="前へ（←）">‹</button>
-        <span class="peek-pos" id="peekPos"></span>
-        <button type="button" class="icon-btn" id="peekNext" aria-label="次へ" title="次へ（→）">›</button>
-      </span>
-      <button type="button" class="icon-btn" id="peekFrameBtn" title="サイト側が許可していれば、このページの中にサイトを表示します">ページを表示</button>
-      <a class="icon-btn" id="peekRd" target="_blank" rel="noopener">Raindrop で開く</a>
-      <a class="shuffle" id="peekOpen" target="_blank" rel="noopener noreferrer">サイトを開く</a>
-      <button type="button" class="icon-btn" id="peekClose">閉じる</button>
-    </div>
+<dialog id="peek" aria-label="プレビュー">
+  <div class="lb-top">
+    <span class="peek-pos" id="peekPos"></span>
+    <a class="lb-btn" id="peekOpen" target="_blank" rel="noopener noreferrer">サイトを開く</a>
+    <a class="lb-btn" id="peekRd" target="_blank" rel="noopener">Raindrop</a>
+    <button type="button" class="lb-btn" id="peekClose" aria-label="閉じる" title="閉じる（Esc）">×</button>
   </div>
-  <div class="peek-body" id="peekBody"></div>
+  <button type="button" class="lb-nav lb-prev" id="peekPrev" aria-label="前へ" title="前へ（←）">‹</button>
+  <button type="button" class="lb-nav lb-next" id="peekNext" aria-label="次へ" title="次へ（→）">›</button>
+  <div class="peek-body" id="peekBody" tabindex="-1" autofocus></div>
 </dialog>
 
 <dialog id="tagDlg" aria-labelledby="tagDlgTitle">
@@ -888,7 +889,7 @@ async function siteThumbs(it){
 
 // Shows the first candidate that loads; falls back to the next one, then to a letter tile.
 // done() is called once the final element's size is known (used to place cards in balanced columns).
-function mediaEl(it, list, i, done = () => {}, eager = false){
+function mediaEl(it, list, i, done = () => {}, eager = false, big = false){
   if(i >= list.length){
     if(list.extra){ done(); return placeholder(it); }
     const ph = placeholder(it);
@@ -896,18 +897,21 @@ function mediaEl(it, list, i, done = () => {}, eager = false){
       if(!urls.length || !ph.parentNode){ done(); return; }
       const more = urls.map(url => ({ url, video:false }));
       more.extra = true;
-      ph.replaceWith(mediaEl(it, more, 0, done, eager));
+      ph.replaceWith(mediaEl(it, more, 0, done, eager, big));
     });
     return ph;
   }
   const cand = list[i];
+  // 大きく見せるときは X の画像を大きいサイズで取る
+  const src = big ? cand.url.replace(/([?&]name=)(small|medium|thumb|\w+x\w+)/, '$1large') : cand.url;
   let el;
   if(cand.video){
     el = document.createElement('video');
     el.muted = true;
     el.playsInline = true;
     el.preload = 'metadata';
-    el.src = cand.url + (cand.url.includes('#') ? '' : '#t=0.1');
+    el.src = src + (src.includes('#') ? '' : '#t=0.1');
+    if(big){ el.controls = true; el.loop = true; }
     el.addEventListener('loadedmetadata', done, { once:true });
   }else{
     el = new Image();
@@ -916,10 +920,10 @@ function mediaEl(it, list, i, done = () => {}, eager = false){
     el.decoding = 'async';
     el.alt = '';
     el.referrerPolicy = 'no-referrer';
-    el.src = cand.url;
+    el.src = src;
   }
   el.className = 'thumb';
-  el.addEventListener('error', () => el.replaceWith(mediaEl(it, list, i + 1, done, eager)), { once:true });
+  el.addEventListener('error', () => el.replaceWith(mediaEl(it, list, i + 1, done, eager, big)), { once:true });
   return el;
 }
 
@@ -1015,22 +1019,6 @@ function card(it){
 const peek = $('peek'), peekBody = $('peekBody');
 let peekItem = null;
 
-function embedFor(it){
-  let u;
-  try{ u = new URL(it.l); }catch(e){ return null; }
-  const host = u.hostname.replace(/^(www|m|mobile|music)\./, '');
-  if(host === 'youtube.com' || host === 'youtu.be'){
-    const id = host === 'youtu.be' ? u.pathname.slice(1) : (u.searchParams.get('v') || (u.pathname.match(/\/(?:shorts|embed|live)\/([\w-]+)/) || [])[1]);
-    if(id) return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`;
-  }
-  if(host === 'x.com' || host === 'twitter.com'){
-    const m = u.pathname.match(/status(?:es)?\/(\d+)/);
-    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-    if(m) return `https://platform.twitter.com/embed/Tweet.html?id=${m[1]}&theme=${dark ? 'dark' : 'light'}&dnt=true`;
-  }
-  return null;
-}
-
 function updatePeekNav(it){
   const i = order.indexOf(it);
   $('peekPos').textContent = i < 0 ? '' : `${(i + 1).toLocaleString()} / ${poolSize.toLocaleString()}`;
@@ -1049,63 +1037,11 @@ function stepPeek(d){
 function openPeek(it){
   peekItem = it;
   updatePeekNav(it);
-  $('peekTitle').textContent = it.t || it.l;
-  $('peekUrl').textContent = it.l;
   $('peekOpen').href = it.l;
   $('peekRd').href = raindropUrl(it);
-  $('peekFrameBtn').hidden = !!embedFor(it);
   peekBody.innerHTML = '';
-
-  const embed = embedFor(it);
-  if(embed){
-    const f = document.createElement('iframe');
-    f.className = 'peek-embed';
-    f.src = embed;
-    f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-    f.referrerPolicy = 'strict-origin-when-cross-origin';
-    peekBody.append(f);
-  }else{
-    const box = document.createElement('div');
-    box.className = 'peek-media';
-    box.append(mediaEl(it, thumbs(it), 0));
-    peekBody.append(box);
-  }
-
-  const meta = document.createElement('div');
-  meta.className = 'peek-meta';
-  meta.append(captionEl(it));
-  const text = document.createElement('p');
-  text.className = 'peek-text';
-  meta.append(text);
-  peekBody.append(meta);
-
-  // Description and note are fetched on demand, one request per preview.
-  api(`/raindrop/${it.i}`).then(r => {
-    if(peekItem !== it) return;
-    const x = r.item || {};
-    const parts = [];
-    if(x.excerpt) parts.push(x.excerpt);
-    if(x.note) parts.push('メモ：' + x.note);
-    text.textContent = parts.join('\n\n');
-  }).catch(() => {});
-
+  peekBody.append(mediaEl(it, thumbs(it), 0, undefined, true, true));
   if(!peek.open) peek.showModal();
-}
-
-function showFrame(){
-  const it = peekItem;
-  if(!it) return;
-  peekBody.innerHTML = '';
-  const note = document.createElement('p');
-  note.className = 'peek-note';
-  note.textContent = '真っ白やエラーのままなら、そのサイトは他のページの中での表示を許可していません。「サイトを開く」を使ってください。';
-  const f = document.createElement('iframe');
-  f.className = 'peek-frame';
-  f.src = it.l;
-  f.referrerPolicy = 'no-referrer';
-  f.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups allow-forms');
-  peekBody.append(note, f);
-  $('peekFrameBtn').hidden = true;
 }
 
 function closePeek(){
@@ -1113,9 +1049,9 @@ function closePeek(){
 }
 
 peek.addEventListener('close', () => { peekItem = null; peekBody.innerHTML = ''; });
-peek.addEventListener('click', e => { if(e.target === peek) closePeek(); });
+// 画像やボタン以外（暗いところ）を押すと閉じる
+peek.addEventListener('click', e => { if(e.target === peek || e.target === peekBody) closePeek(); });
 $('peekClose').addEventListener('click', closePeek);
-$('peekFrameBtn').addEventListener('click', showFrame);
 $('peekPrev').addEventListener('click', () => stepPeek(-1));
 $('peekNext').addEventListener('click', () => stepPeek(1));
 // スマホ：プレビューを左右にスワイプで前後へ
