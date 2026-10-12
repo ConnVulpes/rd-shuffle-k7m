@@ -99,6 +99,18 @@ main{padding:20px}
   aspect-ratio:4/3; background:var(--ph); color:var(--muted);
   font-size:42px; font-weight:700;
 }
+/* 画像がないときはタイトルを文字で見せる */
+.ph-text{
+  flex-direction:column; align-items:stretch; justify-content:center; gap:8px;
+  padding:14px; font-size:13px; font-weight:400; line-height:1.6; text-align:left;
+}
+.ph-text .ph-title{
+  color:var(--text); overflow:hidden; overflow-wrap:anywhere;
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:5;
+}
+.ph-text .ph-site{font-size:11px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.peek-media .ph-text{min-height:200px; font-size:15px}
+.peek-media .ph-text .ph-title{-webkit-line-clamp:12}
 .cap{display:flex; flex-direction:column; gap:6px; padding:8px 10px 10px}
 .cap-top{display:flex; align-items:baseline; gap:8px; min-width:0}
 .coll{flex:1; min-width:0; font-size:12px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
@@ -849,7 +861,10 @@ async function siteThumbs(it){
   if(host === 'x.com' || host === 'twitter.com'){
     const m = u.pathname.match(/status(?:es)?\/(\d+)/);
     if(!m) return [];
-    if(it.l in thumbCache) return thumbCache[it.l] ? [thumbCache[it.l]] : [];
+    // '-' = 確認済みで画像なし。古い版が残した '' はもう一度確かめる
+    const hit = thumbCache[it.l];
+    if(hit === '-') return [];
+    if(hit) return [hit];
     try{
       const r = await fetch(`https://api.fxtwitter.com/status/${m[1]}`);
       const j = r.ok ? await r.json() : null;
@@ -857,9 +872,12 @@ async function siteThumbs(it){
       const photo = media.photos && media.photos[0] && media.photos[0].url;
       const video = media.videos && media.videos[0] && media.videos[0].thumbnail_url;
       const mosaic = media.mosaic && media.mosaic.formats && media.mosaic.formats.jpeg;
-      let url = photo || video || mosaic || '';
+      const qm = j && j.tweet && j.tweet.quote && j.tweet.quote.media || {};
+      const quote = (qm.photos && qm.photos[0] && qm.photos[0].url) || (qm.videos && qm.videos[0] && qm.videos[0].thumbnail_url);
+      const card = j && j.tweet && j.tweet.card && j.tweet.card.image && j.tweet.card.image.url;
+      let url = photo || video || mosaic || quote || card || '';
       if(url && /pbs\.twimg\.com\/media\//.test(url) && !url.includes('?')) url += '?name=small';
-      if(r.ok || r.status === 404) rememberThumb(it.l, url);
+      if(r.ok || r.status === 404) rememberThumb(it.l, url || '-');
       return url ? [url] : [];
     }catch(e){
       return [];
@@ -1112,8 +1130,21 @@ peekBody.addEventListener('touchend', e => {
 
 function placeholder(it){
   const div = document.createElement('div');
-  div.className = 'ph';
-  div.textContent = ((it.d || it.t || '?').replace(/^www\./, '')[0] || '?').toUpperCase();
+  const title = (it.t || '').trim();
+  const site = (it.d || '').replace(/^www\./, '');
+  if(!title){
+    div.className = 'ph';
+    div.textContent = ((site || '?')[0] || '?').toUpperCase();
+    return div;
+  }
+  div.className = 'ph ph-text';
+  const t = document.createElement('div');
+  t.className = 'ph-title';
+  t.textContent = title;
+  const d = document.createElement('div');
+  d.className = 'ph-site';
+  d.textContent = site;
+  div.append(t, d);
   return div;
 }
 
