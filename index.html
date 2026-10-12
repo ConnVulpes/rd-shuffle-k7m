@@ -131,6 +131,11 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .peek-url{font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .peek-actions{display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end}
 .peek-actions a{text-decoration:none; display:inline-flex; align-items:center}
+.peek-nav{display:inline-flex; align-items:center; gap:6px; margin-right:auto}
+.peek-nav .icon-btn{width:36px; padding:6px 0; font-size:18px; line-height:1}
+.peek-pos{color:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; min-width:5.5em; text-align:center}
+#q{width:180px}
+#q::placeholder{color:var(--muted)}
 .peek-body{flex:1; min-height:0; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:14px}
 .peek-media{display:flex; justify-content:center; background:var(--ph); border-radius:6px; overflow:hidden}
 .peek-media .thumb,.peek-media img{max-width:100%; max-height:62vh; width:auto; height:auto; display:block}
@@ -200,6 +205,7 @@ dialog input{width:100%; margin-bottom:14px}
   header{padding:10px 16px}
   main{padding:16px}
   select{max-width:100%}
+  #q{width:100%; order:0}
   /* スマホでは上のバーをたためる */
   #barToggle{
     display:inline-flex; align-items:center; justify-content:center;
@@ -226,6 +232,22 @@ dialog input{width:100%; margin-bottom:14px}
   </div>
   <select id="picker" aria-label="フォルダ" hidden></select>
   <button type="button" class="icon-btn" id="tagBtn" hidden>タグを選ぶ</button>
+  <select id="typeSel" aria-label="種類">
+    <option value="">すべての種類</option>
+    <option value="image">画像</option>
+    <option value="video">動画</option>
+    <option value="article">記事</option>
+    <option value="link">リンク</option>
+    <option value="document">ドキュメント</option>
+    <option value="audio">音声</option>
+  </select>
+  <input type="search" id="q" placeholder="検索（/）" autocomplete="off" aria-label="タイトル・URL・タグ・フォルダで検索">
+  <select id="sortSel" aria-label="並び順">
+    <option value="shuffle">シャッフル</option>
+    <option value="new">新しい順</option>
+    <option value="old">古い順</option>
+    <option value="title">タイトル順</option>
+  </select>
   <select id="count" aria-label="一度に読み込む件数">
     <option value="20">20件ずつ</option>
     <option value="40">40件ずつ</option>
@@ -268,6 +290,11 @@ dialog input{width:100%; margin-bottom:14px}
       <div class="peek-url" id="peekUrl"></div>
     </div>
     <div class="peek-actions">
+      <span class="peek-nav">
+        <button type="button" class="icon-btn" id="peekPrev" aria-label="前へ" title="前へ（←）">‹</button>
+        <span class="peek-pos" id="peekPos"></span>
+        <button type="button" class="icon-btn" id="peekNext" aria-label="次へ" title="次へ（→）">›</button>
+      </span>
       <button type="button" class="icon-btn" id="peekFrameBtn" title="サイト側が許可していれば、このページの中にサイトを表示します">ページを表示</button>
       <a class="icon-btn" id="peekRd" target="_blank" rel="noopener">Raindrop で開く</a>
       <a class="shuffle" id="peekOpen" target="_blank" rel="noopener noreferrer">サイトを開く</a>
@@ -322,6 +349,9 @@ const state = {
   tag: store.get('tag', ''),
   tags: store.get('tags', null),
   tagMatch: store.get('tagmatch', 'any'),
+  sort: store.get('sort', 'shuffle'),
+  type: store.get('type', ''),
+  q: '',
   count: store.get('count', 40),
   cap: store.get('cap', true),
   hideCur: store.get('hidecur', true),
@@ -432,7 +462,8 @@ async function refreshAll(){
     };
     const saved = store.set('cache', cache);
     applyCache();
-    shuffle();
+    newNote = '';
+    render();
     if(!saved) statusEl.textContent += '（ブラウザに保存できなかったので、次に開いたときにまた読み込みます）';
   }catch(e){
     handleError(e);
@@ -582,7 +613,7 @@ $('tagOk').addEventListener('click', () => {
   store.set('tagmatch', state.tagMatch);
   tagDlg.close();
   syncTags();
-  if(cache) shuffle();
+  if(cache) render();
 });
 tagDlg.addEventListener('click', e => { if(e.target === tagDlg) tagDlg.close(); });
 
@@ -596,12 +627,77 @@ function shuffleArray(a){
 
 // Shuffling happens entirely in the browser: no requests to Raindrop.
 // The whole filtered list is shuffled once; cards are added in batches as you scroll.
+let newNote = '';
+// 新しく保存したブックマークだけを取りに行く（数リクエストで済む）
+let lastSync = 0;
+async function syncNew(){
+  if(!cache || refreshing || !state.token) return;
+  lastSync = Date.now();
+  try{
+    const known = new Set(cache.items.map(x => x.i));
+    const fresh = [];
+    for(let p = 0; p < 5; p++){
+      const r = await api(`/raindrops/0?perpage=${PER}&page=${p}&sort=-created`);
+      const list = r.items || [];
+      let reached = false;
+      list.forEach(it => {
+        if(known.has(it._id)){ reached = true; return; }
+        known.add(it._id);
+        fresh.push(compact(it));
+      });
+      if(reached || list.length < PER) break;
+      if(p === 4){ refreshAll(); return; }  // 多すぎるときは全部読み直す
+    }
+    if(!fresh.length || refreshing) return;
+    const [roots, children, tagRes] = await Promise.all([
+      api('/collections'), api('/collections/childrens'), api('/tags/0')
+    ]);
+    if(refreshing) return;
+    cache.items = fresh.concat(cache.items);
+    cache.colls = buildColls(roots, children);
+    cache.tags = (tagRes.items || []).map(t => ({ name:t._id, count:t.count || 0 }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+    store.set('cache', cache);
+    applyCache();
+    if(state.sort === 'new' && window.scrollY < 200 && !peek.open){ newNote = ''; render(); }
+    else{ newNote = `　新着 ${fresh.length}件（並べ直すと表示）`; updateStatus(); }
+  }catch(e){ /* 新着の確認は失敗しても黙って次の機会に */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && Date.now() - lastSync > 5 * 60 * 1000) syncNew();
+});
+
 let order = [];
 let shownCount = 0;
 let poolSize = 0;
 
+// 検索用の文字列（タイトル・URL・タグ・フォルダ名）はその場で作って覚えておく
+const hayCache = new WeakMap();
+function hayOf(x){
+  let h = hayCache.get(x);
+  if(!h){
+    h = [x.t, x.l, x.d, (x.g || []).join(' '), collName(x)].join(' ').toLowerCase();
+    hayCache.set(x, h);
+  }
+  return h;
+}
+function sortPool(pool){
+  const a = pool.slice();
+  const byDate = (x, y) => (x.a || '').localeCompare(y.a || '') || x.i - y.i;
+  if(state.sort === 'new') return a.sort((x, y) => byDate(y, x));
+  if(state.sort === 'old') return a.sort(byDate);
+  if(state.sort === 'title') return a.sort((x, y) => (x.t || x.l).localeCompare(y.t || y.l, 'ja'));
+  return shuffleArray(a);
+}
+// シャッフルボタン：並び順をシャッフルにして並べ直す
 function shuffle(){
+  if(state.sort !== 'shuffle'){ state.sort = 'shuffle'; store.set('sort', 'shuffle'); sortSel.value = 'shuffle'; }
+  render();
+}
+// 今の条件（範囲・種類・検索・並び順）で並べ直す
+function render(){
   if(!cache){ refreshAll(); return; }
+  newNote = '';
   let pool = cache.items;
   if(state.mode === 'folder'){
     if(!state.coll){ statusEl.textContent = 'フォルダを選んでください。'; return; }
@@ -612,7 +708,12 @@ function shuffle(){
     if(!state.tags.length){ statusEl.textContent = 'タグを選んでください。'; return; }
     pool = pool.filter(tagFilter(state.tags, state.tagMatch));
   }
-  order = shuffleArray(pool.slice());
+  if(state.type){
+    pool = pool.filter(x => state.type === 'video' ? (x.y === 'video' || (x.m || []).some(m => m.t === 'video')) : x.y === state.type);
+  }
+  const terms = state.q.toLowerCase().split(/\s+/).filter(Boolean);
+  if(terms.length) pool = pool.filter(x => { const h = hayOf(x); return terms.every(t => h.includes(t)); });
+  order = sortPool(pool);
   poolSize = order.length;
   shownCount = 0;
   cardEls = [];
@@ -641,7 +742,9 @@ function appendMore(){
 function updateStatus(){
   statusEl.textContent = `${poolSize.toLocaleString()}件中 ${shownCount.toLocaleString()}件を表示（${ago(cache.savedAt)}に更新）`;
   moreEl.hidden = !poolSize;
-  moreEl.textContent = shownCount < poolSize ? '続きを読み込み中…' : 'これで全部です。シャッフルで並べ直せます。';
+  moreEl.textContent = shownCount < poolSize ? '続きを読み込み中…'
+    : state.sort === 'shuffle' ? 'これで全部です。シャッフルで並べ直せます。' : 'これで全部です。';
+  if(newNote) statusEl.textContent += newNote;
 }
 
 // Masonry: a fixed set of columns, each new card goes into the shortest one,
@@ -895,8 +998,24 @@ function embedFor(it){
   return null;
 }
 
+function updatePeekNav(it){
+  const i = order.indexOf(it);
+  $('peekPos').textContent = i < 0 ? '' : `${(i + 1).toLocaleString()} / ${poolSize.toLocaleString()}`;
+  $('peekPrev').disabled = i <= 0;
+  $('peekNext').disabled = i < 0 || i >= poolSize - 1;
+}
+// プレビューのまま前後のブックマークへ
+function stepPeek(d){
+  if(!peekItem) return;
+  const i = order.indexOf(peekItem) + d;
+  if(i < 0 || i >= poolSize) return;
+  while(i >= shownCount && shownCount < poolSize) appendMore();
+  openPeek(order[i]);
+}
+
 function openPeek(it){
   peekItem = it;
+  updatePeekNav(it);
   $('peekTitle').textContent = it.t || it.l;
   $('peekUrl').textContent = it.l;
   $('peekOpen').href = it.l;
@@ -964,6 +1083,17 @@ peek.addEventListener('close', () => { peekItem = null; peekBody.innerHTML = '';
 peek.addEventListener('click', e => { if(e.target === peek) closePeek(); });
 $('peekClose').addEventListener('click', closePeek);
 $('peekFrameBtn').addEventListener('click', showFrame);
+$('peekPrev').addEventListener('click', () => stepPeek(-1));
+$('peekNext').addEventListener('click', () => stepPeek(1));
+// スマホ：プレビューを左右にスワイプで前後へ
+let touchX = null, touchY = 0;
+peekBody.addEventListener('touchstart', e => { const t = e.touches[0]; touchX = t.clientX; touchY = t.clientY; }, {passive:true});
+peekBody.addEventListener('touchend', e => {
+  if(touchX === null) return;
+  const t = e.changedTouches[0], dx = t.clientX - touchX, dy = t.clientY - touchY;
+  touchX = null;
+  if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPeek(dx < 0 ? 1 : -1);
+}, {passive:true});
 
 function placeholder(it){
   const div = document.createElement('div');
@@ -1091,14 +1221,28 @@ document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('cl
   state.mode = b.dataset.mode;
   store.set('mode', state.mode);
   fillPicker();
-  if(cache) shuffle();
+  if(cache) render();
 }));
-picker.addEventListener('change', () => { savePick(); if(cache) shuffle(); });
+picker.addEventListener('change', () => { savePick(); if(cache) render(); });
 countSel.addEventListener('change', () => {
   state.count = Number(countSel.value);
   store.set('count', state.count);
 });
 shuffleBtn.addEventListener('click', shuffle);
+const sortSel = $('sortSel'), typeSel = $('typeSel'), qInput = $('q');
+sortSel.value = state.sort;
+typeSel.value = state.type;
+sortSel.addEventListener('change', () => { state.sort = sortSel.value; store.set('sort', state.sort); if(cache) render(); });
+typeSel.addEventListener('change', () => { state.type = typeSel.value; store.set('type', state.type); if(cache) render(); });
+let qTimer = 0;
+qInput.addEventListener('input', () => {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => { state.q = qInput.value.trim(); if(cache) render(); }, 200);
+});
+qInput.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){ qInput.value = ''; state.q = ''; qInput.blur(); if(cache) render(); }
+  if(e.key === 'Enter') qInput.blur();
+});
 refreshBtn.addEventListener('click', refreshAll);
 $('settings').addEventListener('click', openSettings);
 $('cancel').addEventListener('click', () => dlg.close());
@@ -1117,7 +1261,9 @@ $('tokenForm').addEventListener('submit', () => {
 document.addEventListener('keydown', e => {
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
+  if(peek.open && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){ e.preventDefault(); stepPeek(e.key === 'ArrowLeft' ? -1 : 1); return; }
   if(['input', 'select', 'textarea'].includes(tag) || dlg.open || peek.open || tagDlg.open) return;
+  if(e.key === '/'){ e.preventDefault(); if(!state.barOpen){ state.barOpen = true; store.set('bar', true); applyBar(); } qInput.focus(); qInput.select(); return; }
   if(e.key === 'c' || e.key === 'C') toggleCap();
   if(e.key === 'h' || e.key === 'H') toggleCur();
   if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); shuffle(); }
@@ -1151,10 +1297,11 @@ if(cache) applyCache(); else fillPicker();
 if(!state.token){
   openSettings();
 }else if(cache){
-  shuffle();
+  render();
   // 保存日を持っていない古いキャッシュは、表示したまま裏で取り直す
   const noDates = cache.items.length && !('a' in cache.items[0]);
   if(noDates || Date.now() - cache.savedAt > DAY) refreshAll();
+  else syncNew();
 }else{
   refreshAll();
 }
