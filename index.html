@@ -34,7 +34,7 @@
   }
 }
 *{box-sizing:border-box}
-html{color-scheme:light dark}
+html{color-scheme:light dark; scrollbar-gutter:stable}
 body{
   margin:0; min-height:100vh;
   background:linear-gradient(180deg,var(--bg-top) 0%,var(--bg-bottom) 100%) fixed;
@@ -134,12 +134,15 @@ body.cur-idle .rd-btn{opacity:0 !important}
 #q::placeholder{color:var(--muted)}
 /* プレビュー：画像を画面いっぱいに見せるだけ */
 #peek{
-  width:100vw; height:100dvh; max-width:100vw; max-height:100dvh;
+  position:fixed; inset:0; width:auto; height:auto; max-width:none; max-height:none;
   margin:0; padding:0; border:0; border-radius:0;
-  background:rgba(10,11,13,.98); color:#eee; overflow:hidden;
+  /* 後ろの一覧が透けて見えるように、暗くしてぼかすだけにする */
+  background:rgba(10,11,13,.62); color:#eee; overflow:hidden;
+  -webkit-backdrop-filter:blur(14px) saturate(.9); backdrop-filter:blur(14px) saturate(.9);
+  overscroll-behavior:contain;
 }
 #peek[open]{display:block}
-#peek::backdrop{background:rgba(0,0,0,.6)}
+#peek::backdrop{background:transparent}
 .peek-body:focus{outline:none}
 .peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:52px 12px 16px}
 .peek-body .thumb, .peek-body img, .peek-body video{
@@ -1034,6 +1037,19 @@ function stepPeek(d){
   openPeek(order[i]);
 }
 
+// プレビュー中は後ろの一覧が動かないように固定する（iPhone でも効く方法）
+let lockedY = 0;
+function lockScroll(){
+  lockedY = window.scrollY;
+  const b = document.body.style;
+  b.position = 'fixed'; b.top = `-${lockedY}px`; b.left = '0'; b.right = '0'; b.width = '100%';
+}
+function unlockScroll(){
+  const b = document.body.style;
+  b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
+  window.scrollTo(0, lockedY);
+}
+
 function openPeek(it){
   peekItem = it;
   updatePeekNav(it);
@@ -1041,16 +1057,26 @@ function openPeek(it){
   $('peekRd').href = raindropUrl(it);
   peekBody.innerHTML = '';
   peekBody.append(mediaEl(it, thumbs(it), 0, undefined, true, true));
-  if(!peek.open) peek.showModal();
+  if(!peek.open){ lockScroll(); peek.showModal(); }
 }
 
 function closePeek(){
   if(peek.open) peek.close();
 }
 
-peek.addEventListener('close', () => { peekItem = null; peekBody.innerHTML = ''; });
-// 画像やボタン以外（暗いところ）を押すと閉じる
-peek.addEventListener('click', e => { if(e.target === peek || e.target === peekBody) closePeek(); });
+peek.addEventListener('close', () => { peekItem = null; peekBody.innerHTML = ''; unlockScroll(); });
+const touchUI = matchMedia('(hover:none)').matches;
+peek.addEventListener('click', e => {
+  if(e.target.closest('.lb-top, .lb-nav, video')) return;
+  // スマホ：画面の左3割をタップで前へ、右3割で次へ
+  if(touchUI){
+    const x = e.clientX / window.innerWidth;
+    if(x < 0.3){ stepPeek(-1); return; }
+    if(x > 0.7){ stepPeek(1); return; }
+  }
+  // 画像やボタン以外（後ろが透けているところ）を押すと閉じる
+  if(e.target === peek || e.target === peekBody) closePeek();
+});
 $('peekClose').addEventListener('click', closePeek);
 $('peekPrev').addEventListener('click', () => stepPeek(-1));
 $('peekNext').addEventListener('click', () => stepPeek(1));
