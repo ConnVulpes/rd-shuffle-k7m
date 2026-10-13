@@ -115,7 +115,9 @@ label.menu-row:hover{background:var(--field)}
 .menu-row select{height:32px; padding:0 8px}
 .menu hr{border:0; border-top:1px solid var(--line); margin:6px 0}
 .menu .btns{display:flex; gap:8px; padding:6px 8px 4px}
-.menu .btns .icon-btn{flex:1; font-size:13px}
+.menu .btns .icon-btn{flex:1; font-size:13px; white-space:nowrap}
+.menu .btns .icon-btn:disabled{opacity:.5; cursor:progress}
+.menu-note{font-size:12px; color:var(--muted); padding:4px 8px 0}
 kbd{font:inherit; font-size:11px; color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:0 5px; margin-left:6px}
 /* オン・オフのスイッチ */
 .switch input{
@@ -521,8 +523,13 @@ dialog input{width:100%; margin-bottom:14px}
         </div>
       </div>
       <hr>
+      <div class="menu-note">Raindrop から更新（右ほど時間がかかります）</div>
       <div class="btns">
-        <button type="button" class="icon-btn" id="refresh" title="Raindrop から全部を読み込み直します">全部読み込み直す</button>
+        <button type="button" class="icon-btn" id="updNew" title="新しく保存したものだけを取り込みます（いちばん軽い）">新着だけ</button>
+        <button type="button" class="icon-btn" id="updDiff" title="前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込みます">変更分</button>
+        <button type="button" class="icon-btn" id="refresh" title="Raindrop から全部を読み込み直します（時間がかかります）">全部</button>
+      </div>
+      <div class="btns">
         <button type="button" class="icon-btn" id="settings">トークン設定</button>
       </div>
     </div>
@@ -644,7 +651,7 @@ const state = {
   wakePx: store.get('wakepx', 360),
   col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
 };
-// cache: { savedAt, items:[{i:ID, t:タイトル, l:URL, c:カバー, m:添付, y:種類, d:ドメイン, k:フォルダID, g:タグ, a:保存日}], colls:[{id,label,parent}], tags:[{name,count}] }
+// cache: { savedAt, syncedAt, items:[{i:ID, t:タイトル, l:URL, c:カバー, m:添付, y:種類, d:ドメイン, k:フォルダID, g:タグ, a:保存日, u:最終変更日}], colls:[{id,label,parent}], tags:[{name,count}] }
 let cache = store.get('cache', null);
 let kids = new Map();       // フォルダID → 子フォルダのID
 let folderCount = new Map(); // フォルダID → 中の件数（子フォルダも含む）
@@ -692,7 +699,8 @@ function compact(it){
     d: it.domain || '',
     k: k,
     g: it.tags || [],
-    a: (it.created || '').slice(0, 10)
+    a: (it.created || '').slice(0, 10),
+    u: (it.lastUpdate || '').slice(0, 10)   // 最後に変わった日（変更分の取り込みに使う）
   };
 }
 
@@ -724,7 +732,7 @@ async function refreshAll(){
   if(!state.token){ openSettings(); return; }
   if(refreshing) return;
   refreshing = true;
-  refreshBtn.disabled = true;
+  setUpdateBusy(true);
   if(!cache) setShuffleBusy(true);
   try{
     const meta = await loadMeta();
@@ -754,7 +762,7 @@ async function refreshAll(){
       seen.add(it._id);
       items.push(compact(it));
     }));
-    cache = { v:2, savedAt:Date.now(), items, colls:meta.colls, tags:meta.tags };
+    cache = { v:2, savedAt:Date.now(), syncedAt:Date.now(), items, colls:meta.colls, tags:meta.tags };
     const saved = store.set('cache', cache);
     applyCache();
     newNote = '';
@@ -764,7 +772,7 @@ async function refreshAll(){
     handleError(e);
   }finally{
     refreshing = false;
-    refreshBtn.disabled = false;
+    setUpdateBusy(false);
     setShuffleBusy(false);
   }
 }
@@ -984,11 +992,18 @@ function shuffleArray(a){
 // 並べ替えはすべてブラウザの中で行う（Raindrop には問い合わせない）。
 // 条件に合う全件を一度に並べ、スクロールに合わせて少しずつカードを足していく
 let newNote = '';
-// 新しく保存したブックマークだけを取りに行く（数リクエストで済む）
+// ---- 更新は3種類 ----
+// 新着だけ：新しく保存したものだけを取りに行く（数リクエスト）
+// 変更分　：前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込む
+// 全部　　：全部読み込み直す（refreshAll）
 let lastSync = 0;
-async function syncNew(){
+function setUpdateBusy(b){ ['updNew', 'updDiff', 'refresh'].forEach(id => { $(id).disabled = b; }); }
+// 新しい順に見ていき、知っているものに当たったら止める
+async function syncNew(manual = false){
   if(!cache || refreshing || !state.token) return;
   lastSync = Date.now();
+  if(manual){ refreshing = true; setUpdateBusy(true); statusEl.textContent = '新着を確認中…'; }
+  let handoff = false;   // 全部読み込みに切り替えたら、後始末はそちらに任せる
   try{
     const known = new Set(cache.items.map(x => x.i));
     const fresh = [];
@@ -1002,19 +1017,92 @@ async function syncNew(){
         fresh.push(compact(it));
       });
       if(reached || list.length < PER) break;
-      if(p === 4){ refreshAll(); return; }  // 多すぎるときは全部読み直す
+      if(p === 4){ handoff = true; refreshing = false; refreshAll(); return; }  // 多すぎるときは全部読み直す
     }
-    if(!fresh.length || refreshing) return;
+    if(!fresh.length){ if(manual) statusEl.textContent = '新着はありません'; return; }
+    if(refreshing && !manual) return;
     const meta = await loadMeta();
-    if(refreshing) return;
     cache.items = fresh.concat(cache.items);
     cache.colls = meta.colls;
     cache.tags = meta.tags;
     store.set('cache', cache);
     applyCache();
-    if(state.sort === 'new' && window.scrollY < 200 && !peek.open){ newNote = ''; render(); }
-    else{ newNote = `　新着 ${fresh.length}件（並べ直すと表示）`; updateStatus(); }
-  }catch(e){ /* 新着の確認は失敗しても黙って次の機会に */ }
+    showNewNote(`新着 ${fresh.length}件`, fresh.length);
+  }catch(e){
+    if(manual) handleError(e);   // 自動の確認は、失敗しても黙って次の機会に
+  }finally{
+    if(manual && !handoff){ refreshing = false; setUpdateBusy(false); }
+  }
+}
+// 取り込んだ件数を知らせる。新しい順で一番上を見ているときは、その場で並べ直す
+function showNewNote(text, added){
+  if(added && state.sort === 'new' && window.scrollY < 200 && !peek.open){ newNote = ''; render(); statusEl.textContent += `　${text}を取り込みました`; }
+  else{ newNote = `　${text}を取り込みました${added ? '（並べ直すと表示）' : ''}`; updateStatus(); }
+}
+
+// 変更分：Raindrop の検索「lastUpdate:日付」で、前回の取り込み以降に変わった日を1日ずつ調べる
+async function syncChanged(){
+  if(!cache || refreshing || !state.token) return;
+  const since = cache.syncedAt || cache.savedAt;
+  // 間が空きすぎたときは、日ごとに調べるより全部読み込むほうが早い
+  if(Date.now() - since > 31 * DAY){
+    statusEl.textContent = '前回から時間がたっているので、全部読み込みます';
+    return refreshAll();
+  }
+  refreshing = true; setUpdateBusy(true);
+  let handoff = false;
+  try{
+    // 世界時の日付で、前回の前日から今日までを調べる（時差でこぼさないように1日広めに）
+    const dates = [];
+    for(let t = Date.now(); t >= since - DAY; t -= DAY) dates.push(new Date(t).toISOString().slice(0, 10));
+    const search = async (coll, q) => {
+      const out = [];
+      for(let p = 0; p < 40; p++){
+        const r = await api(`/raindrops/${coll}?perpage=${PER}&page=${p}&search=${encodeURIComponent(q)}`);
+        // 絞り込みが効かずに全部返ってきたら、変更分の取り込みはあきらめて全部読み込む
+        if(p === 0 && coll === 0 && cache.items.length > 200 && (r.count || 0) > cache.items.length * 0.8) throw new Error('nofilter');
+        const list = r.items || [];
+        out.push(...list);
+        if(list.length < PER) break;
+      }
+      return out;
+    };
+    const changed = new Map(), trashed = new Set();
+    for(const d of dates){
+      statusEl.textContent = `変更を確認中… ${d}`;
+      (await search(0, `lastUpdate:${d}`)).forEach(it => changed.set(it._id, it));
+      (await search(-99, `lastUpdate:${d}`)).forEach(it => trashed.add(it._id));
+    }
+    const byId = new Map(cache.items.map(x => [x.i, x]));
+    const updated = [], fresh = [];
+    changed.forEach((it, id) => {
+      if(trashed.has(id)) return;
+      const old = byId.get(id);
+      if(old){ Object.assign(old, compact(it)); updated.push(old); }   // 同じ物を書き換えるので、表示中のカードもそのまま使える
+      else fresh.push(compact(it));
+    });
+    const gone = cache.items.filter(x => trashed.has(x.i));
+    cache.items = fresh.concat(cache.items.filter(x => !trashed.has(x.i)));
+    const meta = await loadMeta();
+    cache.colls = meta.colls;
+    cache.tags = meta.tags;
+    cache.syncedAt = Date.now();
+    store.set('cache', cache);
+    applyCache();
+    if(updated.length) afterLocalChange(updated, { media:true });
+    gone.forEach(x => { const c = cardOf.get(x); if(c) c.classList.add('gone'); });
+    const parts = [];
+    if(fresh.length) parts.push(`新着 ${fresh.length}件`);
+    if(updated.length) parts.push(`変更 ${updated.length}件`);
+    if(gone.length) parts.push(`ゴミ箱行き ${gone.length}件`);
+    if(!parts.length) statusEl.textContent = '変更はありません';
+    else showNewNote(parts.join('・'), fresh.length);
+  }catch(e){
+    if(e.message === 'nofilter'){ handoff = true; refreshing = false; statusEl.textContent = '変更分だけを取れなかったので、全部読み込みます'; refreshAll(); return; }
+    handleError(e);
+  }finally{
+    if(!handoff){ refreshing = false; setUpdateBusy(false); }
+  }
 }
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible' && Date.now() - lastSync > 5 * 60 * 1000) syncNew();
@@ -1092,7 +1180,7 @@ function appendMore(){
 }
 
 function updateStatus(){
-  statusEl.textContent = `${poolSize.toLocaleString()}件中 ${shownCount.toLocaleString()}件を表示（${ago(cache.savedAt)}に更新）`;
+  statusEl.textContent = `${poolSize.toLocaleString()}件中 ${shownCount.toLocaleString()}件を表示（${ago(Math.max(cache.savedAt, cache.syncedAt || 0))}に更新）`;
   moreEl.hidden = !poolSize;
   moreEl.textContent = shownCount < poolSize ? '続きを読み込み中…'
     : state.sort === 'shuffle' ? 'これで全部です。シャッフルで並べ直せます。' : 'これで全部です。';
@@ -2294,6 +2382,8 @@ document.addEventListener('click', e => {
   if(!viewMenu.hidden && !e.target.closest('.menu-wrap')){ e.preventDefault(); e.stopPropagation(); setMenu(false); }
 }, true);
 refreshBtn.addEventListener('click', () => { setMenu(false); refreshAll(); });
+$('updNew').addEventListener('click', () => { setMenu(false); syncNew(true); });
+$('updDiff').addEventListener('click', () => { setMenu(false); syncChanged(); });
 $('settings').addEventListener('click', () => { setMenu(false); openSettings(); });
 $('cancel').addEventListener('click', () => dlg.close());
 $('tokenForm').addEventListener('submit', () => {
