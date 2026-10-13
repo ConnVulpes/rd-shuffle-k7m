@@ -259,6 +259,7 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .lb-edit.sheet{left:0; right:0; bottom:0; height:var(--edit-h, 50vh); border-radius:14px 14px 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.35); padding-bottom:env(safe-area-inset-bottom); transition:height .22s ease-out}
 .lb-edit.sheet.full{border-radius:0}
 .lb-edit.drag{transition:none}
+.lb-edit.stale .ed-scroll{pointer-events:none}
 .ed-grip{flex:none; height:20px; display:flex; align-items:flex-end; justify-content:center; touch-action:none; cursor:ns-resize}
 .ed-grip::before{content:''; width:42px; height:5px; border-radius:3px; background:var(--line)}
 .lb-edit.side .ed-grip{display:none}
@@ -664,6 +665,10 @@ const grid = $('grid'), empty = $('empty'), statusEl = $('status');
 const countSel = $('count'), shuffleBtn = $('shuffle'), refreshBtn = $('refresh');
 const dlg = $('dlg'), tokenInput = $('tokenInput');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// 日本語の並べ替え（毎回 localeCompare を呼ぶより速い）
+const jaCmp = new Intl.Collator('ja').compare;
+// 文字を HTML に入れるときの安全な変換
+const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 // 要素を作る小さな道具：el('div', 'クラス', '中の文字')
 const el = (tag, cls, text) => { const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; };
 
@@ -714,7 +719,7 @@ function buildColls(roots, children){
     return (p && depth < 8) ? pathOf(p, depth + 1) + ' / ' + c.title : c.title;
   };
   return all.map(c => ({ id:c._id, label:pathOf(c), parent:parentOf(c) }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'ja'));
+    .sort((a, b) => jaCmp(a.label, b.label));
 }
 
 // フォルダとタグの一覧を取る（全部読み込み直すときと、新着を取るときの両方で使う）
@@ -724,7 +729,7 @@ async function loadMeta(){
   ]);
   return {
     colls: buildColls(roots, children),
-    tags: (tagRes.items || []).map(t => ({ name:t._id, count:t.count || 0 })).sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+    tags: (tagRes.items || []).map(t => ({ name:t._id, count:t.count || 0 })).sort((a, b) => jaCmp(a.name, b.name))
   };
 }
 
@@ -1128,7 +1133,7 @@ function sortPool(pool){
   const byDate = (x, y) => (x.a || '').localeCompare(y.a || '') || x.i - y.i;
   if(state.sort === 'new') return a.sort((x, y) => byDate(y, x));
   if(state.sort === 'old') return a.sort(byDate);
-  if(state.sort === 'title') return a.sort((x, y) => (x.t || x.l).localeCompare(y.t || y.l, 'ja'));
+  if(state.sort === 'title') return a.sort((x, y) => jaCmp((x.t || x.l), y.t || y.l));
   return shuffleArray(a);
 }
 // シャッフルボタン：並び順をシャッフルにして並べ直す
@@ -1306,6 +1311,29 @@ async function siteThumbs(it){
   return url ? [url] : [];
 }
 
+// 大きく見せるときは X の画像を大きいサイズで取る
+const bigUrl = u => u.replace(/([?&]name=)(small|medium|thumb|\w+x\w+)/, '$1large');
+// プレビューで次（と前）に見そうな画像を先に読み込んでおく。送ったときにすぐ出るように
+const prefetched = [];
+function prefetchAround(it){
+  const i = order.indexOf(it);
+  [i + 1, i + 2, i - 1].forEach(j => {
+    const x = order[j];
+    if(!x || x._pre) return;
+    x._pre = true;
+    const go = url => {
+      const img = new Image();
+      img.referrerPolicy = 'no-referrer'; img.decoding = 'async';
+      img.src = bigUrl(url);
+      if(img.decode) img.decode().catch(() => {});
+      prefetched.push(img);
+      if(prefetched.length > 8) prefetched.shift();   // 持ちすぎない
+    };
+    const first = thumbs(x).find(c => !c.video);
+    if(first) go(first.url);
+    else siteThumbs(x).then(urls => { if(urls[0]) go(urls[0]); });
+  });
+}
 // 候補を順に試して、最初に読み込めたものを表示する。全部だめならタイトルの文字で見せる。
 // done() は大きさが決まった時点で呼ぶ（列に偏りなく並べるのに使う）
 function mediaEl(it, list, i, done = () => {}, eager = false, big = false){
@@ -1322,7 +1350,7 @@ function mediaEl(it, list, i, done = () => {}, eager = false, big = false){
   }
   const cand = list[i];
   // 大きく見せるときは X の画像を大きいサイズで取る
-  const src = big ? cand.url.replace(/([?&]name=)(small|medium|thumb|\w+x\w+)/, '$1large') : cand.url;
+  const src = big ? bigUrl(cand.url) : cand.url;
   let node;
   if(cand.video){
     node = document.createElement('video');
@@ -1438,8 +1466,8 @@ function stepPeek(d){
   if(!peekItem) return;
   const i = order.indexOf(peekItem) + d;
   if(i < 0 || i >= poolSize) return;
-  while(i >= shownCount && shownCount < poolSize) appendMore();
-  openPeek(order[i]);
+  // 後ろの一覧のカードは、プレビューを閉じたときにまとめて足す（送っている間は重くしない）
+  openPeek(order[i], true);
 }
 
 // プレビュー中は後ろの一覧が動かないように固定する（iPhone でも効く方法）
@@ -1493,6 +1521,7 @@ function showPeekMedia(it){
     return;
   }
   zoomer.append(mediaEl(it, thumbs(it), 0, undefined, true, true));
+  prefetchAround(it);
   const xid = xId(it.l);
   if(xid){
     xVideo(xid).then(v => {
@@ -1517,7 +1546,7 @@ function showPeekMedia(it){
   }
 }
 
-function openPeek(it){
+function openPeek(it, stepping){
   peekItem = it;
   updatePeekNav(it);
   $('peekOpen').href = it.l;
@@ -1529,7 +1558,7 @@ function openPeek(it){
   showPeekMedia(it);
   edView = '';
   if(!peek.open){ lockScroll(); peek.showModal(); }
-  applyEditOpen();
+  applyEditOpen(stepping);
 }
 
 // ---- プレビューから タグ・フォルダ を変える ----
@@ -1544,7 +1573,7 @@ const editQueue = new WeakMap();
 function recountTags(){
   const m = new Map();
   cache.items.forEach(x => (x.g || []).forEach(t => m.set(t, (m.get(t) || 0) + 1)));
-  cache.tags = [...m].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  cache.tags = [...m].map(([name, count]) => ({ name, count })).sort((a, b) => jaCmp(a.name, b.name));
 }
 // カードの画像だけを作り直す（サムネを変えたとき）
 function refreshCardMedia(c, it){
@@ -1777,11 +1806,20 @@ let edFilter = { text:'' }, edFilterFor = null;
 let sheetDragH = 0;                               // つまみをドラッグ中の高さ
 const wideUI = () => window.innerWidth >= 760;
 
-function applyEditOpen(){
+// later = 前後に送ったとき：画像を先に描かせて、パネルの作り直しは次の描画に回す
+// （続けて送ったときは最後の1回だけ作る）
+let editRaf = 0;
+function applyEditOpen(later){
   edPanel.hidden = !editOpen || !peekItem;
   peek.classList.toggle('editing', !edPanel.hidden);
   $('peekEdit').setAttribute('aria-pressed', String(editOpen));
-  if(!edPanel.hidden){ layoutEdit(); renderEdit(); }
+  cancelAnimationFrame(editRaf);
+  if(!edPanel.hidden){
+    layoutEdit();
+    // 作り直すまでの間は、前のブックマークのパネルを押せないようにしておく
+    if(later){ edPanel.classList.add('stale'); editRaf = requestAnimationFrame(() => requestAnimationFrame(renderEdit)); }
+    else renderEdit();
+  }
   else ['--edit-h', '--edit-l', '--toast-b'].forEach(k => peek.style.removeProperty(k));
 }
 function setEditOpen(v){ editOpen = v; store.set('editing', v); edView = ''; applyEditOpen(); }
@@ -1900,22 +1938,17 @@ function tagChooser({ isOn, isPartial = () => false, onPick, onNew = null, isDis
     const ql = q.toLowerCase();
     if(!cache.tags.length && cache.items.some(x => (x.g || []).length)) recountTags();
     let list = cache.tags.slice();
-    if(tagSort === 'count') list.sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'ja'));
+    if(tagSort === 'count') list.sort((a, b) => b.count - a.count || jaCmp(a.name, b.name));
     const missing = extra.filter(t => !list.some(x => x.name === t)).map(t => ({ name:t, count:0 }));
     list = [...missing, ...list];
     if(ql) list = list.filter(t => t.name.toLowerCase().includes(ql));
     shown = list;
-    grid.innerHTML = '';
-    list.forEach(t => {
+    // タグが何百個あっても軽いように、文字列で一度に組み立てる（押したときの処理は grid で受ける）
+    grid.innerHTML = list.map((t, i) => {
       const on = isOn(t.name);
-      const b = el('button', 'ed-tag' + (on ? ' on' : isPartial(t.name) ? ' some' : '')); b.type = 'button';
-      b.setAttribute('aria-pressed', String(on));
-      b.append(el('span', '', '#' + t.name));
-      if(t.count) b.append(el('span', 'cnt', t.count.toLocaleString()));
-      b.disabled = isDisabled(t.name, on);
-      b.addEventListener('click', () => onPick(t.name));
-      grid.append(b);
-    });
+      const cls = 'ed-tag' + (on ? ' on' : isPartial(t.name) ? ' some' : '');
+      return `<button type="button" class="${cls}" data-i="${i}" aria-pressed="${on}"${isDisabled(t.name, on) ? ' disabled' : ''}><span>#${esc(t.name)}</span>${t.count ? `<span class="cnt">${t.count.toLocaleString()}</span>` : ''}</button>`;
+    }).join('');
     if(onNew && q && !list.some(t => t.name === q)){
       const b = el('button', 'ed-tag new'); b.type = 'button';
       b.append(el('span', '', `＋ 新しいタグ「#${q}」`));
@@ -1924,6 +1957,10 @@ function tagChooser({ isOn, isPartial = () => false, onPick, onNew = null, isDis
     }
     if(!grid.children.length) grid.append(el('span', 'ed-note', 'タグがありません'));
   };
+  grid.addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]');
+    if(b && !b.disabled && shown[b.dataset.i]) onPick(shown[b.dataset.i].name);
+  });
   input.addEventListener('input', () => { text.text = input.value; draw(); });
   input.addEventListener('keydown', e => {
     if(e.key === 'Enter'){
@@ -1947,6 +1984,7 @@ function tagChooser({ isOn, isPartial = () => false, onPick, onNew = null, isDis
 // ---- 編集パネルの中身 ----
 function renderEdit(){
   const it = peekItem;
+  edPanel.classList.remove('stale');
   if(!it || edPanel.hidden) return;
   if(edFilterFor !== it){ edFilter = { text:'' }; edFilterFor = it; }
   const oldScroll = edPanel.querySelector('.ed-scroll');
@@ -2111,6 +2149,9 @@ peek.addEventListener('close', () => {
   const last = peekItem;
   peekItem = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing');
   unlockScroll();
+  // 一覧にまだ出ていないところまで送っていたら、そこまでカードを足してから合わせる
+  const at = last ? order.indexOf(last) : -1;
+  while(at >= shownCount && shownCount < poolSize) appendMore();
   revealCard(last);
 });
 // プレビューを閉じたら、最後に見ていたカードが画面に入るところまでスクロールして、軽く光らせる
