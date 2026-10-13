@@ -365,6 +365,9 @@ body.selecting .sel-box{opacity:1}
 @media (hover:hover){ .card:hover .badge{left:42px} }
 body.selecting .badge{left:42px}
 .card-link{-webkit-touch-callout:none}
+/* プレビューを閉じたときに、最後に見ていたカードを軽く光らせる */
+@keyframes cardFlash{ 0%{box-shadow:0 0 0 3px var(--accent)} 100%{box-shadow:0 0 0 3px transparent} }
+.card.flash{animation:cardFlash 1.4s ease-out}
 /* 今の絞り込みから外れたカード（移動したものなど）は薄く */
 .card.gone{opacity:.32}
 .card.gone:hover{opacity:.7}
@@ -2015,7 +2018,27 @@ function closePeek(){
   if(peek.open) peek.close();
 }
 
-peek.addEventListener('close', () => { peekItem = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing'); unlockScroll(); });
+peek.addEventListener('close', () => {
+  const last = peekItem;
+  peekItem = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing');
+  unlockScroll();
+  revealCard(last);
+});
+// プレビューを閉じたら、最後に見ていたカードが画面に入るところまでスクロールして、軽く光らせる
+// （前後に送っているうちに追加で読み込んだカードは、並び終わるのを少し待つ）
+function revealCard(it, tries = 0){
+  const c = it && cardOf.get(it);
+  if(!c) return;
+  if(!c._placed || !c.isConnected){ if(tries < 30) setTimeout(() => revealCard(it, tries + 1), 100); return; }
+  const top = document.querySelector('header').offsetHeight;
+  const r = c.getBoundingClientRect();
+  if(r.top < top || r.bottom > innerHeight){
+    const room = innerHeight - top;
+    const y = scrollY + r.top - top - Math.max(12, (room - r.height) / 2);
+    window.scrollTo({ top:Math.max(0, y), behavior:'instant' });
+  }
+  c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
+}
 const touchUI = matchMedia('(hover:none)').matches;
 peek.addEventListener('click', e => {
   if(e.target.closest('.lb-top, .lb-nav, .lb-edit, .lb-toast')) return;
