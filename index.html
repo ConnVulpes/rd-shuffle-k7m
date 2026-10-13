@@ -192,6 +192,8 @@ body.cur-idle .rd-btn{opacity:0 !important}
   overscroll-behavior:contain;
 }
 #peek[open]{display:block}
+/* 素早く2回タップしたときに「ダブルタップ」として飲み込まれないように（1回ずつ確実に送る） */
+#peek, .peek-body{touch-action:manipulation}
 #peek::backdrop{background:transparent}
 .peek-body:focus{outline:none}
 /* ズーム：中身をまとめて拡大縮小・移動する */
@@ -258,6 +260,21 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .lb-cap-t{font-size:13px; line-height:1.45; overflow:hidden; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .lb-cap-d{font-size:11px; margin-top:2px; color:rgba(255,255,255,.65); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #peek.zoomed .lb-cap{opacity:0}
+/* 軽量モードの「高画質で見る」：画像の右下に */
+.lb-hq{
+  position:absolute; right:14px; bottom:calc(var(--edit-h, 0px) + 70px); z-index:3;
+  font:inherit; font-size:13px; color:#fff; cursor:pointer;
+  padding:7px 14px; border-radius:999px; border:1px solid rgba(255,255,255,.35); background:rgba(0,0,0,.55);
+  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+}
+.lb-hq[hidden]{display:none}
+#peek.hq-loading .lb-hq{opacity:.6; pointer-events:none}
+#peek.editing .lb-hq{right:14px}
+@media (min-width:760px){ #peek.editing .lb-hq{right:14px; bottom:70px} }
+/* 高画質を読み込み中の小さな印 */
+#peek.hq-loading::after{content:""; position:absolute; right:18px; top:58px; width:16px; height:16px; border-radius:50%;
+  border:2px solid rgba(255,255,255,.3); border-top-color:#fff; animation:hqspin .8s linear infinite; z-index:3}
+@keyframes hqspin{ to{ transform:rotate(360deg) } }
 #peek.editing .lb-cap{left:var(--edit-l, 0px); bottom:var(--edit-h, 0px); padding-bottom:10px}
 #peek .lb-toast{margin-bottom:46px}
 /* 編集中は、画像の表示エリアをパネルの分だけ狭める */
@@ -531,6 +548,7 @@ dialog input{width:100%; margin-bottom:14px}
         </select>
       </div>
       <label class="menu-row switch"><span>キャプション<kbd>C</kbd></span><input type="checkbox" id="capToggle"></label>
+      <label class="menu-row switch" title="一覧とプレビューの画像を小さいサイズで読み込みます。プレビューで「高画質で見る」を押すと、その1枚だけ元の大きさで読み込みます"><span>軽量モード（外出先向け）</span><input type="checkbox" id="saverToggle"></label>
       <div class="cur-group" id="curGroup">
         <label class="menu-row switch" title="マウスを止めて少したつとカーソルを隠します。隠れている間はカードに反応しません"><span>カーソルを自動で隠す<kbd>H</kbd></span><input type="checkbox" id="curToggle"></label>
         <div class="menu-row sub"><span>戻るまでの動き</span>
@@ -588,6 +606,7 @@ dialog input{width:100%; margin-bottom:14px}
   <button type="button" class="lb-nav lb-next" id="peekNext" aria-label="次へ" title="次へ（→）">›</button>
   <div class="peek-body" id="peekBody" tabindex="-1" autofocus><div class="zoomer" id="zoomer"></div></div>
   <div class="zoom-ind" id="zoomInd"></div>
+  <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
   <div class="lb-cap" id="peekCap"><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div></div>
   <div class="lb-edit" id="edPanel" hidden></div>
   <div class="lb-toast" id="edToast" hidden role="status"><span id="edToastMsg"></span><button type="button" id="edUndo">元に戻す</button></div>
@@ -665,6 +684,7 @@ const state = {
   sort: store.get('sort', 'shuffle'),
   count: store.get('count', 40),
   cap: store.get('cap', true),
+  saver: store.get('saver', false),   // 軽量モード：画像を小さく取り、プレビューの高画質や動画は押したときだけ
   hideCur: store.get('hidecur', true),
   wakePx: store.get('wakepx', 360),
   col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
@@ -1329,6 +1349,20 @@ async function siteThumbs(it){
 
 // 大きく見せるときは X の画像を大きいサイズで取る
 const bigUrl = u => u.replace(/([?&]name=)(small|medium|thumb|\w+x\w+)/, '$1large');
+// 小さく取る：X は小さいサイズを指定、それ以外は画像の縮小サービス（wsrv.nl）を通す。
+// 縮小サービスで読めなかったときは、元の画像に戻して読み直す（mediaEl 側）
+const isX = u => /pbs\.twimg\.com\//.test(u);
+function smallUrl(u, w){
+  if(isX(u)) return /[?&]name=/.test(u) ? u.replace(/([?&]name=)\w+/, '$1small') : u + (u.includes('?') ? '&' : '?') + 'name=small';
+  if(!/^https?:/.test(u)) return u;
+  return `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=${w}&fit=inside&we&output=webp&q=70`;
+}
+// size: 'card' 一覧のカード / 'low' プレビューの最初の1枚 / 'full' プレビューの元の大きさ
+function sizedUrl(u, size){
+  if(size === 'full') return bigUrl(u);
+  if(size === 'low') return state.saver ? smallUrl(u, 1000) : u;   // 普段は一覧と同じ（読み込み済みなのですぐ出る）
+  return state.saver ? smallUrl(u, Math.min(800, Math.round(state.col * Math.min(2, devicePixelRatio || 1)))) : u;
+}
 // プレビューで次（と前）に見そうな画像を先に読み込んでおく。送ったときにすぐ出るように
 const prefetched = [];
 function prefetchAround(it){
@@ -1340,7 +1374,7 @@ function prefetchAround(it){
     const go = url => {
       const img = new Image();
       img.referrerPolicy = 'no-referrer'; img.decoding = 'async';
-      img.src = bigUrl(url);
+      img.src = state.saver ? sizedUrl(url, 'low') : bigUrl(url);
       if(img.decode) img.decode().catch(() => {});
       prefetched.push(img);
       if(prefetched.length > 8) prefetched.shift();   // 持ちすぎない
@@ -1352,7 +1386,8 @@ function prefetchAround(it){
 }
 // 候補を順に試して、最初に読み込めたものを表示する。全部だめならタイトルの文字で見せる。
 // done() は大きさが決まった時点で呼ぶ（列に偏りなく並べるのに使う）
-function mediaEl(it, list, i, done = () => {}, eager = false, big = false){
+function mediaEl(it, list, i, done = () => {}, eager = false, size = 'card'){
+  const big = size === 'full' || size === 'low';
   if(i >= list.length){
     if(list.extra){ done(); return placeholder(it); }
     const ph = placeholder(it);
@@ -1360,13 +1395,12 @@ function mediaEl(it, list, i, done = () => {}, eager = false, big = false){
       if(!urls.length || !ph.parentNode){ done(); return; }
       const more = urls.map(url => ({ url, video:false }));
       more.extra = true;
-      ph.replaceWith(mediaEl(it, more, 0, done, eager, big));
+      ph.replaceWith(mediaEl(it, more, 0, done, eager, size));
     });
     return ph;
   }
   const cand = list[i];
-  // 大きく見せるときは X の画像を大きいサイズで取る
-  const src = big ? bigUrl(cand.url) : cand.url;
+  const src = cand.video ? cand.url : sizedUrl(cand.url, size);
   let node;
   if(cand.video){
     node = document.createElement('video');
@@ -1384,9 +1418,18 @@ function mediaEl(it, list, i, done = () => {}, eager = false, big = false){
     node.alt = '';
     node.referrerPolicy = 'no-referrer';
     node.src = src;
+    // プレビューで小さい方から出したときは、元の大きさの住所を覚えておく（「高画質で見る」で使う）
+    const full = bigUrl(cand.url);
+    if(size === 'low' && full !== src) node.dataset.full = full;
   }
   node.className = 'thumb';
-  node.addEventListener('error', () => node.replaceWith(mediaEl(it, list, i + 1, done, eager, big)), { once:true });
+  node.addEventListener('error', () => {
+    // 縮小サービスで読めなかったら、まず元の画像で読み直す
+    if(!cand.video && node.src !== cand.url && !node.dataset.retried && /wsrv\.nl/.test(node.src)){
+      node.dataset.retried = '1'; delete node.dataset.full; node.src = cand.url; return;
+    }
+    node.replaceWith(mediaEl(it, list, i + 1, done, eager, size));
+  });
   return node;
 }
 
@@ -1556,6 +1599,40 @@ $('peekRot').addEventListener('click', e => rotatePeek(e.shiftKey ? -1 : 1));
 $('peekFlip').addEventListener('click', flipPeek);
 addEventListener('resize', () => { if(peek.open && zoomer.classList.contains('sideways')) applyOrient(false); });
 
+// ---- 軽量モード：高画質・動画は押したときだけ ----
+let peekVideoFor = null;
+// 小さい画像を、元の大きさの画像に差し替える（読み込めてから差し替えるので、それまでは小さい方のまま）
+function upgradePeek(it){
+  const img = zoomer.querySelector('img.thumb[data-full]');
+  if(!img) return syncHq();
+  const full = img.dataset.full;
+  peek.classList.add('hq-loading');
+  const pre = new Image();
+  pre.referrerPolicy = 'no-referrer';
+  pre.onload = () => { if(peekItem === it){ img.src = full; delete img.dataset.full; } done(); };
+  pre.onerror = () => { if(peekItem === it) delete img.dataset.full; done(); };
+  const done = () => { if(peekItem === it){ peek.classList.remove('hq-loading'); syncHq(); } };
+  pre.src = full;
+}
+// 「高画質で見る」「動画を再生」ボタンの出し分け
+function syncHq(){
+  const b = $('peekHq');
+  const it = peekItem;
+  const video = state.saver && it && peekVideoFor === it && !it._hq;
+  const low = state.saver && it && !it._hq && !!zoomer.querySelector('img.thumb[data-full]');
+  b.hidden = !(video || low);
+  b.textContent = video ? '動画を再生' : '高画質で見る';
+}
+$('peekHq').addEventListener('click', e => {
+  e.stopPropagation();
+  const it = peekItem;
+  if(!it) return;
+  it._hq = true;   // 一度押したブックマークは、ページを開いている間は高画質で出す
+  // X の投稿は、動画かもしれないので最初から通常どおりに出し直す（画像なら高画質に差し替わる）
+  if(peekVideoFor === it || xId(it.l)){ peekVideoFor = null; showPeekMedia(it); return; }
+  upgradePeek(it);
+});
+
 function showPeekMedia(it){
   resetZoom(false);
   zoomer.innerHTML = '';
@@ -1569,10 +1646,22 @@ function showPeekMedia(it){
     zoomer.append(f);
     return;
   }
-  zoomer.append(mediaEl(it, thumbs(it), 0, undefined, true, true));
+  // まず小さい方（普段は一覧で読み込み済みの画像）をすぐ出し、元の大きさは後から差し替える。
+  // 軽量モードでは差し替えず、「高画質で見る」を押したときだけ読み込む
+  const first = mediaEl(it, thumbs(it), 0, () => {
+    if(peekItem !== it) return;
+    if(!state.saver || it._hq) upgradePeek(it); else syncHq();
+  }, true, 'low');
+  zoomer.append(first);
+  syncHq();
   prefetchAround(it);
   const xid = xId(it.l);
   if(xid){
+    // 軽量モードでは、動画は「動画を再生」を押したときだけ読み込む（サムネの形から動画の投稿か見分ける）
+    if(state.saver && !it._hq){
+      if(/(tweet_video|amplify_video|ext_tw_video)_thumb/.test(it.c || '') || it.y === 'video'){ peekVideoFor = it; syncHq(); }
+      return;
+    }
     xVideo(xid).then(v => {
       if(!v || peekItem !== it) return;
       const vid = document.createElement('video');
@@ -2197,7 +2286,7 @@ function closePeek(){
 
 peek.addEventListener('close', () => {
   const last = peekItem;
-  peekItem = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing');
+  peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
   unlockScroll();
   // 一覧にまだ出ていないところまで送っていたら、そこまでカードを足してから合わせる
   const at = last ? order.indexOf(last) : -1;
@@ -2275,6 +2364,7 @@ peekBody.addEventListener('wheel', e => {
 // マウスのドラッグで移動
 let dragStart = null;
 peekBody.addEventListener('pointerdown', e => {
+  zoomDragged = false;   // 新しい操作の始まり：前のドラッグの印が残って次のタップを無視しないように
   if(e.pointerType !== 'mouse' || e.button !== 0 || zoom.s === 1 || e.target.closest('video[controls]')) return;
   dragStart = { x:e.clientX, y:e.clientY, zx:zoom.x, zy:zoom.y, moved:false };
   zoomer.classList.add('drag');
@@ -2298,6 +2388,7 @@ let touch = null;
 const center = (a, b) => ({ d:Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mx:(a.clientX + b.clientX) / 2, my:(a.clientY + b.clientY) / 2 });
 peekBody.addEventListener('touchstart', e => {
   const t = e.touches;
+  if(t.length === 1 && !touch) zoomDragged = false;
   if(t.length === 2) touch = { mode:'pinch', ...center(t[0], t[1]) };
   else if(t.length === 1) touch = zoom.s !== 1
     ? { mode:'pan', x:t[0].clientX, y:t[0].clientY, moved:false }
@@ -2375,6 +2466,14 @@ function toggleCap(){
   applyCap();
 }
 capBtn.addEventListener('change', toggleCap);
+// 軽量モード：切り替えたら一覧の画像も取り直す
+const saverBtn = $('saverToggle');
+saverBtn.checked = state.saver;
+saverBtn.addEventListener('change', () => {
+  state.saver = saverBtn.checked;
+  store.set('saver', state.saver);
+  cardEls.forEach(c => refreshCardMedia(c, c._item));
+});
 
 // マウスを止めて少したつとカーソルを隠す。隠れている間はカードに反応しない
 const curBtn = $('curToggle');
@@ -2605,6 +2704,7 @@ document.addEventListener('keydown', e => {
     if(e.key === '0'){ e.preventDefault(); resetZoom(true); return; }
     if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); rotatePeek(e.shiftKey ? -1 : 1); return; }
     if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); flipPeek(); return; }
+    if((e.key === 'q' || e.key === 'Q') && !$('peekHq').hidden){ e.preventDefault(); $('peekHq').click(); return; }
     if(e.key === '+' || e.key === '=' || e.key === '-'){
       e.preventDefault();
       const r = peekBody.getBoundingClientRect();
