@@ -222,6 +222,20 @@ body.cur-idle .rd-btn{opacity:0 !important}
 }
 .lb-btn:hover{background:rgba(255,255,255,.22)}
 #peekClose{width:34px; padding:0; font-size:20px; line-height:1}
+.lb-ic{width:34px; padding:0}
+.lb-ic svg{width:17px; height:17px}
+.lb-rd-ic{display:none}
+.lb-rd-ic svg{display:block}
+/* 回転・反転：中の画像だけを回す（拡大・移動は外側で行う） */
+.zoomer > *{transform:scaleX(var(--flip, 1)) rotate(var(--rot, 0deg))}
+.zoomer.turning > *{transition:transform .2s ease-out}
+.zoomer.sideways > img, .zoomer.sideways > video, .zoomer.sideways > .thumb{max-width:var(--zh); max-height:var(--zw)}
+@media (max-width:640px){
+  .lb-top{gap:6px; padding:8px}
+  #peekRd{width:34px; padding:0}
+  .lb-rd-ic{display:block}
+  .lb-rd-t{display:none}
+}
 .lb-nav{
   position:absolute; top:50%; z-index:2; transform:translateY(-50%);
   width:44px; height:64px; border:0; border-radius:10px; cursor:pointer;
@@ -563,9 +577,11 @@ dialog input{width:100%; margin-bottom:14px}
 <dialog id="peek" aria-label="プレビュー">
   <div class="lb-top">
     <span class="peek-pos" id="peekPos"></span>
+    <button type="button" class="lb-btn lb-ic" id="peekRot" title="右に90度回す（R・Shift+R で左）" aria-label="右に90度回す"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.5 7.5A4.5 4.5 0 1 1 8 3h3.5M9.5 1l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" class="lb-btn lb-ic" id="peekFlip" title="左右反転（F）" aria-label="左右反転" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v13M6 4 2 12h4zM10 4l4 8h-4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></button>
     <button type="button" class="lb-btn" id="peekEdit" aria-pressed="false" title="タグ・フォルダを編集（E）">編集</button>
     <a class="lb-btn" id="peekOpen" target="_blank" rel="noopener noreferrer" title="サイトを開く">サイト</a>
-    <a class="lb-btn" id="peekRd" target="_blank" rel="noopener">Raindrop</a>
+    <a class="lb-btn" id="peekRd" target="_blank" rel="noopener" title="Raindrop で開く"><span class="lb-rd-ic"></span><span class="lb-rd-t">Raindrop</span></a>
     <button type="button" class="lb-btn" id="peekClose" aria-label="閉じる" title="閉じる（Esc）">×</button>
   </div>
   <button type="button" class="lb-nav lb-prev" id="peekPrev" aria-label="前へ" title="前へ（←）">‹</button>
@@ -1507,6 +1523,39 @@ async function xVideo(id){
     .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
   return { url:(mp4[0] && mp4[0].url) || x.url, gif:x.type === 'gif', poster:x.thumbnail_url || '' };
 }
+// ---- 回転（90度ずつ）と左右反転 ----
+const orient = { rot:0, flip:false };
+function applyOrient(anim){
+  zoomer.classList.toggle('turning', !!anim);
+  zoomer.style.setProperty('--rot', orient.rot + 'deg');
+  zoomer.style.setProperty('--flip', orient.flip ? '-1' : '1');
+  const side = Math.abs(orient.rot / 90) % 2 === 1;
+  zoomer.classList.toggle('sideways', side);
+  // 横倒しのときは、縦横を入れ替えた枠に収まるようにする
+  if(side){ zoomer.style.setProperty('--zw', zoomer.clientWidth + 'px'); zoomer.style.setProperty('--zh', zoomer.clientHeight + 'px'); }
+  $('peekFlip').setAttribute('aria-pressed', String(orient.flip));
+}
+function resetOrient(){ orient.rot = 0; orient.flip = false; applyOrient(false); }
+// 反転中は見た目の回る向きが逆になるので、押した向きに回るように合わせる
+function rotatePeek(dir){
+  orient.rot += 90 * dir * (orient.flip ? -1 : 1);
+  applyOrient(true);
+  const deg = ((orient.rot % 360) + 360) % 360;
+  zoomInd.textContent = deg ? `${deg}°` : '0°';
+  zoomInd.classList.add('show'); clearTimeout(zoomIndTimer);
+  zoomIndTimer = setTimeout(() => zoomInd.classList.remove('show'), 900);
+}
+function flipPeek(){
+  orient.flip = !orient.flip;
+  applyOrient(true);
+  zoomInd.textContent = orient.flip ? '左右反転' : '反転なし';
+  zoomInd.classList.add('show'); clearTimeout(zoomIndTimer);
+  zoomIndTimer = setTimeout(() => zoomInd.classList.remove('show'), 900);
+}
+$('peekRot').addEventListener('click', e => rotatePeek(e.shiftKey ? -1 : 1));
+$('peekFlip').addEventListener('click', flipPeek);
+addEventListener('resize', () => { if(peek.open && zoomer.classList.contains('sideways')) applyOrient(false); });
+
 function showPeekMedia(it){
   resetZoom(false);
   zoomer.innerHTML = '';
@@ -1556,6 +1605,7 @@ function openPeek(it, stepping){
   $('peekCapD').textContent = site;
   $('peekRd').href = raindropUrl(it);
   showPeekMedia(it);
+  resetOrient();
   edView = '';
   if(!peek.open){ lockScroll(); peek.showModal(); }
   applyEditOpen(stepping);
@@ -2186,6 +2236,7 @@ peek.addEventListener('click', e => {
   if(e.target === peek || e.target === peekBody || e.target === zoomer) closePeek();
 });
 $('peekClose').addEventListener('click', closePeek);
+document.querySelector('#peekRd .lb-rd-ic').innerHTML = RD_ICON;
 
 // ---- ズーム：ホイールで拡大縮小（最初の大きさより小さくもできる）、ドラッグで移動、クリックで元に戻す ----
 const zoomer = $('zoomer'), zoomInd = $('zoomInd');
@@ -2552,6 +2603,8 @@ document.addEventListener('keydown', e => {
     if(e.key === 'ArrowLeft' || e.key === 'ArrowRight'){ e.preventDefault(); stepPeek(e.key === 'ArrowLeft' ? -1 : 1); return; }
     if(e.key === 'e' || e.key === 'E'){ e.preventDefault(); setEditOpen(!editOpen); return; }
     if(e.key === '0'){ e.preventDefault(); resetZoom(true); return; }
+    if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); rotatePeek(e.shiftKey ? -1 : 1); return; }
+    if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); flipPeek(); return; }
     if(e.key === '+' || e.key === '=' || e.key === '-'){
       e.preventDefault();
       const r = peekBody.getBoundingClientRect();
