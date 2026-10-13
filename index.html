@@ -355,15 +355,15 @@ body.cur-idle .rd-btn{opacity:0 !important}
   position:absolute; top:8px; left:8px; z-index:1; width:26px; height:26px; padding:4px; border-radius:7px; cursor:pointer;
   display:flex; align-items:center; justify-content:center;
   color:transparent; background:rgba(20,22,25,.45); border:1.5px solid rgba(255,255,255,.85);
-  box-shadow:0 1px 4px rgba(0,0,0,.35); opacity:0; transition:opacity .12s;
+  box-shadow:0 1px 4px rgba(0,0,0,.35); opacity:0;
 }
 .sel-box svg{width:100%; height:100%}
 @media (hover:hover){ .card:hover .sel-box, .sel-box:focus-visible{opacity:1} }
 body.selecting .sel-box{opacity:1}
 .card.picked .sel-box{color:var(--accent-ink); background:var(--accent); border-color:var(--accent)}
-.card.picked{outline:3px solid var(--accent); outline-offset:-3px}
-.card.picked .card-link{opacity:.82}
-.badge{transition:left .12s}
+/* 選んだカードは上に薄い色と枠を重ねるだけ（画像そのものは描き直さないので軽い） */
+.card.picked::after{content:""; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+  background:color-mix(in srgb, var(--accent) 16%, transparent); box-shadow:inset 0 0 0 3px var(--accent)}
 @media (hover:hover){ .card:hover .badge{left:42px} }
 body.selecting .badge{left:42px}
 .card-link{-webkit-touch-callout:none}
@@ -373,7 +373,7 @@ body.selecting .badge{left:42px}
 /* 今の絞り込みから外れたカード（移動したものなど）は薄く */
 .card.gone{opacity:.32}
 .card.gone:hover{opacity:.7}
-body.selecting main{padding-bottom:96px}
+.sel-spacer{height:96px}
 .selbar{
   position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:4;
   width:min(760px, calc(100% - 24px)); display:flex; flex-direction:column; gap:8px;
@@ -540,6 +540,7 @@ dialog input{width:100%; margin-bottom:14px}
   <div class="status" id="status" aria-live="polite"></div>
   <div class="grid" id="grid"></div>
   <div class="more" id="more" hidden></div>
+  <div class="sel-spacer" id="selSpacer" hidden></div>
   <div class="empty" id="empty">
     <p>シャッフルを押すと、ブックマークがランダムに並びます。</p>
     <p>カードを押すと画像が大きく開き、右上の水滴ボタンで Raindrop の編集画面が開きます。左上の「絞り込み」でフォルダやタグを選べます。</p>
@@ -2428,6 +2429,7 @@ function syncSelection(){
   const n = selected.size;
   document.body.classList.toggle('selecting', n > 0);
   selBar.hidden = !n;
+  $('selSpacer').hidden = !n;   // 下のバーに最後のカードが隠れないように（一覧全体の並べ直しは起こさない）
   $('selCount').textContent = `${n.toLocaleString()}件`;
   if(!n){ popKind = ''; }
   renderSelPop();
