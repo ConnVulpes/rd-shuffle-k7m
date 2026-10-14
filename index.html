@@ -197,14 +197,16 @@ body.cur-idle .rd-btn{opacity:0 !important}
 #peek::backdrop{background:transparent}
 .peek-body:focus{outline:none}
 /* ズーム：中身をまとめて拡大縮小・移動する */
-.zoomer{width:100%; height:100%; display:flex; align-items:center; justify-content:center; transform-origin:50% 50%; will-change:transform}
+.zoomer{position:relative; z-index:1; width:100%; height:100%; display:flex; align-items:center; justify-content:center; transform-origin:50% 50%; will-change:transform}
 .zoomer.anim{transition:transform .18s ease-out}
 #peek.zoomed .zoomer{cursor:grab}
 #peek.zoomed .zoomer.drag{cursor:grabbing}
 .zoom-ind{position:absolute; left:50%; top:52px; transform:translateX(-50%); z-index:2; padding:3px 10px; border-radius:999px; font-size:12px; color:#fff; background:rgba(0,0,0,.55); pointer-events:none; opacity:0; transition:opacity .2s}
 .zoom-ind.show{opacity:1}
-/* 明るさ：暗くするときは黒い膜をかぶせる（ボタン類はその上なので見えたまま） */
-.peek-dim{position:absolute; inset:0; z-index:1; background:#000; opacity:0; pointer-events:none}
+/* 明るさ：画像・動画そのものは filter で暗くし、背景だけ黒い膜で暗くする。
+   動画の上には何も重ねない（iPhone で動画の再生ボタンが押せなくなるため） */
+.peek-dim{position:absolute; inset:0; z-index:0; background:#000; pointer-events:none; display:none}
+.peek-dim.on{display:block}
 .lb-btn.lb-bright{pointer-events:auto; height:32px; gap:5px; padding:0 12px; margin-bottom:8px; font-size:12px; font-variant-numeric:tabular-nums; background:rgba(0,0,0,.45)}
 .lb-bright svg{width:15px; height:15px; flex:none}
 .lb-bright[hidden]{display:none}
@@ -2447,8 +2449,9 @@ $('peekPrev').addEventListener('click', () => stepPeek(-1));
 const peekDim = $('peekDim');
 let bright = Number(store.get('bright', 1)) || 1;
 function applyBright(){
-  peekDim.style.opacity = bright < 1 ? String(1 - bright) : '0';    // 100%未満：黒い膜で暗く
-  zoomer.style.filter = bright > 1 ? `brightness(${bright})` : '';   // 100%超え：画像そのものを明るく
+  peekDim.classList.toggle('on', bright < 1);                          // 背景：100%未満のときだけ黒い膜（中身の後ろ）
+  peekDim.style.opacity = bright < 1 ? String(1 - bright) : '';
+  zoomer.style.filter = bright !== 1 ? `brightness(${bright})` : '';   // 画像・動画：そのものを暗く／明るく
   // 100%以外のときだけ、上のバーに今の明るさ（押すと100%に戻る）を出す
   $('peekBright').hidden = bright === 1;
   $('peekBrightV').textContent = Math.round(bright * 100) + '%';
