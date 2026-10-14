@@ -2317,9 +2317,11 @@ peek.addEventListener('click', e => {
   // ズーム中はクリック（タップ）で元の大きさに戻す
   if(zoom.s !== 1){ resetZoom(true); return; }
   if(e.target.closest('video[controls]')) return;
+  // 明るさを変えているときは、真ん中のタップ（PCは画像のクリック）で100%に戻す
+  const x = e.clientX / window.innerWidth;
+  if(bright !== 1 && (touchUI ? (x >= 0.3 && x <= 0.7) : !!e.target.closest('.zoomer > *'))){ setBright(1); saveBright(); return; }
   // スマホ：画面の左3割をタップで前へ、右3割で次へ
   if(touchUI){
-    const x = e.clientX / window.innerWidth;
     if(x < 0.3){ stepPeek(-1); return; }
     if(x > 0.7){ stepPeek(1); return; }
   }
@@ -2737,6 +2739,7 @@ document.addEventListener('keydown', e => {
     if(e.key === 'e' || e.key === 'E'){ e.preventDefault(); setEditOpen(!editOpen); return; }
     if(e.key === '0'){ e.preventDefault(); resetZoom(true); return; }
     if(e.key === 'ArrowUp' || e.key === 'ArrowDown'){ e.preventDefault(); setBright(bright + (e.key === 'ArrowUp' ? 0.1 : -0.1)); saveBright(); return; }
+    if(e.key === 'b' || e.key === 'B'){ e.preventDefault(); setBright(1); saveBright(); return; }
     if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); rotatePeek(e.shiftKey ? -1 : 1); return; }
     if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); flipPeek(); return; }
     if((e.key === 'q' || e.key === 'Q') && !$('peekHq').hidden){ e.preventDefault(); $('peekHq').click(); return; }
