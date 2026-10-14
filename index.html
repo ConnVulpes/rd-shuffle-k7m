@@ -205,8 +205,7 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .zoom-ind.show{opacity:1}
 /* 明るさ：暗くするときは黒い膜をかぶせる（ボタン類はその上なので見えたまま） */
 .peek-dim{position:absolute; inset:0; z-index:1; background:#000; opacity:0; pointer-events:none}
-.lb-btn.lb-bright{position:absolute; top:54px; left:10px; z-index:2; height:30px; gap:4px; padding:0 9px; font-size:12px; font-variant-numeric:tabular-nums; background:rgba(0,0,0,.45)}
-#peek.editing .lb-bright{left:calc(var(--edit-l, 0px) + 10px)}
+.lb-btn.lb-bright{pointer-events:auto; height:32px; gap:5px; padding:0 12px; margin-bottom:8px; font-size:12px; font-variant-numeric:tabular-nums; background:rgba(0,0,0,.45)}
 .lb-bright svg{width:15px; height:15px; flex:none}
 .lb-bright[hidden]{display:none}
 .peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:52px 12px 64px}
@@ -614,13 +613,12 @@ dialog input{width:100%; margin-bottom:14px}
     <a class="lb-btn" id="peekRd" target="_blank" rel="noopener" title="Raindrop で開く"><span class="lb-rd-ic"></span><span class="lb-rd-t">Raindrop</span></a>
     <button type="button" class="lb-btn" id="peekClose" aria-label="閉じる" title="閉じる（Esc）">×</button>
   </div>
-  <button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button>
   <button type="button" class="lb-nav lb-prev" id="peekPrev" aria-label="前へ" title="前へ（←）">‹</button>
   <button type="button" class="lb-nav lb-next" id="peekNext" aria-label="次へ" title="次へ（→）">›</button>
   <div class="peek-body" id="peekBody" tabindex="-1" autofocus><div class="zoomer" id="zoomer"></div><div class="peek-dim" id="peekDim"></div></div>
   <div class="zoom-ind" id="zoomInd"></div>
   <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
-  <div class="lb-cap" id="peekCap"><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div></div>
+  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div></div>
   <div class="lb-edit" id="edPanel" hidden></div>
   <div class="lb-toast" id="edToast" hidden role="status"><span id="edToastMsg"></span><button type="button" id="edUndo">元に戻す</button></div>
 </dialog>
