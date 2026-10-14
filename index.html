@@ -282,6 +282,12 @@ body.cur-idle .rd-btn{opacity:0 !important}
   border:2px solid rgba(255,255,255,.3); border-top-color:#fff; animation:hqspin .8s linear infinite; z-index:3}
 @keyframes hqspin{ to{ transform:rotate(360deg) } }
 #peek.editing .lb-cap{left:var(--edit-l, 0px); bottom:var(--edit-h, 0px); padding-bottom:10px}
+/* スマホ：閉じるボタンは親指の届く左下に（編集シートを開いているときはその上） */
+@media (hover:none){
+  #peekClose{position:fixed; left:12px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:3; width:44px; height:44px; border-radius:50%; font-size:22px; background:rgba(0,0,0,.5)}
+  #peek.editing #peekClose{bottom:calc(var(--edit-h, 0px) + 12px)}
+  .lb-cap{padding-left:68px; padding-right:68px}
+}
 #peek .lb-toast{margin-bottom:46px}
 /* 編集中は、画像の表示エリアをパネルの分だけ狭める */
 #peek.editing .peek-body{left:var(--edit-l, 0px); bottom:var(--edit-h, 0px)}
