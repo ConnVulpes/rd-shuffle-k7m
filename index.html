@@ -205,6 +205,10 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .zoom-ind.show{opacity:1}
 /* 明るさ：暗くするときは黒い膜をかぶせる（ボタン類はその上なので見えたまま） */
 .peek-dim{position:absolute; inset:0; z-index:1; background:#000; opacity:0; pointer-events:none}
+.lb-btn.lb-bright{position:absolute; top:54px; left:10px; z-index:2; height:30px; gap:4px; padding:0 9px; font-size:12px; font-variant-numeric:tabular-nums; background:rgba(0,0,0,.45)}
+#peek.editing .lb-bright{left:calc(var(--edit-l, 0px) + 10px)}
+.lb-bright svg{width:15px; height:15px; flex:none}
+.lb-bright[hidden]{display:none}
 .peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:52px 12px 64px}
 .peek-body .thumb, .peek-body img, .peek-body video{
   display:block; max-width:100%; max-height:100%; width:auto; height:auto;
@@ -604,6 +608,7 @@ dialog input{width:100%; margin-bottom:14px}
     <a class="lb-btn" id="peekRd" target="_blank" rel="noopener" title="Raindrop で開く"><span class="lb-rd-ic"></span><span class="lb-rd-t">Raindrop</span></a>
     <button type="button" class="lb-btn" id="peekClose" aria-label="閉じる" title="閉じる（Esc）">×</button>
   </div>
+  <button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button>
   <button type="button" class="lb-nav lb-prev" id="peekPrev" aria-label="前へ" title="前へ（←）">‹</button>
   <button type="button" class="lb-nav lb-next" id="peekNext" aria-label="次へ" title="次へ（→）">›</button>
   <div class="peek-body" id="peekBody" tabindex="-1" autofocus><div class="zoomer" id="zoomer"></div><div class="peek-dim" id="peekDim"></div></div>
@@ -2312,19 +2317,13 @@ function revealCard(it, tries = 0){
 }
 const touchUI = matchMedia('(hover:none)').matches;
 peek.addEventListener('click', e => {
-  if(e.target.closest('.lb-top, .lb-nav, .lb-edit, .lb-toast')) return;
+  if(e.target.closest('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright')) return;
   if(zoomDragged){ zoomDragged = false; return; }   // ドラッグで動かした直後のクリックは無視
   // ズーム中はクリック（タップ）で元の大きさに戻す
   if(zoom.s !== 1){ resetZoom(true); return; }
   if(e.target.closest('video[controls]')) return;
-  // 明るさを変えているときは、真ん中のタップ（PCは画像のクリック）で100%に戻す
-  const x = e.clientX / window.innerWidth;
-  if(bright !== 1 && (touchUI ? (x >= 0.3 && x <= 0.7) : !!e.target.closest('.zoomer > *'))){ setBright(1); saveBright(); return; }
-  // スマホ：画面の左3割をタップで前へ、右3割で次へ
-  if(touchUI){
-    if(x < 0.3){ stepPeek(-1); return; }
-    if(x > 0.7){ stepPeek(1); return; }
-  }
+  // スマホ：画面の左半分をタップで前へ、右半分で次へ（閉じるのは×ボタン）
+  if(touchUI){ stepPeek(e.clientX < window.innerWidth / 2 ? -1 : 1); return; }
   // 画像やボタン以外（後ろが透けているところ）を押すと閉じる
   if(e.target === peek || e.target === peekBody || e.target === zoomer) closePeek();
 });
@@ -2446,7 +2445,11 @@ let bright = Number(store.get('bright', 1)) || 1;
 function applyBright(){
   peekDim.style.opacity = bright < 1 ? String(1 - bright) : '0';    // 100%未満：黒い膜で暗く
   zoomer.style.filter = bright > 1 ? `brightness(${bright})` : '';   // 100%超え：画像そのものを明るく
+  // 100%以外のときだけ、上のバーに今の明るさ（押すと100%に戻る）を出す
+  $('peekBright').hidden = bright === 1;
+  $('peekBrightV').textContent = Math.round(bright * 100) + '%';
 }
+$('peekBright').addEventListener('click', () => { setBright(1); saveBright(); });
 function setBright(v){
   v = Math.min(1.4, Math.max(0.1, v));
   bright = Math.abs(v - 1) < 0.03 ? 1 : Math.round(v * 100) / 100;
