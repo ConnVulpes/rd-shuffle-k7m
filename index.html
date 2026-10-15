@@ -2323,7 +2323,11 @@ function revealCard(it, tries = 0){
 }
 const touchUI = matchMedia('(hover:none)').matches;
 peek.addEventListener('click', e => {
-  if(e.target.closest('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright')) return;
+  // ボタン類や編集パネルを押したときは何もしない。
+  // 押した直後に作り直されて画面から外れた部品（フォルダの選択欄など）は closest で親をたどれないので、
+  // 押した時点の経路（composedPath）で判断する
+  if(!e.target.isConnected) return;
+  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq'))) return;
   if(zoomDragged){ zoomDragged = false; return; }   // ドラッグで動かした直後のクリックは無視
   // ズーム中はクリック（タップ）で元の大きさに戻す
   if(zoom.s !== 1){ resetZoom(true); return; }
