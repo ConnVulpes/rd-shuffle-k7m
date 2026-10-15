@@ -594,6 +594,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
       <div class="btns">
         <button type="button" class="icon-btn" id="settings">トークン設定</button>
       </div>
+      <div class="menu-note">絞り込みのプリセットと固定タグは、Raindrop の「rd-shuffle 設定」フォルダを通して端末間で同期します</div>
     </div>
   </div>
 </header>
@@ -701,6 +702,10 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 
 <script>
 const API = 'https://api.raindrop.io/rest/v1';
+// 端末間で共有する設定（プリセット・固定タグ）は、Raindrop の専用フォルダの1件のメモ欄に入れておく
+const SET_TITLE = 'rd-shuffle 設定';
+const SET_LINK = 'https://connvulpes.github.io/rd-shuffle-k7m/#settings';
+const isSettingsRaw = it => !!it && it.link === SET_LINK;   // 一覧には出さない
 const PER = 50;
 const DAY = 24 * 60 * 60 * 1000;
 const store = {
@@ -777,7 +782,7 @@ function compact(it){
 }
 
 function buildColls(roots, children){
-  const all = [...(roots.items || []), ...(children.items || [])];
+  const all = [...(roots.items || []), ...(children.items || [])].filter(c => c.title !== SET_TITLE);
   const byId = new Map(all.map(c => [c._id, c]));
   const parentOf = c => (c.parent && c.parent.$id != null) ? c.parent.$id : null;
   const pathOf = (c, depth = 0) => {
@@ -830,7 +835,7 @@ async function refreshAll(){
 
     const seen = new Set(), items = [];
     out.forEach(list => (list || []).forEach(it => {
-      if(!it || seen.has(it._id)) return;
+      if(!it || seen.has(it._id) || isSettingsRaw(it)) return;
       seen.add(it._id);
       items.push(compact(it));
     }));
@@ -1045,7 +1050,7 @@ function renderFilterDlg(){
 
 // ---- 絞り込みのプリセット（名前を付けて保存。押すとすぐその条件にする）----
 let presetEdit = false, presetNaming = false;
-const savePresets = () => store.set('presets', presets);
+const savePresets = () => { store.set('presets', presets); settingsChanged(); };
 function renderPresets(){
   const box = $('fdPresets');
   box.innerHTML = '';
@@ -1168,6 +1173,7 @@ async function syncNew(manual = false){
       let reached = false;
       list.forEach(it => {
         if(known.has(it._id)){ reached = true; return; }
+        if(isSettingsRaw(it)) return;
         known.add(it._id);
         fresh.push(compact(it));
       });
@@ -1225,7 +1231,7 @@ async function syncChanged(){
     const changed = new Map(), trashed = new Set();
     for(const d of dates){
       statusEl.textContent = `変更を確認中… ${d}`;
-      (await search(0, `lastUpdate:${d}`)).forEach(it => changed.set(it._id, it));
+      (await search(0, `lastUpdate:${d}`)).forEach(it => { if(!isSettingsRaw(it)) changed.set(it._id, it); });
       (await search(-99, `lastUpdate:${d}`)).forEach(it => trashed.add(it._id));
     }
     const byId = new Map(cache.items.map(x => [x.i, x]));
@@ -1261,6 +1267,7 @@ async function syncChanged(){
 }
 document.addEventListener('visibilitychange', () => {
   if(document.visibilityState === 'visible' && Date.now() - lastSync > 5 * 60 * 1000) syncNew();
+  if(document.visibilityState === 'visible' && Date.now() - lastPull > 60 * 1000) pullSettings();
 });
 
 let order = [];
@@ -2391,6 +2398,7 @@ function editTagSec(it){
       if(!pinMode){ toggleTag(it, name); return; }
       pins = pins.includes(name) ? pins.filter(x => x !== name) : [...pins, name].slice(0, 9);
       store.set('pins', pins);
+      settingsChanged();
       renderEdit();
     },
     onNew: pinMode ? null : name => addTag(it, name),
@@ -2754,7 +2762,7 @@ $('tokenForm').addEventListener('submit', () => {
     store.del('cache');
     syncFilter();
     order = []; poolSize = 0; shownCount = 0; cardEls = []; placeGen++; placing = 0; layout(true);
-    if(state.token) refreshAll();
+    if(state.token){ refreshAll(); syncRef = null; store.del('syncref'); pullSettings(); }
   }
 });
 // ---- 複数選択：カード左上のチェックで選び、下のバーからまとめて移動・タグ付け ----
@@ -2896,6 +2904,86 @@ document.addEventListener('keydown', e => {
   if(e.key === '3') setSize(380);
 });
 
+// ---- 設定の同期（プリセット・固定タグ）----
+// Raindrop の「rd-shuffle 設定」フォルダに、メモ欄へ設定を書いたブックマークを1件だけ置く。
+// 起動時と画面に戻ったときに読み、変えたら少し待ってから書く。新しい方（at が大きい方）を正とする
+let syncRef = store.get('syncref', null);   // { coll:フォルダID, id:ブックマークID }
+let syncAt = store.get('syncat', 0);        // 手元の設定がいつのものか（0 = まだ一度も同期していない）
+let lastPull = 0, pushTimer = 0, pulling = null;
+const localSettings = () => ({ v:1, at:syncAt, presets, pins });
+function settingsChanged(){
+  syncAt = Date.now(); store.set('syncat', syncAt);
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => pushSettings().catch(() => {}), 1500);
+}
+function applyRemote(r){
+  presets = Array.isArray(r.presets) ? r.presets : [];
+  pins = Array.isArray(r.pins) ? r.pins.slice(0, 9) : [];
+  store.set('presets', presets); store.set('pins', pins);
+  syncAt = r.at || Date.now(); store.set('syncat', syncAt);
+  syncFilter();
+  if(filterDlg.open && !presetNaming) renderPresets();
+  if(peek.open && editOpen && peekItem) renderEdit();
+}
+// 初めて同期するとき：両方にあるものは合わせる（同じ名前のプリセットは手元を優先）
+function mergeFirst(r){
+  const names = new Set(presets.map(p => p.name));
+  presets = presets.concat((r.presets || []).filter(p => !names.has(p.name)));
+  pins = [...new Set([...pins, ...(r.pins || [])])].slice(0, 9);
+}
+async function findSettings(){
+  if(syncRef && syncRef.id){
+    try{
+      const r = await api(`/raindrop/${syncRef.id}`);
+      const k = r.item && r.item.collection ? r.item.collection.$id : null;
+      if(r.item && isSettingsRaw(r.item) && k !== -99) return r.item;
+    }catch(e){ if(e.message !== 'http') throw e; }
+  }
+  const roots = await api('/collections');
+  const c = (roots.items || []).find(x => x.title === SET_TITLE);
+  if(!c){ syncRef = null; store.del('syncref'); return null; }
+  const r = await api(`/raindrops/${c._id}?perpage=50`);
+  const it = (r.items || []).find(isSettingsRaw);
+  syncRef = { coll:c._id, id:it ? it._id : null };
+  store.set('syncref', syncRef);
+  return it || null;
+}
+const readNote = it => { try{ const d = JSON.parse(it.note || ''); return d && d.v === 1 ? d : null; }catch(e){ return null; } };
+async function writeSettings(){
+  const note = JSON.stringify(localSettings());
+  if(syncRef && syncRef.id){
+    try{ await api(`/raindrop/${syncRef.id}`, { method:'PUT', body:{ note } }); return; }
+    catch(e){ if(e.message !== 'http') throw e; syncRef.id = null; }   // 消されていたら作り直す
+  }
+  let coll = syncRef && syncRef.coll;
+  if(!coll){ const r = await api('/collection', { method:'POST', body:{ title:SET_TITLE } }); coll = r.item._id; }
+  const r = await api('/raindrop', { method:'POST', body:{ link:SET_LINK, title:'Raindrop シャッフルの設定（消さないでください）', note, collection:{ $id:coll } } });
+  syncRef = { coll, id:r.item._id };
+  store.set('syncref', syncRef);
+}
+async function pushSettings(){
+  if(!state.token) return;
+  if(pulling) await pulling.catch(() => {});
+  await writeSettings();
+}
+function pullSettings(){
+  if(!state.token || pulling) return pulling;
+  lastPull = Date.now();
+  pulling = (async () => {
+    const it = await findSettings();
+    const remote = it && readNote(it);
+    if(!remote){
+      // まだ Raindrop 側にない：手元に何かあれば置く（何もなければフォルダも作らない）
+      if(presets.length || pins.length){ if(!syncAt){ syncAt = Date.now(); store.set('syncat', syncAt); } await writeSettings(); }
+      return;
+    }
+    if(!syncAt){ mergeFirst(remote); syncAt = Date.now(); store.set('syncat', syncAt); store.set('presets', presets); store.set('pins', pins); syncFilter(); await writeSettings(); return; }
+    if((remote.at || 0) > syncAt) applyRemote(remote);
+    else if((remote.at || 0) < syncAt) await writeSettings();   // 電波のないところで変えた分を送る
+  })().catch(() => {}).finally(() => { pulling = null; });
+  return pulling;
+}
+
 applyCap();
 applyWake();
 applyCur();
@@ -2908,11 +2996,13 @@ if(!state.token){
   openSettings();
 }else if(cache){
   render();
+  setTimeout(pullSettings, 1500);
   // 1日以上たっていたら、表示したまま裏で全部取り直す
   if(Date.now() - cache.savedAt > DAY) refreshAll();
   else syncNew();
 }else{
   refreshAll();
+  setTimeout(pullSettings, 1500);
 }
 </script>
 </body>
