@@ -416,8 +416,12 @@ body.selecting .badge{left:42px}
 @keyframes cardFlash{ 0%{box-shadow:0 0 0 3px var(--accent)} 100%{box-shadow:0 0 0 3px transparent} }
 .card.flash{animation:cardFlash 1.4s ease-out}
 /* 今の絞り込みから外れたカード（移動したものなど）は薄く */
-.card.gone{opacity:.32}
-.card.gone:hover{opacity:.7}
+/* 今の絞り込みから外れたカード：中身だけ薄くして、理由のラベルははっきり出す */
+.card.gone > .card-link, .card.gone > .badge{opacity:.32}
+.card.gone:hover > .card-link, .card.gone:hover > .badge{opacity:.7}
+.gone-tag{position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); z-index:2; max-width:calc(100% - 16px);
+  padding:4px 10px; border-radius:999px; font-size:12px; line-height:1.4; color:#fff; background:rgba(0,0,0,.72);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none}
 .sel-spacer{height:96px}
 .selbar{
   position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:4;
@@ -1145,7 +1149,7 @@ async function syncChanged(){
     store.set('cache', cache);
     applyCache();
     if(updated.length) afterLocalChange(updated, { media:true });
-    gone.forEach(x => { const c = cardOf.get(x); if(c) c.classList.add('gone'); });
+    gone.forEach(x => { const c = cardOf.get(x); if(c) setGone(c, 'ゴミ箱へ移動'); });
     const parts = [];
     if(fresh.length) parts.push(`新着 ${fresh.length}件`);
     if(updated.length) parts.push(`変更 ${updated.length}件`);
@@ -1500,6 +1504,7 @@ function card(it){
   a.append(captionEl(it));
   wrap.append(a);
   wrap._item = it;
+  wrap._was = snapOf(it);
   // X の GIF はサムネイルの URL で見分けられる
   const isGif = /tweet_video_thumb/.test(it.c || '');
   if(isGif || it.y === 'video' || list.some(x => x.video) || /(amplify|ext_tw)_video_thumb/.test(it.c || '')){
@@ -1732,6 +1737,21 @@ function refreshCardMedia(c, it){
   const a = c.querySelector('.card-link');
   if(a && a.firstChild) a.firstChild.replaceWith(mediaEl(it, thumbs(it), 0, undefined, true));
 }
+// 絞り込みから外れたカードの印。text が空なら外す
+const snapOf = it => ({ k:it.k, g:(it.g || []).join('\n') });
+function goneWhy(c, it){
+  const was = c._was || snapOf(it);
+  if(was.k !== it.k) return `移動済み · ${folderShort(it.k)}`;
+  if(was.g !== (it.g || []).join('\n')) return 'タグを変更済み';
+  return '絞り込みから外れました';
+}
+function setGone(c, text){
+  c.classList.toggle('gone', !!text);
+  let tag = c.querySelector(':scope > .gone-tag');
+  if(!text){ if(tag) tag.remove(); return; }
+  if(!tag){ tag = el('span', 'gone-tag'); c.append(tag); }
+  tag.textContent = text;
+}
 // 手元で変えたあとの後始末：数え直し・保存・カードとプレビューの表示を合わせる
 function afterLocalChange(items, { media = false } = {}){
   items = [].concat(items);
@@ -1747,8 +1767,9 @@ function afterLocalChange(items, { media = false } = {}){
     const old = c.querySelector('.cap');
     if(old) old.replaceWith(captionEl(it));
     if(media) refreshCardMedia(c, it);
-    // 今の絞り込みから外れたものは薄くする（並べ直すと消える）
-    c.classList.toggle('gone', !match(it));
+    // 今の絞り込みから外れたものは薄くして、理由を出す（並べ直すと消える）
+    if(match(it)){ c._was = snapOf(it); setGone(c, ''); }
+    else setGone(c, goneWhy(c, it));
   });
   if(popKind === 'tag' && items.some(x => selected.has(x))) renderSelPop();
   if(peekItem && items.includes(peekItem)){
