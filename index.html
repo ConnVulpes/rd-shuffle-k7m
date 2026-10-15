@@ -474,6 +474,18 @@ dialog input{width:100%; margin-bottom:14px}
 .fd-head h2{margin:0}
 .fd-head h2:focus{outline:none}
 .fd-hit{color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums}
+/* プリセット：よく使う絞り込みを名前を付けて保存（この端末に保存） */
+.fd-presets{display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:0 18px 10px}
+.fd-pre-lab{font-size:12px; color:var(--muted); margin-right:2px}
+.fd-pre, .fd-pre-add, .fd-pre-edit, .fd-pre-ok, .fd-pre-cancel{font:inherit; font-size:13px; line-height:1.5; padding:3px 12px; border-radius:999px; cursor:pointer; white-space:nowrap}
+.fd-pre{border:1px solid var(--line); background:var(--field); color:var(--text); max-width:100%; overflow:hidden; text-overflow:ellipsis}
+.fd-pre[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.fd-pre.del{border-color:#d0654f; color:#d0654f; background:transparent}
+.fd-pre.del::after{content:" ×"}
+.fd-pre-add, .fd-pre-edit, .fd-pre-cancel{border:1px dashed var(--line); background:transparent; color:var(--muted)}
+.fd-pre-add:disabled{opacity:.45; cursor:default}
+.fd-pre-ok{border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink)}
+dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font-size:16px}
 .fd-picked{display:flex; flex-wrap:wrap; gap:6px; padding:0 18px 10px; min-height:30px}
 .chip{
   display:inline-flex; align-items:center; gap:4px; font:inherit; font-size:12px; line-height:1.5;
@@ -634,6 +646,7 @@ dialog input{width:100%; margin-bottom:14px}
     <h2 id="filterTitle" tabindex="-1" autofocus>絞り込み</h2>
     <span class="fd-hit" id="fdHit"></span>
   </div>
+  <div class="fd-presets" id="fdPresets"></div>
   <div class="fd-picked" id="fdPicked"></div>
   <div class="seg fd-tabs" id="fdTabs" role="group" aria-label="絞り込みの種類">
     <button type="button" data-tab="folder">フォルダ</button>
@@ -872,6 +885,22 @@ const NO_TAG = '\u0000none';
 const TYPE_LABEL = { image:'画像', video:'動画', article:'記事', link:'リンク', document:'ドキュメント', audio:'音声' };
 const emptyFilter = () => ({ fi:[], fx:[], ti:[], tx:[], tm:'any', type:'', q:'' });
 state.filter = Object.assign(emptyFilter(), state.filter || {});
+// プリセット：[{ name, f }]（この端末に保存）
+let presets = store.get('presets', []);
+// 並び順や「どれか／全部」の違いで別物扱いにならないように揃えて比べる
+function normF(f){
+  f = Object.assign(emptyFilter(), f);
+  const n = a => a.map(Number).sort((x, y) => x - y);
+  return JSON.stringify([n(f.fi), n(f.fx), [...f.ti].sort(), [...f.tx].sort(), f.ti.length > 1 ? f.tm : 'any', f.type || '', (f.q || '').trim()]);
+}
+const presetOf = f => presets.find(p => normF(p.f) === normF(f));
+// プリセットの名前の初期値（除外も中身を書く）
+function presetDefaultName(f){
+  const parts = [filterSummary(Object.assign({}, f, { fx:[], tx:[] }))].filter(Boolean);
+  const ex = [...f.fx.map(folderShort), ...f.tx.map(tagName)];
+  if(ex.length) parts.push('除く ' + ex.join(' / '));
+  return parts.join(' · ').slice(0, 30);
+}
 
 function unionDesc(ids){
   const s = new Set();
@@ -923,8 +952,9 @@ function syncFilter(){
     if(JSON.stringify(f) !== before) store.set('filter', f);
   }
   const sum = filterSummary(f);
+  const pre = sum && presetOf(f);   // プリセットと同じ条件なら、その名前を出す
   const label = $('filterLabel');
-  label.textContent = sum || 'すべて';
+  label.textContent = pre ? pre.name : (sum || 'すべて');
   label.className = sum ? '' : 'muted';
   $('filterBtn').classList.toggle('active', !!sum);
   $('filterBtn').title = (sum ? '絞り込み中：' + sum : 'すべてを表示中') + '（F で開く）';
@@ -1010,9 +1040,75 @@ function renderFilterDlg(){
   }
   const hit = cache ? cache.items.filter(makeFilter(f)).length : 0;
   $('fdHit').textContent = `該当 ${hit.toLocaleString()}件`;
+  if(!presetNaming) renderPresets();   // 名前を入れている途中は作り直さない（入力が消えないように）
+}
+
+// ---- 絞り込みのプリセット（名前を付けて保存。押すとすぐその条件にする）----
+let presetEdit = false, presetNaming = false;
+const savePresets = () => store.set('presets', presets);
+function renderPresets(){
+  const box = $('fdPresets');
+  box.innerHTML = '';
+  if(presetNaming){
+    const input = el('input', 'fd-pre-name'); input.type = 'text'; input.maxLength = 30; input.enterKeyHint = 'done';
+    input.placeholder = 'プリセットの名前';
+    input.value = presetDefaultName(draft);
+    const ok = el('button', 'fd-pre-ok', '保存'); ok.type = 'button';
+    const no = el('button', 'fd-pre-cancel', 'やめる'); no.type = 'button';
+    const done = () => { presetNaming = false; renderPresets(); };
+    const save = () => {
+      const name = input.value.trim() || presetDefaultName(draft) || '名前なし';
+      const p = { name, f:cloneF(draft) };
+      const i = presets.findIndex(x => x.name === name);   // 同じ名前なら上書き
+      if(i >= 0) presets[i] = p; else presets.push(p);
+      savePresets();
+      syncFilter();
+      done();
+    };
+    ok.addEventListener('click', save);
+    no.addEventListener('click', done);
+    input.addEventListener('keydown', e => {
+      if(e.key === 'Enter'){ e.preventDefault(); save(); }
+      if(e.key === 'Escape'){ e.preventDefault(); done(); }
+    });
+    box.append(input, ok, no);
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+    return;
+  }
+  box.append(el('span', 'fd-pre-lab', 'プリセット'));
+  const cur = normF(draft);
+  presets.forEach((p, i) => {
+    const b = el('button', 'fd-pre' + (presetEdit ? ' del' : ''), p.name); b.type = 'button';
+    b.title = presetEdit ? `「${p.name}」を削除` : (filterSummary(Object.assign(emptyFilter(), p.f)) || 'すべて');
+    b.setAttribute('aria-pressed', String(!presetEdit && normF(p.f) === cur));
+    b.addEventListener('click', () => {
+      if(presetEdit){ presets.splice(i, 1); savePresets(); syncFilter(); if(!presets.length) presetEdit = false; renderPresets(); return; }
+      draft = Object.assign(emptyFilter(), cloneF(p.f));
+      $('fdQ').value = draft.q || '';
+      applyFilterDlg();
+    });
+    box.append(b);
+  });
+  if(presetEdit){
+    const fin = el('button', 'fd-pre-edit', '完了'); fin.type = 'button';
+    fin.addEventListener('click', () => { presetEdit = false; renderPresets(); });
+    box.append(fin);
+    return;
+  }
+  const add = el('button', 'fd-pre-add', '＋ 今の条件を保存'); add.type = 'button';
+  add.disabled = !filterSummary(draft);
+  add.title = add.disabled ? '条件を選ぶと保存できます' : '今選んでいる条件に名前を付けて保存';
+  add.addEventListener('click', () => { presetNaming = true; renderPresets(); });
+  box.append(add);
+  if(presets.length){
+    const ed = el('button', 'fd-pre-edit', '削除…'); ed.type = 'button';
+    ed.addEventListener('click', () => { presetEdit = true; renderPresets(); });
+    box.append(ed);
+  }
 }
 function openFilter(tab){
   draft = cloneF(state.filter);
+  presetEdit = false; presetNaming = false;
   if(tab) fdTab = tab;
   fdSearch.value = '';
   $('fdQ').value = draft.q || '';
