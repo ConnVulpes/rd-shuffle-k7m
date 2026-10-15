@@ -207,6 +207,16 @@ body.cur-idle .rd-btn{opacity:0 !important}
    動画の上には何も重ねない（iPhone で動画の再生ボタンが押せなくなるため） */
 .peek-dim{position:absolute; inset:0; z-index:0; background:#000; pointer-events:none; display:none}
 .peek-dim.on{display:block}
+.lb-like{position:absolute; right:12px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:3; width:46px; height:46px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center; gap:1px; padding:0; cursor:pointer; font:inherit; font-size:24px; line-height:1;
+  color:#fff; background:rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.18); -webkit-tap-highlight-color:transparent}
+.lb-like[data-n="1"]{color:#ff8fa3}
+.lb-like[data-n="2"]{color:#ff5c7c}
+.lb-like[data-n="3"]{color:#ff2d55; background:rgba(60,0,12,.6)}
+.lb-like-n{font-size:12px; font-weight:700; align-self:flex-end; margin-bottom:9px}
+#peek.editing .lb-like{bottom:calc(var(--edit-h, 0px) + 12px)}
+@media (min-width:760px){ #peek.editing .lb-like{bottom:14px} }
+.cap-like{color:#e0456a; font-size:11px; letter-spacing:-1px; margin-right:6px; flex:none}
 .lb-btn.lb-bright{pointer-events:auto; height:32px; gap:5px; padding:0 12px; margin-bottom:8px; font-size:12px; font-variant-numeric:tabular-nums; background:rgba(0,0,0,.45)}
 .lb-bright svg{width:15px; height:15px; flex:none}
 .lb-bright[hidden]{display:none}
@@ -556,6 +566,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
     <option value="new">新しい順</option>
     <option value="old">古い順</option>
     <option value="title">タイトル順</option>
+    <option value="liked">♥ した順</option>
   </select>
   <button type="button" class="shuffle" id="shuffle" title="シャッフル（R）">
     <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h2.2c1.4 0 2.4.7 3.2 1.9l1.2 1.8c.8 1.2 1.8 1.9 3.2 1.9H14M2 11.5h2.2c1.4 0 2.4-.7 3.2-1.9M9.2 6.4c.8-1.2 1.8-1.9 3.2-1.9H14M12 2.5l2 2-2 2M12 9.5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -577,6 +588,10 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
         </select>
       </div>
       <label class="menu-row switch"><span>キャプション<kbd>C</kbd></span><input type="checkbox" id="capToggle"></label>
+      <div class="menu-row" title="♥ や見た動きで熱くなったものを、ランダムのときに多めに出します（2週間で半分に冷めます）"><span>♥ と熱の効き具合</span>
+        <select id="heatSel" aria-label="♥ と熱の効き具合"><option value="off">なし</option><option value="low">弱</option><option value="mid">中</option><option value="high">強</option></select>
+      </div>
+      <label class="menu-row switch" title="プレビューで長く見た・拡大した・高画質で開いた・サイトを開いたものにも、少しずつ熱をためます"><span>見た動きからも熱をためる</span><input type="checkbox" id="heatImpToggle"></label>
       <label class="menu-row switch" title="一覧とプレビューの画像を小さいサイズで読み込みます。プレビューで「高画質で見る」を押すと、その1枚だけ元の大きさで読み込みます"><span>軽量モード（外出先向け）</span><input type="checkbox" id="saverToggle"></label>
       <div class="cur-group" id="curGroup">
         <label class="menu-row switch" title="マウスを止めて少したつとカーソルを隠します。隠れている間はカードに反応しません"><span>カーソルを自動で隠す<kbd>H</kbd></span><input type="checkbox" id="curToggle"></label>
@@ -594,7 +609,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
       <div class="btns">
         <button type="button" class="icon-btn" id="settings">トークン設定</button>
       </div>
-      <div class="menu-note">絞り込みのプリセットと固定タグは、Raindrop の「rd-shuffle 設定」フォルダを通して端末間で同期します</div>
+      <div class="menu-note">絞り込みのプリセット・固定タグ・♥ と熱は、Raindrop の「rd-shuffle 設定」フォルダを通して端末間で同期します</div>
     </div>
   </div>
 </header>
@@ -636,6 +651,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   <button type="button" class="lb-nav lb-next" id="peekNext" aria-label="次へ" title="次へ（→）">›</button>
   <div class="peek-body" id="peekBody" tabindex="-1" autofocus><div class="zoomer" id="zoomer"></div><div class="peek-dim" id="peekDim"></div></div>
   <div class="zoom-ind" id="zoomInd"></div>
+  <button type="button" class="lb-like" id="peekLike" aria-pressed="false" data-n="0"><span id="peekLikeV">♡</span><span class="lb-like-n" id="peekLikeN"></span></button>
   <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
   <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div></div>
   <div class="lb-edit" id="edPanel" hidden></div>
@@ -705,7 +721,7 @@ const API = 'https://api.raindrop.io/rest/v1';
 // 端末間で共有する設定（プリセット・固定タグ）は、Raindrop の専用フォルダの1件のメモ欄に入れておく
 const SET_TITLE = 'rd-shuffle 設定';
 const SET_LINK = 'https://connvulpes.github.io/rd-shuffle-k7m/#settings';
-const isSettingsRaw = it => !!it && it.link === SET_LINK;   // 一覧には出さない
+const isSettingsRaw = it => !!it && typeof it.link === 'string' && it.link.startsWith(SET_LINK);   // 一覧には出さない（長いときは #settings-2… に分けて入れる）
 const PER = 50;
 const DAY = 24 * 60 * 60 * 1000;
 const store = {
@@ -1290,7 +1306,13 @@ function sortPool(pool){
   if(state.sort === 'new') return a.sort((x, y) => byDate(y, x));
   if(state.sort === 'old') return a.sort(byDate);
   if(state.sort === 'title') return a.sort((x, y) => jaCmp((x.t || x.l), y.t || y.l));
-  return shuffleArray(a);
+  // ♥ した順：♥ したものだけを、最後に ♥ した順に
+  if(state.sort === 'liked') return a.filter(x => likesOf(x)).sort((x, y) => heat.get(y.i).tl - heat.get(x.i).tl || likesOf(y) - likesOf(x));
+  // ランダム：熱いものほどくじが当たりやすい（並び全体に散らばって、少し多めに前の方に来る）
+  const s = HEAT_STR[state.heat] || 0;
+  if(!s || !heat.size) return shuffleArray(a);
+  const now = Date.now();
+  return a.map(x => [x, -Math.log(1 - Math.random()) / heatWeight(x.i, now, s)]).sort((p, q) => p[1] - q[1]).map(p => p[0]);
 }
 // シャッフルボタン：並び順をシャッフルにして並べ直す
 function shuffle(){
@@ -1573,6 +1595,8 @@ function captionEl(it){
   const c = name ? el('div', 'coll', name) : el('div', 'none', 'コレクションなし');
   if(name) c.title = name;
   const top = el('div', 'cap-top');
+  const n = likesOf(it);
+  if(n){ const h = el('span', 'cap-like', '♥'.repeat(n)); h.title = `♥ ${n}`; top.append(h); }
   top.append(c);
   if(it.a){ const dt = el('span', 'saved', it.a.replace(/-/g, '/')); dt.title = '保存日'; top.append(dt); }
   const tags = el('div', 'tags');
@@ -1745,6 +1769,7 @@ function syncHq(){
   b.textContent = video ? '動画を再生' : '高画質で見る';
 }
 $('peekHq').addEventListener('click', e => {
+  viewBonus('hq');
   e.stopPropagation();
   const it = peekItem;
   if(!it) return;
@@ -1806,6 +1831,7 @@ function showPeekMedia(it){
 }
 
 function openPeek(it, stepping){
+  viewStart(it);
   peekItem = it;
   updatePeekNav(it);
   $('peekOpen').href = it.l;
@@ -1814,6 +1840,7 @@ function openPeek(it, stepping){
   $('peekCapT').textContent = (it.t || '').trim() || it.l.replace(/^https?:\/\//, '');
   $('peekCapD').textContent = site;
   $('peekRd').href = raindropUrl(it);
+  paintLike();
   showPeekMedia(it);
   resetOrient();
   edView = '';
@@ -2423,6 +2450,7 @@ function closePeek(){
 }
 
 peek.addEventListener('close', () => {
+  viewEnd();
   const last = peekItem;
   peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
   unlockScroll();
@@ -2452,7 +2480,7 @@ peek.addEventListener('click', e => {
   // 押した直後に作り直されて画面から外れた部品（フォルダの選択欄など）は closest で親をたどれないので、
   // 押した時点の経路（composedPath）で判断する
   if(!e.target.isConnected) return;
-  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq'))) return;
+  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like'))) return;
   if(zoomDragged){ zoomDragged = false; return; }   // ドラッグで動かした直後のクリックは無視
   // ズーム中はクリック（タップ）で元の大きさに戻す
   if(zoom.s !== 1){ resetZoom(true); return; }
@@ -2483,6 +2511,7 @@ function showZoomInd(){
 function resetZoom(anim){ zoom.s = 1; zoom.x = 0; zoom.y = 0; applyZoom(anim); }
 // (cx, cy) を中心に倍率を factor 倍する
 function zoomAt(factor, cx, cy){
+  if(factor > 1) viewBonus('zoom');
   const r = peekBody.getBoundingClientRect();
   const px = cx - (r.left + r.width / 2), py = cy - (r.top + r.height / 2);
   const s2 = Math.min(10, Math.max(0.2, zoom.s * factor));
@@ -2762,7 +2791,7 @@ $('tokenForm').addEventListener('submit', () => {
     store.del('cache');
     syncFilter();
     order = []; poolSize = 0; shownCount = 0; cardEls = []; placeGen++; placing = 0; layout(true);
-    if(state.token){ refreshAll(); syncRef = null; store.del('syncref'); pullSettings(); }
+    if(state.token){ refreshAll(); syncRef = null; store.del('syncref'); syncAt = 0; store.del('syncat'); pullSettings(); }
   }
 });
 // ---- 複数選択：カード左上のチェックで選び、下のバーからまとめて移動・タグ付け ----
@@ -2879,6 +2908,7 @@ document.addEventListener('keydown', e => {
     if(e.key === '0'){ e.preventDefault(); resetZoom(true); return; }
     if(e.key === 'ArrowUp' || e.key === 'ArrowDown'){ e.preventDefault(); setBright(bright + (e.key === 'ArrowUp' ? 0.1 : -0.1)); saveBright(); return; }
     if(e.key === 'b' || e.key === 'B'){ e.preventDefault(); setBright(1); saveBright(); return; }
+    if((e.key === 'l' || e.key === 'L') && peekItem){ e.preventDefault(); cycleLike(peekItem); return; }
     if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); rotatePeek(e.shiftKey ? -1 : 1); return; }
     if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); flipPeek(); return; }
     if((e.key === 'q' || e.key === 'Q') && !$('peekHq').hidden){ e.preventDefault(); $('peekHq').click(); return; }
@@ -2904,17 +2934,119 @@ document.addEventListener('keydown', e => {
   if(e.key === '3') setSize(380);
 });
 
-// ---- 設定の同期（プリセット・固定タグ）----
-// Raindrop の「rd-shuffle 設定」フォルダに、メモ欄へ設定を書いたブックマークを1件だけ置く。
-// 起動時と画面に戻ったときに読み、変えたら少し待ってから書く。新しい方（at が大きい方）を正とする
-let syncRef = store.get('syncref', null);   // { coll:フォルダID, id:ブックマークID }
-let syncAt = store.get('syncat', 0);        // 手元の設定がいつのものか（0 = まだ一度も同期していない）
-let lastPull = 0, pushTimer = 0, pulling = null;
-const localSettings = () => ({ v:1, at:syncAt, presets, pins });
+// ---- ♥ と熱：今「いいな」と思っているものを、シャッフルで少し多めに出す ----
+// ♥（1〜3回）と、プレビューで見た動き（長く見た・拡大・高画質・サイトを開いた）が熱になる。
+// 熱は2週間で半分に冷める。♥ したものは冷めきっても、普通より少しだけ出やすいまま残る
+const HALF = 14 * DAY;
+const LIKE_HEAT = 3, LIKE_FLOOR = 0.3;
+const HEAT_STR = { off:0, low:0.5, mid:1, high:2 };
+state.heat = store.get('heatstr', 'mid');
+state.heatImp = store.get('heatimp', true);
+// heat: ID → { L:♥の数, tl:♥を変えた時刻, e:動きの熱, te:動きの熱を足した時刻 }
+let heat = new Map();
+(function loadHeat(){
+  const raw = store.get('heat', {});
+  for(const [id, v] of Object.entries(raw || {})) heat.set(Number(id), { L:v[0] || 0, tl:(v[1] || 0) * 60000, e:v[2] || 0, te:(v[3] || 0) * 60000 });
+})();
+const decay = (v, t, now) => v ? v * Math.pow(0.5, Math.max(0, now - t) / HALF) : 0;
+const likesOf = it => (heat.get(it.i) || {}).L || 0;
+function heatWeight(id, now, s){
+  const h = heat.get(id);
+  if(!h) return 1;
+  return 1 + s * (decay(LIKE_HEAT * h.L, h.tl, now) + decay(h.e, h.te, now) + LIKE_FLOOR * h.L);
+}
+// 保存用の短い形（時刻は分単位）。冷めきった動きの熱だけのものは捨てる
+function heatPacked(){
+  const now = Date.now(), out = {};
+  heat.forEach((h, id) => {
+    const e = decay(h.e, h.te, now);
+    if(!h.L && e < 0.03) return;
+    out[id] = [h.L, Math.round(h.tl / 60000), h.e, Math.round(h.te / 60000)];
+  });
+  return out;
+}
+function heatUnpack(obj){
+  const m = new Map();
+  for(const [id, v] of Object.entries(obj || {})) m.set(Number(id), { L:v[0] || 0, tl:(v[1] || 0) * 60000, e:v[2] || 0, te:(v[3] || 0) * 60000 });
+  return m;
+}
+let heatSaveTimer = 0;
+function heatChanged(){
+  clearTimeout(heatSaveTimer);
+  heatSaveTimer = setTimeout(() => store.set('heat', heatPacked()), 500);
+  scheduleSync(20000);   // 熱はこまめに変わるので、送るのはまとめて
+}
+// ♥：押すたびに 1 → 2 → 3 → なし
+function cycleLike(it){
+  const h = heat.get(it.i) || { L:0, tl:0, e:0, te:0 };
+  h.L = h.L >= 3 ? 0 : h.L + 1;
+  h.tl = Math.round(Date.now() / 60000) * 60000;
+  heat.set(it.i, h);
+  heatChanged();
+  scheduleSync(3000);
+  paintLike();
+  const c = cardOf.get(it);
+  if(c){ const old = c.querySelector('.cap'); if(old) old.replaceWith(captionEl(it)); }
+  zoomInd.textContent = h.L ? '♥'.repeat(h.L) : '♥ を外しました';
+  zoomInd.classList.add('show'); clearTimeout(zoomIndTimer);
+  zoomIndTimer = setTimeout(() => zoomInd.classList.remove('show'), 900);
+}
+function paintLike(){
+  const b = $('peekLike'), n = peekItem ? likesOf(peekItem) : 0;
+  b.dataset.n = String(n);
+  b.setAttribute('aria-pressed', String(n > 0));
+  $('peekLikeV').textContent = n ? '♥' : '♡';
+  $('peekLikeN').textContent = n > 1 ? String(n) : '';
+  b.title = n ? `♥ ${n}（押すと ${n >= 3 ? 'なし' : n + 1} に・L）` : '♥ を付ける（L）';
+}
+$('peekLike').addEventListener('click', e => { e.stopPropagation(); if(peekItem) cycleLike(peekItem); });
+// 見た動き：プレビューで見ていた時間と、拡大・高画質・サイトを開いたことを、離れたときにまとめて熱にする
+let viewing = null;   // { it, t0, ms, bonus:Set }
+function viewStart(it){ viewEnd(); viewing = { it, t0:document.visibilityState === 'visible' ? Date.now() : 0, ms:0, bonus:new Set() }; }
+function viewPause(){ if(viewing && viewing.t0){ viewing.ms += Date.now() - viewing.t0; viewing.t0 = 0; } }
+function viewResume(){ if(viewing && !viewing.t0) viewing.t0 = Date.now(); }
+function viewBonus(kind){ if(viewing) viewing.bonus.add(kind); }
+function viewEnd(){
+  if(!viewing) return;
+  viewPause();
+  const v = viewing; viewing = null;
+  if(!state.heatImp) return;
+  const sec = Math.min(60, v.ms / 1000);
+  let amt = sec >= 3 ? 0.05 + sec / 60 * 0.35 : 0;   // 3秒〜1分で 0.05〜0.4
+  if(v.bonus.has('zoom')) amt += 0.15;
+  if(v.bonus.has('hq')) amt += 0.15;
+  if(v.bonus.has('site')) amt += 0.3;
+  amt = Math.min(0.8, amt);
+  if(amt <= 0) return;
+  const now = Date.now();
+  const h = heat.get(v.it.i) || { L:0, tl:0, e:0, te:0 };
+  h.e = Math.round((decay(h.e, h.te, now) + amt) * 100) / 100; h.te = Math.round(now / 60000) * 60000;
+  heat.set(v.it.i, h);
+  heatChanged();
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') viewResume(); else viewPause(); });
+$('peekOpen').addEventListener('click', () => viewBonus('site'));
+// メニュー：効き具合と、動きをためるかどうか
+const heatSel = $('heatSel'), heatImpBtn = $('heatImpToggle');
+heatSel.value = state.heat in HEAT_STR ? state.heat : 'mid';
+heatSel.addEventListener('change', () => { state.heat = heatSel.value; store.set('heatstr', state.heat); });
+heatImpBtn.checked = state.heatImp;
+heatImpBtn.addEventListener('change', () => { state.heatImp = heatImpBtn.checked; store.set('heatimp', state.heatImp); });
+
+// ---- 設定の同期（プリセット・固定タグ・♥と熱）----
+// Raindrop の「rd-shuffle 設定」フォルダに、メモ欄へ設定を書いたブックマークを置く（1件1万文字までなので、長ければ分ける）。
+// プリセットと固定タグは新しい方（at が大きい方）を正とし、熱は1件ずつ新しい方を取って合わせる
+let syncRef = store.get('syncref', null);   // { coll:フォルダID }
+let syncAt = store.get('syncat', 0);        // 手元のプリセット・固定タグがいつのものか（0 = まだ一度も同期していない）
+let lastPull = 0, syncTimer = 0, syncing = null, syncAgain = false;
+const CHUNK = 9000;
 function settingsChanged(){
   syncAt = Date.now(); store.set('syncat', syncAt);
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => pushSettings().catch(() => {}), 1500);
+  scheduleSync(1500);
+}
+function scheduleSync(ms){
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => pullSettings(), ms);
 }
 function applyRemote(r){
   presets = Array.isArray(r.presets) ? r.presets : [];
@@ -2931,57 +3063,69 @@ function mergeFirst(r){
   presets = presets.concat((r.presets || []).filter(p => !names.has(p.name)));
   pins = [...new Set([...pins, ...(r.pins || [])])].slice(0, 9);
 }
-async function findSettings(){
-  if(syncRef && syncRef.id){
-    try{
-      const r = await api(`/raindrop/${syncRef.id}`);
-      const k = r.item && r.item.collection ? r.item.collection.$id : null;
-      if(r.item && isSettingsRaw(r.item) && k !== -99) return r.item;
-    }catch(e){ if(e.message !== 'http') throw e; }
-  }
-  const roots = await api('/collections');
-  const c = (roots.items || []).find(x => x.title === SET_TITLE);
-  if(!c){ syncRef = null; store.del('syncref'); return null; }
-  const r = await api(`/raindrops/${c._id}?perpage=50`);
-  const it = (r.items || []).find(isSettingsRaw);
-  syncRef = { coll:c._id, id:it ? it._id : null };
-  store.set('syncref', syncRef);
-  return it || null;
+// 熱は1件ずつ、最後に変わった方を取る
+function mergeHeat(remote){
+  const last = h => Math.max(h.tl || 0, h.te || 0);
+  remote.forEach((r, id) => { const l = heat.get(id); if(!l || last(r) > last(l)) heat.set(id, r); });
 }
-const readNote = it => { try{ const d = JSON.parse(it.note || ''); return d && d.v === 1 ? d : null; }catch(e){ return null; } };
-async function writeSettings(){
-  const note = JSON.stringify(localSettings());
-  if(syncRef && syncRef.id){
-    try{ await api(`/raindrop/${syncRef.id}`, { method:'PUT', body:{ note } }); return; }
-    catch(e){ if(e.message !== 'http') throw e; syncRef.id = null; }   // 消されていたら作り直す
+// 設定のブックマークを全部読む（番号順につなげる）
+async function readSettings(){
+  const list = async coll => {
+    const r = await api(`/raindrops/${coll}?perpage=50`);
+    return (r.items || []).filter(isSettingsRaw).map(x => ({ id:x._id, n:Number((x.link.slice(SET_LINK.length).match(/^-(\d+)$/) || [])[1] || 1), note:x.note || '' }));
+  };
+  let parts = null;
+  if(syncRef && syncRef.coll){ try{ parts = await list(syncRef.coll); }catch(e){ if(e.message !== 'http') throw e; } }
+  if(!parts){
+    const roots = await api('/collections');
+    const c = (roots.items || []).find(x => x.title === SET_TITLE);
+    if(!c){ syncRef = null; store.del('syncref'); return { parts:[], data:null }; }
+    syncRef = { coll:c._id }; store.set('syncref', syncRef);
+    parts = await list(c._id);
   }
+  parts.sort((a, b) => a.n - b.n);
+  let data = null;
+  try{ const d = JSON.parse(parts.map(x => x.note).join('')); if(d && d.v === 1) data = d; }catch(e){}
+  return { parts, data };
+}
+async function writeSettings(parts, text){
   let coll = syncRef && syncRef.coll;
-  if(!coll){ const r = await api('/collection', { method:'POST', body:{ title:SET_TITLE } }); coll = r.item._id; }
-  const r = await api('/raindrop', { method:'POST', body:{ link:SET_LINK, title:'Raindrop シャッフルの設定（消さないでください）', note, collection:{ $id:coll } } });
-  syncRef = { coll, id:r.item._id };
-  store.set('syncref', syncRef);
-}
-async function pushSettings(){
-  if(!state.token) return;
-  if(pulling) await pulling.catch(() => {});
-  await writeSettings();
+  if(!coll){ const r = await api('/collection', { method:'POST', body:{ title:SET_TITLE } }); coll = r.item._id; syncRef = { coll }; store.set('syncref', syncRef); }
+  const chunks = [];
+  for(let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
+  const byN = new Map(parts.map(x => [x.n, x]));
+  const top = Math.max(chunks.length, ...parts.map(x => x.n), 1);
+  for(let n = 1; n <= top; n++){
+    const note = chunks[n - 1] || '';
+    const cur = byN.get(n);
+    if(cur){ if(cur.note !== note) await api(`/raindrop/${cur.id}`, { method:'PUT', body:{ note } }); }
+    else if(note){
+      await api('/raindrop', { method:'POST', body:{ link:n === 1 ? SET_LINK : `${SET_LINK}-${n}`, title:`Raindrop シャッフルの設定${n === 1 ? '' : ' ' + n}（消さないでください）`, note, collection:{ $id:coll } } });
+    }
+  }
 }
 function pullSettings(){
-  if(!state.token || pulling) return pulling;
+  if(!state.token) return Promise.resolve();
+  if(syncing){ syncAgain = true; return syncing; }
+  clearTimeout(syncTimer);
   lastPull = Date.now();
-  pulling = (async () => {
-    const it = await findSettings();
-    const remote = it && readNote(it);
-    if(!remote){
-      // まだ Raindrop 側にない：手元に何かあれば置く（何もなければフォルダも作らない）
-      if(presets.length || pins.length){ if(!syncAt){ syncAt = Date.now(); store.set('syncat', syncAt); } await writeSettings(); }
-      return;
-    }
-    if(!syncAt){ mergeFirst(remote); syncAt = Date.now(); store.set('syncat', syncAt); store.set('presets', presets); store.set('pins', pins); syncFilter(); await writeSettings(); return; }
-    if((remote.at || 0) > syncAt) applyRemote(remote);
-    else if((remote.at || 0) < syncAt) await writeSettings();   // 電波のないところで変えた分を送る
-  })().catch(() => {}).finally(() => { pulling = null; });
-  return pulling;
+  syncing = (async () => {
+    const { parts, data } = await readSettings();
+    if(data){
+      if(!syncAt){ mergeFirst(data); syncAt = Date.now(); store.set('syncat', syncAt); store.set('presets', presets); store.set('pins', pins); syncFilter(); }
+      else if((data.at || 0) > syncAt) applyRemote(data);
+      mergeHeat(heatUnpack(data.heat));
+      store.set('heat', heatPacked());
+    }else if(!presets.length && !pins.length && !heat.size){
+      return;   // どちらにも何もない：フォルダも作らない
+    }else if(!syncAt){ syncAt = Date.now(); store.set('syncat', syncAt); }
+    const text = JSON.stringify({ v:1, at:syncAt, presets, pins, heat:heatPacked() });
+    if(text !== parts.map(x => x.note).join('')) await writeSettings(parts, text);
+  })().catch(() => {}).finally(() => {
+    syncing = null;
+    if(syncAgain){ syncAgain = false; scheduleSync(1000); }
+  });
+  return syncing;
 }
 
 applyCap();
