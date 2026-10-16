@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>印象の地図の試し</title>
+<style>
+/* 本体とは別の試しページ。画像の AI がこの端末でどれくらい速く動くか、
+   あなたのタグをどれくらい当てられるかを確かめる */
+:root{
+  --bg:#2e3034; --card:#3a3d42; --line:#55595f; --text:#ebecee; --muted:#a2a6ac;
+  --accent:#9ec4e8; --accent-ink:#17222d; --good:#9fd6a8; --warn:#e9b27c;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#e3e5e8; --card:#f4f5f6; --line:#b6bac0; --text:#24272b; --muted:#5b6066;
+    --accent:#2d6aa3; --accent-ink:#fff; --good:#2f7a3d; --warn:#9a5a1c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#2e3034; --card:#3a3d42; --line:#55595f; --text:#ebecee; --muted:#a2a6ac;
+  --accent:#9ec4e8; --accent-ink:#17222d; --good:#9fd6a8; --warn:#e9b27c;
+}
+*{box-sizing:border-box}
+html{color-scheme:light dark}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:15px; line-height:1.7;
+  padding:24px max(16px, env(safe-area-inset-right)) 64px max(16px, env(safe-area-inset-left));
+}
+main{max-width:860px; margin:0 auto; display:flex; flex-direction:column; gap:28px}
+h1{font-size:20px; margin:0}
+h2{font-size:16px; margin:0 0 6px}
+h3{font-size:14px; margin:18px 0 6px}
+p{margin:0 0 8px}
+.sub{color:var(--muted); font-size:13px}
+section{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px 18px; min-width:0}
+.row{display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin:10px 0}
+button{
+  font:inherit; font-size:14px; padding:8px 16px; border-radius:8px; border:1px solid var(--accent);
+  background:var(--accent); color:var(--accent-ink); cursor:pointer;
+}
+button.sec{background:transparent; color:var(--text); border-color:var(--line)}
+button:disabled{opacity:.5; cursor:default}
+label{font-size:13px; color:var(--muted); display:inline-flex; align-items:center; gap:6px}
+pre{
+  margin:8px 0 0; padding:10px 12px; border-radius:8px; background:var(--bg); border:1px solid var(--line);
+  font-size:12px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; max-height:340px; overflow:auto;
+}
+pre:empty{display:none}
+progress{width:100%; height:8px}
+.status{font-size:13px; color:var(--muted); min-height:1.6em}
+.big{display:flex; flex-wrap:wrap; gap:10px 28px; margin:10px 0}
+.big div{display:flex; flex-direction:column}
+.big b{font-size:24px; font-variant-numeric:tabular-nums}
+.big span{font-size:12px; color:var(--muted)}
+.tbl{overflow-x:auto; border:1px solid var(--line); border-radius:8px}
+table{border-collapse:collapse; width:100%; font-size:13px}
+th,td{padding:6px 10px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap}
+th{font-size:12px; color:var(--muted); font-weight:600}
+td.n{text-align:right; font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+.bar{display:inline-block; height:6px; border-radius:3px; background:var(--accent); vertical-align:middle; margin-right:6px}
+.gal{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px}
+.gal figure{margin:0; display:flex; flex-direction:column; gap:6px; min-width:0}
+.gal img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; background:var(--bg)}
+.gal figcaption{font-size:12px; display:flex; flex-wrap:wrap; gap:4px}
+.chip{padding:1px 7px; border-radius:999px; border:1px dashed var(--line)}
+.chip.ok{border-style:solid; border-color:var(--good); color:var(--good)}
+.err{color:var(--warn)}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>印象の地図の試し</h1>
+  <p class="sub">Raindrop シャッフル本体とは別のページです。ここで何をしても、ブックマークやタグは変わりません。</p>
+</header>
+
+<section>
+  <h2>1. 速さを試す</h2>
+  <p>押したときに初めて画像の AI を読み込みます（約12MB。WebGPU のときは約23MB）。2回目からはブラウザに残っているので、ダウンロードはしません。</p>
+  <div class="row">
+    <button type="button" id="runSpeed">読み込んで試す</button>
+    <label><input type="checkbox" id="forceWasm"> WebGPU を使わない</label>
+  </div>
+  <div class="status" id="speedStatus"></div>
+  <div class="big" id="speedBig" hidden></div>
+  <pre id="speedOut"></pre>
+</section>
+
+<section>
+  <h2>2. 当たり具合を試す</h2>
+  <p id="accInfo">あなたのデータを確かめています…</p>
+  <div class="row">
+    <button type="button" id="runAcc" disabled>試す</button>
+    <button type="button" class="sec" id="stopAcc" hidden>止める</button>
+    <label>見本の数 <select id="perTag"><option value="8">タグごとに8枚</option><option value="12" selected>タグごとに12枚</option><option value="20">タグごとに20枚</option></select></label>
+  </div>
+  <progress id="prog" max="1" value="0" hidden></progress>
+  <div class="status" id="accStatus"></div>
+  <div id="accOut"></div>
+  <div id="galWrap" hidden>
+    <h3>タグなしのものに出る候補</h3>
+    <p class="sub">タグが1つも付いていないものから、ランダムに選んでいます。</p>
+    <div class="gal" id="gal"></div>
+  </div>
+</section>
+
+<section>
+  <h2>結果を渡す</h2>
+  <p>試し終わったら、これを押して Claude との会話に貼ってください。</p>
+  <div class="row"><button type="button" class="sec" id="copy">結果をコピー</button><span class="status" id="copyStatus"></span></div>
+</section>
+</main>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+const MODEL = 'Xenova/mobileclip_s0';
+const TJS = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js';
+const report = { env:'', speed:'', acc:'' };
+report.env = `端末: ${navigator.userAgent}\nWebGPU: ${'gpu' in navigator ? 'あり' : 'なし'}`;
+
+// ===== あなたのデータ（本体と同じ場所に保存されているもの。読むだけ） =====
+let cache = null;
+try{ cache = JSON.parse(localStorage.getItem('rdshuffle:cache') || 'null'); }catch(e){}
+const items = (cache && cache.items) || [];
+
+// ===== 画像の AI =====
+// 押されるまで何も読み込まない。テストでは window.LAB_FAKE に偽物を入れて動かす
+let lib = null, model = null, processor = null, device = '';
+const mb = n => (n / 1048576).toFixed(1) + 'MB';
+async function loadModel(setStatus){
+  if(model) return;
+  if(window.LAB_FAKE){ model = window.LAB_FAKE; device = 'fake'; return; }
+  lib = await import(TJS);
+  const files = new Map();
+  const progress_callback = e => {
+    if(e.status !== 'progress' || !e.total) return;
+    files.set(e.file, [e.loaded, e.total]);
+    let a = 0, b = 0; files.forEach(([x, y]) => { a += x; b += y; });
+    setStatus(`AI を読み込み中… ${mb(a)} / ${mb(b)}`);
+  };
+  processor = await lib.AutoProcessor.from_pretrained(MODEL);
+  const gpu = !$('forceWasm').checked && 'gpu' in navigator;
+  if(gpu){
+    try{
+      model = await lib.CLIPVisionModelWithProjection.from_pretrained(MODEL, { device:'webgpu', dtype:'fp16', progress_callback });
+      device = 'WebGPU（fp16）';
+      return;
+    }catch(e){ setStatus('WebGPU で動かせなかったので、WASM に切り替えます… ' + e.message); }
+  }
+  model = await lib.CLIPVisionModelWithProjection.from_pretrained(MODEL, { device:'wasm', dtype:'q8', progress_callback });
+  device = 'WASM（q8）';
+}
+// 画像を「印象の地図」の上の位置（数字の並び）にする。長さ1にそろえるので、近さは掛け算の合計で測れる
+async function embed(url){
+  if(window.LAB_FAKE) return window.LAB_FAKE.embed(url);
+  const img = await lib.RawImage.read(url);
+  const t0 = performance.now();
+  const { image_embeds } = await model(await processor(img));
+  const v = Float32Array.from(image_embeds.normalize().data);
+  embed.lastMs = performance.now() - t0;
+  return v;
+}
+// 画像は小さく縮めてから読む（ページから中身を読めるよう、縮小サービス経由で取る）
+const small = u => `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=256&h=256&fit=inside&output=jpg&q=80`;
+async function embedCover(u){
+  try{ return await embed(small(u)); }
+  catch(e){ return await embed(u); }
+}
+
+// 一度作った位置は、このブラウザの中に取っておく（2回目からは速い）
+const idb = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('rdlab', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('emb');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('emb', mode); const q = fn(t.objectStore('emb')); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }); };
+  return { get:k => tx('readonly', s => s.get(k)).catch(() => null), set:(k, v) => tx('readwrite', s => s.put(v, k)).catch(() => null) };
+})();
+async function vecOf(it){
+  const key = (device === 'fake' ? 'fake:' : MODEL + ':') + it.c;
+  const got = await idb.get(key);
+  if(got) return got;
+  const v = await embedCover(it.c);
+  idb.set(key, v);
+  return v;
+}
+
+// ===== 1. 速さ =====
+const sampleUrls = () => {
+  const withCover = items.filter(x => x.c);
+  if(withCover.length >= 6){
+    const pick = [];
+    for(let i = 0; i < 6; i++) pick.push(small(withCover[Math.floor(Math.random() * withCover.length)].c));
+    return pick;
+  }
+  const base = 'https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/';
+  return ['cats.jpg', 'tiger.jpg', 'cats.jpg', 'tiger.jpg', 'cats.jpg', 'tiger.jpg'].map(f => base + f);
+};
+$('runSpeed').addEventListener('click', async () => {
+  const btn = $('runSpeed'); btn.disabled = true;
+  const st = t => { $('speedStatus').textContent = t; };
+  const out = [];
+  try{
+    const firstLoad = !model;
+    const t0 = performance.now();
+    st('AI を読み込み中…');
+    await loadModel(st);
+    const load = performance.now() - t0;
+    out.push(`読み込み: ${(load / 1000).toFixed(1)} 秒（${firstLoad ? 'このページで初めて' : '読み込み済み'}）・${device}`);
+    const urls = sampleUrls();
+    const per = [], total = [];
+    for(let i = 0; i < urls.length; i++){
+      st(`画像を試しています… ${i + 1} / ${urls.length}`);
+      const t1 = performance.now();
+      try{ await embed(urls[i]); per.push(embed.lastMs || 0); total.push(performance.now() - t1); }
+      catch(e){ out.push(`画像 ${i + 1}: 読めませんでした（${e.message}）`); }
+    }
+    // 1枚目は準備が入るので別に出す
+    const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+    const warm = per.slice(1), warmT = total.slice(1);
+    out.push(`1枚目: AI ${Math.round(per[0] || 0)}ms・画像の取得込み ${Math.round(total[0] || 0)}ms`);
+    out.push(`2枚目から: AI 平均 ${Math.round(avg(warm))}ms・画像の取得込み 平均 ${Math.round(avg(warmT))}ms（${warm.length}枚）`);
+    $('speedBig').hidden = false;
+    $('speedBig').innerHTML = `<div><b>${(load / 1000).toFixed(1)}秒</b><span>読み込み</span></div><div><b>${Math.round(avg(warmT))}ms</b><span>1枚あたり（取得込み）</span></div><div><b>${device}</b><span>動かし方</span></div>`;
+    st('終わりました。');
+  }catch(e){
+    out.push('うまく動きませんでした: ' + (e && e.message || e));
+    st('うまく動きませんでした。下の内容をそのまま Claude に貼ってください。');
+  }
+  $('speedOut').textContent = out.join('\n');
+  report.speed = out.join('\n');
+  btn.disabled = false;
+});
+
+// ===== 2. 当たり具合 =====
+// 作者名のタグは見た目では当てられないので外す（本体のおすすめと同じ見分け方）
+function authorKey(url){
+  let u; try{ u = new URL(url); }catch(e){ return ''; }
+  const host = u.hostname.replace(/^(www|mobile|m)\./, '');
+  const seg = u.pathname.split('/').filter(Boolean);
+  if(host === 'x.com' || host === 'twitter.com'){ const s = seg[0] && seg[0].toLowerCase(); return s && s !== 'i' && /^status/.test(seg[1] || '') ? 'x:' + s : ''; }
+  if(host === 'bsky.app') return seg[0] === 'profile' && seg[1] ? 'bsky:' + seg[1].toLowerCase() : '';
+  if(host === 'deviantart.com') return seg[0] && seg[1] === 'art' ? 'da:' + seg[0].toLowerCase() : '';
+  if(host === 'instagram.com') return seg[0] && !['p', 'reel', 'reels', 'stories', 'explore'].includes(seg[0]) ? 'ig:' + seg[0].toLowerCase() : '';
+  if(/\.tumblr\.com$/.test(host) && host !== 'www.tumblr.com') return 'tb:' + host.split('.')[0];
+  if(host === 'youtube.com' && seg[0] && seg[0][0] === '@') return 'yt:' + seg[0].toLowerCase();
+  return '';
+}
+function findAuthorTags(tagged){
+  const byAuthor = new Map(), tagAuthors = new Map();
+  tagged.forEach(it => {
+    const a = authorKey(it.l);
+    if(a) byAuthor.set(a, (byAuthor.get(a) || 0) + 1);
+    it.g.forEach(t => { let arr = tagAuthors.get(t); if(!arr){ arr = []; tagAuthors.set(t, arr); } arr.push(a); });
+  });
+  const plain = s => s.toLowerCase().replace(/[\s_.\-@]/g, '');
+  const handles = new Set([...byAuthor.keys()].map(a => plain(a.split(':')[1])));
+  const out = new Set();
+  tagAuthors.forEach((authors, t) => {
+    if(handles.has(plain(t))) { out.add(t); return; }
+    const known = authors.filter(Boolean);
+    if(known.length < 2) return;
+    const c = new Map(); known.forEach(a => c.set(a, (c.get(a) || 0) + 1));
+    let top = '', max = 0; c.forEach((v, a) => { if(v > max){ max = v; top = a; } });
+    if(max / authors.length >= 0.8 && max / byAuthor.get(top) >= 0.5) out.add(t);
+  });
+  return out;
+}
+
+// タグ付きのものは「全部付いている」前提。タグなしは見本にも答え合わせにも使わない
+const tagged = items.filter(x => x.c && (x.g || []).length);
+const untagged = items.filter(x => x.c && !(x.g || []).length);
+const authorTags = findAuthorTags(items.filter(x => (x.g || []).length));
+const tagCount = new Map();
+tagged.forEach(it => it.g.forEach(t => { if(!authorTags.has(t)) tagCount.set(t, (tagCount.get(t) || 0) + 1); }));
+const usable = [...tagCount].filter(([, n]) => n >= 3).map(([t]) => t);
+if(!items.length){
+  $('accInfo').innerHTML = 'このブラウザには Raindrop シャッフルのデータがありません。<br>Mac の Chrome で、Raindrop シャッフルを使っているのと同じ Chrome で開くと試せます（iPhone のホーム画面のアプリとは、データの置き場所が別になっています）。';
+}else{
+  $('accInfo').textContent = `タグ付き ${tagged.length} 件・タグなし ${untagged.length} 件（画像のあるもの）。作者名と見なしたタグ ${authorTags.size} 個は外して、3件以上あるタグ ${usable.length} 個で試します。`;
+  $('runAcc').disabled = !usable.length;
+}
+
+let stopFlag = false;
+$('stopAcc').addEventListener('click', () => { stopFlag = true; });
+const shuffle = a => { for(let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const dot = (a, b) => { let s = 0; for(let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
+// 近いものから10件を見て、近いほど強く票を入れる
+function vote(v, pool, skip){
+  const near = [];
+  for(const p of pool){ if(p.it === skip) continue; near.push([dot(v, p.v), p]); }
+  near.sort((a, b) => b[0] - a[0]);
+  const top = near.slice(0, 10);
+  const score = new Map(); let sum = 0;
+  top.forEach(([s, p]) => { const w = Math.exp(s / 0.07); sum += w; p.tags.forEach(t => score.set(t, (score.get(t) || 0) + w)); });
+  return [...score].map(([t, w]) => [t, w / (sum || 1)]).sort((a, b) => b[1] - a[1]);
+}
+
+$('runAcc').addEventListener('click', async () => {
+  stopFlag = false;
+  $('runAcc').disabled = true; $('stopAcc').hidden = false; $('prog').hidden = false;
+  const st = t => { $('accStatus').textContent = t; };
+  const lines = [];
+  try{
+    st('AI を読み込み中…');
+    await loadModel(st);
+    // 見本：少ないタグから順に、タグごとに決めた数だけ選ぶ（全部は読まない）
+    const per = +$('perTag').value;
+    const byTag = new Map(usable.map(t => [t, shuffle(tagged.filter(it => it.g.includes(t)))]));
+    const chosen = new Set();
+    [...usable].sort((a, b) => tagCount.get(a) - tagCount.get(b)).forEach(t => {
+      let have = 0; byTag.get(t).forEach(it => { if(chosen.has(it)) have++; });
+      for(const it of byTag.get(t)){ if(have >= per) break; if(!chosen.has(it)){ chosen.add(it); have++; } }
+    });
+    const sample = [...chosen];
+    const gal = shuffle(untagged.slice()).slice(0, 12);
+    const todo = [...sample, ...gal];
+    const pool = [], galVecs = new Map();
+    let fail = 0;
+    const t0 = performance.now();
+    for(let i = 0; i < todo.length; i++){
+      if(stopFlag) break;
+      $('prog').value = i / todo.length;
+      const left = i ? (performance.now() - t0) / i * (todo.length - i) / 1000 : 0;
+      st(`画像を地図に置いています… ${i + 1} / ${todo.length}${i > 3 ? `（あと約 ${Math.ceil(left / 60)} 分）` : ''}`);
+      const it = todo[i];
+      try{
+        const v = await vecOf(it);
+        if(i < sample.length) pool.push({ it, v, tags:it.g.filter(t => usable.includes(t)) });
+        else galVecs.set(it, v);
+      }catch(e){ fail++; }
+    }
+    $('prog').value = 1;
+    const secs = (performance.now() - t0) / 1000;
+    lines.push(`見本 ${pool.length} 枚（タグごとに最大 ${per} 枚）・読めなかった画像 ${fail} 枚・かかった時間 ${Math.round(secs)} 秒・${device}`);
+
+    // 答え合わせ：見本の1枚ずつを隠して、ほかの見本から当てる
+    let hit3 = 0, right3 = 0, base3 = 0;
+    const st3 = new Map(usable.map(t => [t, { n:0, found:0, said:0, right:0 }]));
+    const common = [...tagCount].filter(([t]) => usable.includes(t)).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
+    pool.forEach(p => {
+      const truth = new Set(p.tags);
+      const guess = vote(p.v, pool, p.it).map(([t]) => t);
+      const top3 = guess.slice(0, 3), top5 = guess.slice(0, 5);
+      if(top3.some(t => truth.has(t))) hit3++;
+      right3 += top3.filter(t => truth.has(t)).length;
+      if(common.some(t => truth.has(t))) base3++;
+      truth.forEach(t => { const s = st3.get(t); s.n++; if(top5.includes(t)) s.found++; });
+      top3.forEach(t => { const s = st3.get(t); s.said++; if(truth.has(t)) s.right++; });
+    });
+    const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+    const P = pool.length;
+    lines.push(`上位3つに1つでも正解が入った: ${pct(hit3, P)}%（何も見ずに一番多いタグ3つを出した場合: ${pct(base3, P)}%）`);
+    lines.push(`上位3つのうち正解だった割合: ${pct(right3, P * 3)}%`);
+    const rows = [...st3].filter(([, s]) => s.n).sort((a, b) => tagCount.get(b[0]) - tagCount.get(a[0]));
+    lines.push('', 'タグ\t全体の件数\t拾えた（上位5に入った）\t出したとき当たった（上位3）');
+    rows.forEach(([t, s]) => lines.push(`${t}\t${tagCount.get(t)}\t${pct(s.found, s.n)}%（${s.found}/${s.n}）\t${s.said ? pct(s.right, s.said) + '%（' + s.right + '/' + s.said + '）' : '-'}`));
+
+    const bar = v => `<span class="bar" style="width:${Math.max(2, v * 0.6)}px"></span>${v}%`;
+    $('accOut').innerHTML = `
+      <div class="big">
+        <div><b>${pct(hit3, P)}%</b><span>上位3つに正解が入った</span></div>
+        <div><b>${pct(base3, P)}%</b><span>見ずに多いタグを出した場合</span></div>
+        <div><b>${pct(right3, P * 3)}%</b><span>上位3つの正解率</span></div>
+      </div>
+      <p class="sub">見本 ${P} 枚・読めなかった画像 ${fail} 枚・${Math.round(secs)} 秒・${device}。「拾えた」は、そのタグが付いているものを隠して当てたとき、候補の上位5つに入った割合。「当たった」は、候補の上位3つに出したとき、本当に付いていた割合。</p>
+      <div class="tbl"><table><thead><tr><th>タグ</th><th>件数</th><th>拾えた</th><th>当たった</th></tr></thead><tbody>
+      ${rows.map(([t, s]) => `<tr><td>${esc(t)}</td><td class="n">${tagCount.get(t)}</td><td>${bar(pct(s.found, s.n))}</td><td>${s.said ? bar(pct(s.right, s.said)) : '-'}</td></tr>`).join('')}
+      </tbody></table></div>`;
+
+    // タグなしのものに出る候補
+    const g = $('gal'); g.innerHTML = '';
+    const galLines = [];
+    galVecs.forEach((v, it) => {
+      const guess = vote(v, pool, null).slice(0, 5);
+      const f = document.createElement('figure');
+      const img = document.createElement('img'); img.loading = 'lazy'; img.src = small(it.c); img.alt = it.t || '';
+      img.onerror = () => { img.onerror = null; img.src = it.c; };
+      const cap = document.createElement('figcaption');
+      guess.forEach(([t, w]) => { const c = document.createElement('span'); c.className = 'chip' + (w >= 0.35 ? ' ok' : ''); c.textContent = '#' + t; c.title = Math.round(w * 100) + '%'; cap.append(c); });
+      f.append(img, cap); g.append(f);
+      galLines.push(`${(it.t || '').slice(0, 30)} → ${guess.map(([t, w]) => `${t}(${Math.round(w * 100)}%)`).join(' ')}`);
+    });
+    $('galWrap').hidden = !galVecs.size;
+    if(galLines.length) lines.push('', 'タグなしのものに出た候補:', ...galLines);
+    st(stopFlag ? '途中で止めました（ここまでの分で答え合わせしています）。' : '終わりました。');
+  }catch(e){
+    lines.push('うまく動きませんでした: ' + (e && e.message || e));
+    st('うまく動きませんでした。「結果をコピー」で Claude に貼ってください。');
+  }
+  report.acc = lines.join('\n');
+  $('runAcc').disabled = false; $('stopAcc').hidden = true;
+});
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]); }
+
+$('copy').addEventListener('click', async () => {
+  const text = ['【印象の地図の試し】', report.env, '', '■ 速さ', report.speed || '（まだ）', '', '■ 当たり具合', report.acc || '（まだ）'].join('\n');
+  try{ await navigator.clipboard.writeText(text); $('copyStatus').textContent = 'コピーしました。'; }
+  catch(e){
+    // コピーできないときは、選んでコピーできるように出す
+    $('speedOut').textContent = text; $('copyStatus').textContent = '自動でコピーできなかったので、上の枠に出しました。長押しで選んでコピーしてください。';
+  }
+});
+</script>
+</body>
+</html>

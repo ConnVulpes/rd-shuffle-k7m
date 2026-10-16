@@ -350,6 +350,9 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .ed-pin{font:inherit; font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
 .ed-pin kbd{margin:0 5px 0 0; padding:0 4px; color:inherit; border-color:currentColor; opacity:.7; font-size:10px}
 .ed-pin[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+/* おすすめは点線で、固定と見分ける */
+.ed-sug .ed-pin{border-style:dashed; color:var(--text)}
+.ed-sug .ed-pin[aria-pressed="true"]{border-style:solid}
 .ed-link{font:inherit; font-size:12px; border:0; background:transparent; color:var(--muted); text-decoration:underline; cursor:pointer; padding:3px 2px}
 .ed-list{width:100%; max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:8px}
 .lb-edit.side .ed-list, .lb-edit.full .ed-list{max-height:42vh}
@@ -1861,6 +1864,7 @@ function recountTags(){
   const m = new Map();
   cache.items.forEach(x => (x.g || []).forEach(t => m.set(t, (m.get(t) || 0) + 1)));
   cache.tags = [...m].map(([name, count]) => ({ name, count })).sort((a, b) => jaCmp(a.name, b.name));
+  sugIndex = null; // タグが変わったので、おすすめの数え直しが必要
 }
 // カードの画像だけを作り直す（サムネを変えたとき）
 function refreshCardMedia(c, it){
@@ -2296,7 +2300,7 @@ function renderEdit(){
   edPanel.innerHTML = '';
   const body = el('div', 'ed-scroll');
   edPanel.append(...editFrame(), body);
-  body.append(editFolderSec(it), editCoverSec(it), editPinsRow(it), editTagSec(it));
+  body.append(editFolderSec(it), editCoverSec(it), editPinsRow(it), editSugRow(it), editTagSec(it));
   layoutEdit();
   body.scrollTop = scrollY;
   if(focusTag){ const i = $('edTagInput'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
@@ -2391,6 +2395,164 @@ function editPinsRow(it){
   edit.addEventListener('click', () => { edView = edView === 'pins' ? '' : 'pins'; renderEdit(); });
   wrap.append(edit);
   line.append(el('span', 'ed-lab', '固定'), wrap);
+  return line;
+}
+// ===== タグのおすすめ =====
+// 見本にするのは「タグが1つ以上付いているもの」だけ。タグなしは「まだ付けていない」だけなので、
+// 「このタグではない」という見本には数えない。タグ付きのものは全部付いている前提で、付いていないタグは「違う」と数える。
+// 出どころは3つ：同じ作者（X などのアカウント）・同じサイト・今付いているタグとよく一緒に付けるタグ。
+var sugIndex = null; // 起動中に recountTags から先に触られることがあるので var
+// 作者が分かるサイトだけ、URL から作者を取り出す
+function authorKey(url){
+  let u; try{ u = new URL(url); }catch(e){ return ''; }
+  const host = u.hostname.replace(/^(www|mobile|m)\./, '');
+  const seg = u.pathname.split('/').filter(Boolean);
+  if(host === 'x.com' || host === 'twitter.com'){
+    const s = seg[0] && seg[0].toLowerCase();
+    return s && s !== 'i' && /^status/.test(seg[1] || '') ? 'x:' + s : '';
+  }
+  if(host === 'bsky.app') return seg[0] === 'profile' && seg[1] ? 'bsky:' + seg[1].toLowerCase() : '';
+  if(host === 'deviantart.com') return seg[0] && seg[1] === 'art' ? 'da:' + seg[0].toLowerCase() : '';
+  if(host === 'instagram.com') return seg[0] && !['p', 'reel', 'reels', 'stories', 'explore'].includes(seg[0]) ? 'ig:' + seg[0].toLowerCase() : '';
+  if(/\.tumblr\.com$/.test(host) && host !== 'www.tumblr.com') return 'tb:' + host.split('.')[0];
+  if(host === 'youtube.com' && seg[0] && seg[0][0] === '@') return 'yt:' + seg[0].toLowerCase();
+  return '';
+}
+function siteKey(url){
+  try{ return new URL(url).hostname.replace(/^(www|mobile|m)\./, ''); }catch(e){ return ''; }
+}
+// URL から取り出した作者とサイトは、ブックマークごとに覚えておく（タグを押すたびに数え直すので、軽くするため）
+const srcKeys = new WeakMap();
+function srcOf(it){
+  let k = srcKeys.get(it);
+  if(!k || k.l !== it.l){ k = { l:it.l, a:authorKey(it.l), s:siteKey(it.l) }; srcKeys.set(it, k); }
+  return k;
+}
+function buildSugIndex(){
+  const byAuthor = new Map(), bySite = new Map(), tagItems = new Map();
+  const bump = (map, key, tags) => {
+    if(!key) return;
+    let e = map.get(key); if(!e){ e = { n:0, tags:new Map() }; map.set(key, e); }
+    e.n++;
+    tags.forEach(t => e.tags.set(t, (e.tags.get(t) || 0) + 1));
+  };
+  cache.items.forEach(it => {
+    const g = it.g || [];
+    if(!g.length) return;
+    const { a, s } = srcOf(it);
+    bump(byAuthor, a, g);
+    bump(bySite, s, g);
+    g.forEach(t => { let arr = tagItems.get(t); if(!arr){ arr = []; tagItems.set(t, arr); } arr.push(a); });
+  });
+  // 作者名のタグを見分ける：そのタグの付いたものの大半（8割以上）が同じアカウントから来ていて、
+  // しかもそのアカウントのものの半分以上に付いているタグ
+  const authorTags = new Set();
+  // タグ名がアカウント名と同じなら、1件しかなくても作者名とみなす
+  const plain = s => s.toLowerCase().replace(/[\s_.\-@]/g, '');
+  const handles = new Set([...byAuthor.keys()].map(a => plain(a.split(':')[1])));
+  tagItems.forEach((authors, t) => { if(handles.has(plain(t))) authorTags.add(t); });
+  tagItems.forEach((authors, t) => {
+    const known = authors.filter(Boolean);
+    if(known.length < 2) return;
+    const c = new Map(); known.forEach(a => c.set(a, (c.get(a) || 0) + 1));
+    let top = '', max = 0; c.forEach((v, a) => { if(v > max){ max = v; top = a; } });
+    if(max / authors.length >= 0.8 && max / byAuthor.get(top).n >= 0.5) authorTags.add(t);
+  });
+  sugIndex = { items:cache.items, len:cache.items.length, byAuthor, bySite, tagItems, authorTags, co:new Map() };
+}
+// あるタグと一緒に付いているタグの数（必要になったタグだけ数える）
+function coCounts(t){
+  if(sugIndex.co.has(t)) return sugIndex.co.get(t);
+  const m = new Map();
+  cache.items.forEach(it => { const g = it.g || []; if(g.includes(t)) g.forEach(s => { if(s !== t) m.set(s, (m.get(s) || 0) + 1); }); });
+  sugIndex.co.set(t, m);
+  return m;
+}
+// 候補：[{ t, score, why }] を強い順に
+function suggestTags(it){
+  if(!sugIndex || sugIndex.items !== cache.items || sugIndex.len !== cache.items.length) buildSugIndex();
+  const have = new Set(it.g || []);
+  const cand = new Map();
+  const add = (t, s, why) => {
+    if(have.has(t) || s <= 0) return;
+    const c = cand.get(t);
+    if(!c){ cand.set(t, { t, score:s, why, best:s }); return; }
+    // いくつかの出どころで当たったら強くする。理由はいちばん強いものを出す
+    c.score = 1 - (1 - c.score) * (1 - s);
+    if(s > c.best){ c.best = s; c.why = why; }
+  };
+  // 同じ作者：n 件中 cnt 件に付いている。1件しかない作者でも出す（作者名のタグを拾うため）
+  const src = srcOf(it), a = src.a, ae = a && sugIndex.byAuthor.get(a);
+  if(ae){
+    // 今開いているものがタグ付きなら、自分の分は数えない
+    const self = (it.g || []).length ? 1 : 0;
+    const n = ae.n - self;
+    if(n > 0) ae.tags.forEach((cnt, t) => {
+      cnt -= self && have.has(t) ? 1 : 0;
+      if(cnt <= 0) return;
+      const p = cnt / (n + 1);
+      if(p < 0.3) return;
+      add(t, Math.min(1, sugIndex.authorTags.has(t) ? p * 2 : p), `この作者の ${n} 件中 ${cnt} 件に付いています`);
+    });
+  }
+  // 同じサイト：5件以上あって、4割以上に付いているもの（作者名のタグは除く）
+  const se = sugIndex.bySite.get(src.s);
+  if(se && se.n >= 5) se.tags.forEach((cnt, t) => {
+    if(sugIndex.authorTags.has(t) || cnt / se.n < 0.4) return;
+    add(t, 0.8 * cnt / (se.n + 1), `このサイトの ${se.n} 件中 ${cnt} 件に付いています`);
+  });
+  // 今付いているタグとよく一緒に付けるタグ（3件以上あるタグから、4割以上一緒のもの。作者名は除く）
+  have.forEach(s => {
+    const n = (sugIndex.tagItems.get(s) || []).length;
+    if(n < 3 || sugIndex.authorTags.has(s)) return;
+    coCounts(s).forEach((cnt, t) => {
+      if(sugIndex.authorTags.has(t) || cnt / n < 0.4) return;
+      add(t, 0.7 * cnt / n, `#${s} の ${n} 件中 ${cnt} 件で一緒に付いています`);
+    });
+  });
+  return [...cand.values()].sort((x, y) => y.score - x.score || jaCmp(x.t, y.t));
+}
+// 編集シートの「おすすめ」の列。押すとすぐ付く。付けたものはその場に残して押した状態にする
+// （押すたびに並びが詰まると、続けて押したときに隣を押してしまうため）
+let sugShown = { item:null, list:[], fresh:null }, sugTimer = 0;
+function editSugRow(it, force){
+  if(edView === 'pins') return '';
+  if(sugShown.item !== it) sugShown = { item:it, list:[], fresh:null };
+  const stale = !sugIndex || sugIndex.items !== cache.items || sugIndex.len !== cache.items.length;
+  let fresh;
+  if(stale && !force && sugShown.fresh){
+    // タグを押した直後：数え直しは少し後に回して、押した反応を先に返す（候補は前のものを使う）
+    fresh = sugShown.fresh;
+    clearTimeout(sugTimer);
+    sugTimer = setTimeout(() => {
+      if(peekItem !== it || edPanel.hidden) return;
+      const old = edPanel.querySelector('.ed-sug');
+      const row = editSugRow(it, true);
+      if(old) old.replaceWith(row || '');
+      else if(row){ const sec = edPanel.querySelector('.ed-scroll > .ed-sec:last-child'); if(sec) sec.before(row); }
+    }, 150);
+  }else fresh = suggestTags(it);
+  sugShown.fresh = fresh;
+  const byT = new Map(fresh.map(c => [c.t, c]));
+  const have = new Set(it.g || []);
+  // 前に出していたものは、同じブックマークを開いている間は同じ位置に残す（候補から外れても消さない）。
+  // 新しい候補は後ろに足す（全部で10個まで）
+  const keep = sugShown.list.slice();
+  fresh.forEach(c => { if(keep.length < (sugShown.list.length ? 10 : 8) && !keep.includes(c.t)) keep.push(c.t); });
+  sugShown.list = keep;
+  if(!keep.length) return '';
+  const line = el('div', 'ed-line ed-sug');
+  const wrap = el('div', 'ed-wrap');
+  keep.forEach(t => {
+    const on = have.has(t);
+    const b = el('button', 'ed-pin', '#' + t); b.type = 'button';
+    b.setAttribute('aria-pressed', String(on));
+    const c = byT.get(t);
+    if(c) b.title = c.why;
+    b.addEventListener('click', () => toggleTag(it, t));
+    wrap.append(b);
+  });
+  line.append(el('span', 'ed-lab', 'おすすめ'), wrap);
   return line;
 }
 // タグ：一覧から選ぶ（押すと付く／外れる）。「固定を選ぶ」中は固定するタグを選ぶ
