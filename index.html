@@ -241,6 +241,7 @@ body.cur-idle .rd-btn{opacity:0 !important}
 }
 .lb-btn:hover{background:rgba(255,255,255,.22)}
 #peekClose{width:34px; padding:0; font-size:20px; line-height:1}
+#peekClose .lbl{display:none}
 .lb-ic{width:34px; padding:0}
 .lb-ic svg{width:17px; height:17px}
 .lb-rd-ic{display:none}
@@ -295,9 +296,16 @@ body.cur-idle .rd-btn{opacity:0 !important}
 #peek.editing .lb-cap{left:var(--edit-l, 0px); bottom:var(--edit-h, 0px); padding-bottom:10px}
 /* スマホ：閉じるボタンは親指の届く左下に（編集シートを開いているときはその上） */
 @media (hover:none){
-  #peekClose{position:fixed; left:12px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:3; width:44px; height:44px; border-radius:50%; font-size:22px; background:rgba(0,0,0,.5)}
-  #peek.editing #peekClose{bottom:calc(var(--edit-h, 0px) + 12px)}
-  .lb-cap{padding-left:68px; padding-right:68px}
+  /* 横長で大きめにして押しやすく（親指で左下をざっくり押しても当たる） */
+  #peekClose{
+    position:fixed; left:12px; bottom:calc(12px + env(safe-area-inset-bottom)); z-index:3;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    width:104px; height:52px; border-radius:26px; font-size:22px; background:rgba(0,0,0,.55);
+  }
+  #peekClose .lbl{display:inline; font-size:14px; letter-spacing:.04em}
+  #peek.editing #peekClose{bottom:calc(var(--edit-h, 0px) + 10px)}
+  .lb-cap{padding-left:126px; padding-right:68px}
+  body #peek .lb-toast{margin-bottom:62px} /* 下の共通の指定より強くする */
 }
 #peek .lb-toast{margin-bottom:46px}
 /* 編集中は、画像の表示エリアをパネルの分だけ狭める */
@@ -390,9 +398,10 @@ body.cur-idle .rd-btn{opacity:0 !important}
   bottom:calc(var(--toast-b, 16px) + env(safe-area-inset-bottom));
   display:flex; align-items:center; gap:12px; padding:8px 8px 8px 14px; border-radius:10px;
   background:rgba(20,22,25,.92); color:#fff; font-size:13px; box-shadow:0 6px 20px rgba(0,0,0,.4); max-width:calc(100% - 24px);
+  width:max-content; /* 真ん中寄せのせいで幅が半分に縮み、短い文でも折り返していたのを防ぐ */
 }
 .lb-toast[hidden]{display:none}
-.lb-toast button{font:inherit; font-size:13px; color:#9ec4e8; background:transparent; border:0; cursor:pointer; padding:4px 6px}
+.lb-toast button{font:inherit; font-size:13px; color:#9ec4e8; background:transparent; border:0; cursor:pointer; padding:4px 6px; white-space:nowrap}
 .lb-toast button[hidden]{display:none}
 .badge.gif{background:#e8e2c8; color:#3a3218}
 .rd-btn{
@@ -648,7 +657,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
     <button type="button" class="lb-btn" id="peekEdit" aria-pressed="false" title="タグ・フォルダを編集（E）">編集</button>
     <a class="lb-btn" id="peekOpen" target="_blank" rel="noopener noreferrer" title="サイトを開く">サイト</a>
     <a class="lb-btn" id="peekRd" target="_blank" rel="noopener" title="Raindrop で開く"><span class="lb-rd-ic"></span><span class="lb-rd-t">Raindrop</span></a>
-    <button type="button" class="lb-btn" id="peekClose" aria-label="閉じる" title="閉じる（Esc）">×</button>
+    <button type="button" class="lb-btn" id="peekClose" aria-label="閉じる" title="閉じる（Esc）"><span aria-hidden="true">×</span><span class="lbl" aria-hidden="true">閉じる</span></button>
   </div>
   <button type="button" class="lb-nav lb-prev" id="peekPrev" aria-label="前へ" title="前へ（←）">‹</button>
   <button type="button" class="lb-nav lb-next" id="peekNext" aria-label="次へ" title="次へ（→）">›</button>
