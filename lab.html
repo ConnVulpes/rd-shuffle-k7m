@@ -70,6 +70,20 @@ tr:last-child td{border-bottom:0}
 .chip{padding:1px 7px; border-radius:999px; border:1px dashed var(--line)}
 .chip.ok{border-style:solid; border-color:var(--good); color:var(--good)}
 .err{color:var(--warn)}
+/* 3. 似ているもの */
+.sim-center{display:grid; grid-template-columns:minmax(0, 260px) 1fr; gap:14px; align-items:start; margin:12px 0}
+.sim-center img{width:100%; max-height:360px; object-fit:contain; border-radius:10px; background:var(--bg)}
+.sim-center .meta{display:flex; flex-direction:column; gap:6px; min-width:0; font-size:13px}
+.sim-center .meta b{font-size:14px; overflow-wrap:anywhere}
+.tags{display:flex; flex-wrap:wrap; gap:4px}
+.tags span{font-size:11px; padding:0 6px; border-radius:999px; border:1px solid var(--line); color:var(--muted)}
+.tags span.same{border-color:var(--good); color:var(--good)}
+.simgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px}
+.simgrid button{all:unset; cursor:pointer; display:flex; flex-direction:column; gap:4px; min-width:0}
+.simgrid img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; background:var(--bg)}
+.simgrid button:focus-visible img{outline:2px solid var(--accent); outline-offset:2px}
+.simgrid .pct{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
+@media (max-width:560px){ .sim-center{grid-template-columns:1fr} }
 </style>
 </head>
 <body>
@@ -110,6 +124,24 @@ tr:last-child td{border-bottom:0}
 </section>
 
 <section>
+  <h2>3. 似ているものを見る</h2>
+  <p>まず全部の画像を地図に置きます（Mac で。最初の1回だけ時間がかかり、途中で止めても続きから再開できます）。置き終わった分から、似ているものを探せます。</p>
+  <p class="sub" id="mapInfo">確かめています…</p>
+  <div class="row">
+    <button type="button" id="buildMap" disabled>地図を作る</button>
+    <button type="button" class="sec" id="stopMap" hidden>止める</button>
+  </div>
+  <progress id="mapProg" max="1" value="0" hidden></progress>
+  <div class="status" id="mapStatus"></div>
+  <div class="row">
+    <button type="button" class="sec" id="simRandom" disabled>ランダムに選ぶ</button>
+    <button type="button" class="sec" id="simLiked" hidden>♥ したものから</button>
+    <button type="button" class="sec" id="simBack" hidden>戻る</button>
+  </div>
+  <div id="simView"></div>
+</section>
+
+<section>
   <h2>結果を渡す</h2>
   <p>試し終わったら、これを押して Claude との会話に貼ってください。</p>
   <div class="row"><button type="button" class="sec" id="copy">結果をコピー</button><span class="status" id="copyStatus"></span></div>
@@ -120,7 +152,7 @@ tr:last-child td{border-bottom:0}
 const $ = id => document.getElementById(id);
 const MODEL = 'Xenova/mobileclip_s0';
 const TJS = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js';
-const report = { env:'', speed:'', acc:'' };
+const report = { env:'', speed:'', acc:'', map:'' };
 report.env = `端末: ${navigator.userAgent}\nWebGPU: ${'gpu' in navigator ? 'あり' : 'なし'}`;
 
 // ===== あなたのデータ（本体と同じ場所に保存されているもの。読むだけ） =====
@@ -155,21 +187,54 @@ async function loadModel(setStatus){
   model = await lib.CLIPVisionModelWithProjection.from_pretrained(MODEL, { device:'wasm', dtype:'q8', progress_callback });
   device = 'WASM（q8）';
 }
-// 画像を「印象の地図」の上の位置（数字の並び）にする。長さ1にそろえるので、近さは掛け算の合計で測れる
+// 画像を「印象の地図」の上の位置（数字の並び）にする。長さ1にそろえるので、近さは掛け算の合計で測れる。
+// 画像の取得はいくつも同時に進めてよいが、AI に通すのは1枚ずつ（順番待ち）
+let modelBusy = Promise.resolve();
+async function embedBlob(blob){
+  const img = await lib.RawImage.fromBlob(blob);
+  const run = modelBusy.then(async () => {
+    const t0 = performance.now();
+    const { image_embeds } = await model(await processor(img));
+    embed.lastMs = performance.now() - t0;
+    return Float32Array.from(image_embeds.normalize().data);
+  });
+  modelBusy = run.catch(() => {});
+  return run;
+}
+async function fetchBlob(url){
+  const r = await fetch(url, { mode:'cors', credentials:'omit', referrerPolicy:'no-referrer' });
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  return r.blob();
+}
 async function embed(url){
   if(window.LAB_FAKE) return window.LAB_FAKE.embed(url);
-  const img = await lib.RawImage.read(url);
-  const t0 = performance.now();
-  const { image_embeds } = await model(await processor(img));
-  const v = Float32Array.from(image_embeds.normalize().data);
-  embed.lastMs = performance.now() - t0;
-  return v;
+  return embedBlob(await fetchBlob(url));
 }
-// 画像は小さく縮めてから読む（ページから中身を読めるよう、縮小サービス経由で取る）
+// 画像は小さく縮めてから読む。X と Pinterest は元のサイトから小さいサイズを直接もらう（速い）。
+// それ以外や、直接もらえなかったときは縮小サービス経由、それもだめなら元の画像
 const small = u => `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=256&h=256&fit=inside&output=jpg&q=80`;
+function directSmall(u){
+  try{
+    const x = new URL(u);
+    if(x.hostname === 'pbs.twimg.com'){ x.searchParams.set('name', 'small'); return x.href; }
+    if(x.hostname === 'i.pinimg.com'){ x.pathname = x.pathname.replace(/^\/(originals|\d+x\d*)\//, '/236x/'); return x.href; }
+  }catch(e){}
+  return '';
+}
+const directOK = new Map();   // サイト → 直接もらえたか（一度だめだったサイトは縮小サービスに回す）
+const via = { direct:0, wsrv:0, orig:0 };
+async function coverBlob(u){
+  const d = directSmall(u), host = d && new URL(d).hostname;
+  if(d && directOK.get(host) !== false){
+    try{ const b = await fetchBlob(d); directOK.set(host, true); via.direct++; return b; }
+    catch(e){ if(!directOK.get(host)) directOK.set(host, false); }
+  }
+  try{ const b = await fetchBlob(small(u)); via.wsrv++; return b; }
+  catch(e){ const b = await fetchBlob(u); via.orig++; return b; }
+}
 async function embedCover(u){
-  try{ return await embed(small(u)); }
-  catch(e){ return await embed(u); }
+  if(window.LAB_FAKE) return window.LAB_FAKE.embed(small(u));
+  return embedBlob(await coverBlob(u));
 }
 
 // 一度作った位置は、このブラウザの中に取っておく（2回目からは速い）
@@ -181,10 +246,18 @@ const idb = (() => {
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   }));
   const tx = async (mode, fn) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('emb', mode); const q = fn(t.objectStore('emb')); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); }); };
-  return { get:k => tx('readonly', s => s.get(k)).catch(() => null), set:(k, v) => tx('readwrite', s => s.put(v, k)).catch(() => null) };
+  // 全部を読む（キーと中身の組）
+  const all = async () => { const db = await open(); return new Promise((res, rej) => {
+    const out = []; const q = db.transaction('emb').objectStore('emb').openCursor();
+    q.onsuccess = () => { const c = q.result; if(!c) return res(out); out.push([c.key, c.value]); c.continue(); };
+    q.onerror = () => rej(q.error);
+  }); };
+  const keys = () => tx('readonly', s => s.getAllKeys()).catch(() => []);
+  return { get:k => tx('readonly', s => s.get(k)).catch(() => null), set:(k, v) => tx('readwrite', s => s.put(v, k)).catch(() => null), all, keys };
 })();
+const keyOf = c => (window.LAB_FAKE ? 'fake:' : MODEL + ':') + c;
 async function vecOf(it){
-  const key = (device === 'fake' ? 'fake:' : MODEL + ':') + it.c;
+  const key = keyOf(it.c);
   const got = await idb.get(key);
   if(got) return got;
   const v = await embedCover(it.c);
@@ -398,10 +471,147 @@ $('runAcc').addEventListener('click', async () => {
   report.acc = lines.join('\n');
   $('runAcc').disabled = false; $('stopAcc').hidden = true;
 });
+// ===== 3. 似ているもの =====
+// 同じ画像を使っているブックマークは1つにまとめる
+const byCover = new Map();
+items.forEach(it => { if(!it.c) return; const a = byCover.get(it.c); if(a) a.push(it); else byCover.set(it.c, [it]); });
+const covers = [...byCover.keys()];
+let mapStop = false, mapVecs = null, simHist = [];
+async function refreshMapInfo(){
+  if(!items.length){ $('mapInfo').textContent = 'このブラウザには Raindrop シャッフルのデータがありません。Mac の Chrome（本体と同じ Chrome）で開いてください。'; return 0; }
+  const keys = new Set(await idb.keys());
+  const done = covers.filter(c => keys.has(keyOf(c))).length;
+  $('mapInfo').textContent = `画像のあるブックマーク ${covers.length.toLocaleString()} 枚のうち、${done.toLocaleString()} 枚を地図に置いてあります。`;
+  $('buildMap').disabled = false;
+  $('buildMap').textContent = done ? (done < covers.length ? '続きを置く' : '置き直さずに確かめる') : '地図を作る';
+  $('simRandom').disabled = !done;
+  $('simLiked').hidden = !done || !likedCovers().length;
+  return done;
+}
+// ♥ したもの（本体の保存データから読むだけ）
+function likedCovers(){
+  let heat = {}; try{ heat = JSON.parse(localStorage.getItem('rdshuffle:heat') || '{}') || {}; }catch(e){}
+  return items.filter(it => it.c && heat[it.i] && heat[it.i][0] > 0).map(it => it.c);
+}
+$('stopMap').addEventListener('click', () => { mapStop = true; });
+$('buildMap').addEventListener('click', async () => {
+  mapStop = false;
+  const st = t => { $('mapStatus').textContent = t; };
+  $('buildMap').disabled = true; $('stopMap').hidden = false; $('mapProg').hidden = false;
+  // 画面が消えると止まるので、置いている間は画面を点けたままにする（できるブラウザだけ）
+  let lock = null; try{ lock = await navigator.wakeLock.request('screen'); }catch(e){}
+  const lines = [];
+  try{
+    st('AI を読み込み中…');
+    await loadModel(st);
+    const have = new Set(await idb.keys());
+    const todo = covers.filter(c => !have.has(keyOf(c)));
+    let next = 0, done = 0, fail = 0;
+    const t0 = performance.now();
+    const show = () => {
+      const n = done + fail, secs = (performance.now() - t0) / 1000;
+      $('mapProg').value = todo.length ? n / todo.length : 1;
+      const left = n > 5 ? secs / n * (todo.length - n) : 0;
+      st(`地図に置いています… ${n.toLocaleString()} / ${todo.length.toLocaleString()}（1枚 ${n ? (secs / n).toFixed(2) : '-'} 秒${left ? `・あと約 ${Math.ceil(left / 60)} 分` : ''}）`);
+    };
+    // 画像の取得は6枚ずつ同時に進める
+    const worker = async () => {
+      while(!mapStop && next < todo.length){
+        const c = todo[next++];
+        try{ const v = await embedCover(c); await idb.set(keyOf(c), v); done++; }
+        catch(e){ fail++; }
+        show();
+      }
+    };
+    await Promise.all(Array.from({ length:6 }, worker));
+    const secs = (performance.now() - t0) / 1000;
+    lines.push(`地図: ${done} 枚を置いた・読めなかった ${fail} 枚・${Math.round(secs)} 秒（1枚 ${done + fail ? (secs / (done + fail)).toFixed(2) : '-'} 秒）・${device}`);
+    lines.push(`取り方: 元のサイトから直接 ${via.direct}・縮小サービス ${via.wsrv}・元の画像 ${via.orig}`);
+    st(mapStop ? '止めました。「続きを置く」で、ここから再開できます。' : '置き終わりました。');
+  }catch(e){
+    lines.push('地図づくりでうまく動きませんでした: ' + (e && e.message || e));
+    st('うまく動きませんでした。「結果をコピー」で Claude に貼ってください。');
+  }
+  try{ lock && lock.release(); }catch(e){}
+  report.map = [report.map, ...lines].filter(Boolean).join('\n');
+  $('stopMap').hidden = true;
+  mapVecs = null;
+  await refreshMapInfo();
+});
+async function loadMapVecs(){
+  if(mapVecs) return mapVecs;
+  const want = new Set(covers.map(keyOf));
+  const pre = keyOf('');
+  mapVecs = (await idb.all()).filter(([k]) => want.has(k)).map(([k, v]) => ({ c:k.slice(pre.length), v }));
+  return mapVecs;
+}
+const shortTag = t => t.split(' - ').pop();
+function nearest(center, k){
+  const out = [];
+  for(const e of mapVecs){
+    if(e.c === center.c) continue;
+    let s = 0; const a = center.v, b = e.v; for(let i = 0; i < a.length; i++) s += a[i] * b[i];
+    if(out.length < k || s > out[out.length - 1][0]){ out.push([s, e]); out.sort((x, y) => y[0] - x[0]); if(out.length > k) out.pop(); }
+  }
+  return out;
+}
+function imgEl(c, alt){
+  const img = document.createElement('img'); img.loading = 'lazy'; img.alt = alt || '';
+  img.src = directSmall(c) || small(c);
+  img.onerror = () => { img.onerror = () => { img.onerror = null; img.src = c; }; img.src = small(c); };
+  return img;
+}
+function tagsEl(g, same){
+  const box = document.createElement('div'); box.className = 'tags';
+  (g || []).forEach(t => { const s = document.createElement('span'); s.textContent = shortTag(t); s.title = t; if(same && same.has(t)) s.className = 'same'; box.append(s); });
+  return box;
+}
+function showSim(entry, push = true){
+  if(push) simHist.push(entry);
+  $('simBack').hidden = simHist.length < 2;
+  const its = byCover.get(entry.c) || [];
+  const it = its[0] || {};
+  const tagSet = new Set(its.flatMap(x => x.g || []));
+  const view = $('simView'); view.innerHTML = '';
+  const head = document.createElement('div'); head.className = 'sim-center';
+  const meta = document.createElement('div'); meta.className = 'meta';
+  const b = document.createElement('b'); b.textContent = it.t || '（タイトルなし）';
+  const a = document.createElement('a'); a.href = it.l || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = '元のページを開く';
+  meta.append(b, tagsEl([...tagSet]), a);
+  head.append(imgEl(entry.c, it.t), meta);
+  const grid = document.createElement('div'); grid.className = 'simgrid';
+  const t0 = performance.now();
+  const near = nearest(entry, 24);
+  const ms = Math.round(performance.now() - t0);
+  near.forEach(([s, e]) => {
+    const x = (byCover.get(e.c) || [])[0] || {};
+    const btn = document.createElement('button'); btn.type = 'button'; btn.title = (x.t || '') + '（押すと、これを中心にする）';
+    const pct = document.createElement('span'); pct.className = 'pct'; pct.textContent = `近さ ${Math.round(s * 100)}`;
+    btn.append(imgEl(e.c, x.t), pct, tagsEl(x.g, tagSet));
+    btn.addEventListener('click', () => { showSim(e); view.scrollIntoView({ behavior:'smooth', block:'start' }); });
+    grid.append(btn);
+  });
+  const note = document.createElement('p'); note.className = 'sub';
+  note.textContent = `地図に置いた ${mapVecs.length.toLocaleString()} 枚から、近い順に24枚（探すのにかかった時間 ${ms}ms）。緑の枠のタグは、真ん中のものと同じタグ。並んでいる画像を押すと、それを真ん中にしてたどれます。`;
+  view.append(head, note, grid);
+}
+$('simRandom').addEventListener('click', async () => {
+  await loadMapVecs(); if(!mapVecs.length) return;
+  showSim(mapVecs[Math.floor(Math.random() * mapVecs.length)]);
+});
+$('simLiked').addEventListener('click', async () => {
+  await loadMapVecs();
+  const liked = new Set(likedCovers());
+  const pool = mapVecs.filter(e => liked.has(e.c));
+  if(pool.length) showSim(pool[Math.floor(Math.random() * pool.length)]);
+});
+$('simBack').addEventListener('click', () => { simHist.pop(); const e = simHist[simHist.length - 1]; if(e) showSim(e, false); });
+refreshMapInfo();
+
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]); }
 
 $('copy').addEventListener('click', async () => {
-  const text = ['【印象の地図の試し】', report.env, '', '■ 速さ', report.speed || '（まだ）', '', '■ 当たり具合', report.acc || '（まだ）'].join('\n');
+  const text = ['【印象の地図の試し】', report.env, '', '■ 速さ', report.speed || '（まだ）', '', '■ 当たり具合', report.acc || '（まだ）', '', '■ 似ているもの', report.map || '（まだ）'].join('\n');
   try{ await navigator.clipboard.writeText(text); $('copyStatus').textContent = 'コピーしました。'; }
   catch(e){
     // コピーできないときは、選んでコピーできるように出す
