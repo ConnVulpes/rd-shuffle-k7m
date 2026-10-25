@@ -82,6 +82,7 @@ tr:last-child td{border-bottom:0}
 .simgrid button{all:unset; cursor:pointer; display:flex; flex-direction:column; gap:4px; min-width:0}
 .simgrid img{width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; background:var(--bg)}
 .simgrid button:focus-visible img{outline:2px solid var(--accent); outline-offset:2px}
+.cmp h3{margin-top:22px}
 .simgrid .pct{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums}
 @media (max-width:560px){ .sim-center{grid-template-columns:1fr} }
 </style>
@@ -125,20 +126,41 @@ tr:last-child td{border-bottom:0}
 
 <section>
   <h2>3. 似ているものを見る</h2>
-  <p>まず全部の画像を地図に置きます（Mac で。最初の1回だけ時間がかかり、途中で止めても続きから再開できます）。置き終わった分から、似ているものを探せます。</p>
+  <p>まず画像を地図に置きます（Mac で。最初の1回だけ時間がかかり、途中で止めても続きから再開できます）。地図は AI の種類と画像の切り方ごとに別々に作るので、どれを試しても、今の地図はそのまま残ります。</p>
+  <div class="tbl"><table id="mapTable"><thead><tr><th>作る</th><th>AI</th><th>画像の切り方</th><th>置いた数</th></tr></thead><tbody></tbody></table></div>
   <p class="sub" id="mapInfo">確かめています…</p>
   <div class="row">
-    <button type="button" id="buildMap" disabled>地図を作る</button>
+    <button type="button" id="buildMap" disabled>選んだ地図を作る</button>
     <button type="button" class="sec" id="stopMap" hidden>止める</button>
   </div>
   <progress id="mapProg" max="1" value="0" hidden></progress>
   <div class="status" id="mapStatus"></div>
+
+  <h3>見る</h3>
+  <div class="row">
+    <label>地図 <select id="simMap"></select></label>
+    <label>並べ方 <select id="simRank">
+      <option value="img">画像の近さだけ</option>
+      <option value="bend">あなたのタグで曲げた地図</option>
+      <option value="boost">画像＋同じタグ・作者を少し上に</option>
+      <option value="bendboost">曲げた地図＋同じタグ・作者</option>
+    </select></label>
+    <label>曲げる強さ <select id="bendW"><option value="0.35">弱</option><option value="0.5" selected>中</option><option value="0.7">強</option></select></label>
+  </div>
   <div class="row">
     <button type="button" class="sec" id="simRandom" disabled>ランダムに選ぶ</button>
     <button type="button" class="sec" id="simLiked" hidden>♥ したものから</button>
     <button type="button" class="sec" id="simBack" hidden>戻る</button>
+    <button type="button" class="sec" id="simCompare" disabled>この1枚で並べて比べる</button>
   </div>
+  <div class="status" id="simStatus"></div>
   <div id="simView"></div>
+
+  <h3>数字で比べる</h3>
+  <p class="sub">タグ付きのものの5分の1を「問題」として取り分け、その1枚ずつに近い10枚を出して、タグがどれだけ一致するかを測ります（珍しいタグの一致ほど重く数えます）。曲げた地図は、問題に使うものを除いて調整します。</p>
+  <div class="row"><button type="button" class="sec" id="simEval" disabled>置いた地図を全部測る</button></div>
+  <div class="status" id="evalStatus"></div>
+  <div id="evalOut"></div>
 </section>
 
 <section>
@@ -161,46 +183,92 @@ try{ cache = JSON.parse(localStorage.getItem('rdshuffle:cache') || 'null'); }cat
 const items = (cache && cache.items) || [];
 
 // ===== 画像の AI =====
-// 押されるまで何も読み込まない。テストでは window.LAB_FAKE に偽物を入れて動かす
-let lib = null, model = null, processor = null, device = '';
+// 押されるまで何も読み込まない。テストでは window.LAB_FAKE に偽物を入れて動かす。
+// 地図は「AI の種類 × 画像の切り方」ごとに別々に保存するので、どれかを試しても今の地図（S0・真ん中で切る）は残る
+const MODELS = {
+  s0:  { id:'Xenova/mobileclip_s0',        name:'MobileCLIP S0（今の）',            kind:'clip' },
+  s2:  { id:'Xenova/mobileclip_s2',        name:'MobileCLIP S2（大きい版）',        kind:'clip' },
+  dino:{ id:'onnx-community/dinov2-small', name:'DINOv2 small（見た目そのもの）',  kind:'dino' },
+};
+const CROPS = { c:'真ん中で切る', m:'全体＋何か所か' };
+let lib = null, model = null, device = '';
+const loaded = {};
 const mb = n => (n / 1048576).toFixed(1) + 'MB';
-async function loadModel(setStatus){
-  if(model) return;
-  if(window.LAB_FAKE){ model = window.LAB_FAKE; device = 'fake'; return; }
-  lib = await import(TJS);
+async function loadModelFor(key, setStatus = () => {}){
+  if(loaded[key]) return loaded[key];
+  if(window.LAB_FAKE) return (loaded[key] = { key, fake:true, device:'fake', busy:Promise.resolve() });
+  lib = lib || await import(TJS);
+  const M = MODELS[key];
   const files = new Map();
   const progress_callback = e => {
     if(e.status !== 'progress' || !e.total) return;
     files.set(e.file, [e.loaded, e.total]);
     let a = 0, b = 0; files.forEach(([x, y]) => { a += x; b += y; });
-    setStatus(`AI を読み込み中… ${mb(a)} / ${mb(b)}`);
+    setStatus(`${M.name} を読み込み中… ${mb(a)} / ${mb(b)}`);
   };
-  processor = await lib.AutoProcessor.from_pretrained(MODEL);
+  const processor = await lib.AutoProcessor.from_pretrained(M.id);
+  const Cls = M.kind === 'clip' ? lib.CLIPVisionModelWithProjection : lib.AutoModel;
   const gpu = !$('forceWasm').checked && 'gpu' in navigator;
+  let m = null, dev = '';
   if(gpu){
-    try{
-      model = await lib.CLIPVisionModelWithProjection.from_pretrained(MODEL, { device:'webgpu', dtype:'fp16', progress_callback });
-      device = 'WebGPU（fp16）';
-      return;
-    }catch(e){ setStatus('WebGPU で動かせなかったので、WASM に切り替えます… ' + e.message); }
+    try{ m = await Cls.from_pretrained(M.id, { device:'webgpu', dtype:'fp16', progress_callback }); dev = 'WebGPU（fp16）'; }
+    catch(e){ setStatus(`${M.name}：WebGPU で動かせなかったので、WASM に切り替えます… ` + e.message); }
   }
-  model = await lib.CLIPVisionModelWithProjection.from_pretrained(MODEL, { device:'wasm', dtype:'q8', progress_callback });
-  device = 'WASM（q8）';
+  if(!m){ m = await Cls.from_pretrained(M.id, { device:'wasm', dtype:'q8', progress_callback }); dev = 'WASM（q8）'; }
+  return (loaded[key] = { key, kind:M.kind, model:m, processor, device:dev, busy:Promise.resolve() });
 }
-// 画像を「印象の地図」の上の位置（数字の並び）にする。長さ1にそろえるので、近さは掛け算の合計で測れる。
-// 画像の取得はいくつも同時に進めてよいが、AI に通すのは1枚ずつ（順番待ち）
-let modelBusy = Promise.resolve();
-async function embedBlob(blob){
-  const img = await lib.RawImage.fromBlob(blob);
-  const run = modelBusy.then(async () => {
+// 1・2 で使うのは今の AI（S0）
+async function loadModel(setStatus){
+  const L = await loadModelFor('s0', setStatus);
+  model = L; device = L.device;
+}
+// AI の出した結果から、画像1枚ぶんの位置（長さ1）を取り出す
+function vecFrom(out, kind){
+  let t = kind === 'clip' ? out.image_embeds : (out.pooler_output || out.last_hidden_state);
+  if(t.type && t.type !== 'float32' && t.to) t = t.to('float32');
+  const d = t.dims[t.dims.length - 1];
+  const v = Float32Array.from(t.data.subarray ? t.data.subarray(0, d) : Array.prototype.slice.call(t.data, 0, d));
+  return unit(v);
+}
+function unit(v){ let s = 0; for(let i = 0; i < v.length; i++) s += v[i] * v[i]; s = Math.sqrt(s) || 1; for(let i = 0; i < v.length; i++) v[i] /= s; return v; }
+// 「全体＋何か所か」：全体を余白付きで1枚、細長い画像なら長い向きに3か所、そうでなければ真ん中。結果は平均する
+async function viewsOf(blob, crop){
+  if(crop !== 'm') return [await lib.RawImage.fromBlob(blob)];
+  const bmp = await createImageBitmap(blob);
+  const W = bmp.width, H = bmp.height, S = 256;
+  const mk = (sx, sy, sw, sh, pad) => {
+    const cv = document.createElement('canvas'); cv.width = S; cv.height = S;
+    const g = cv.getContext('2d');
+    if(pad){ g.fillStyle = '#808080'; g.fillRect(0, 0, S, S); const r = Math.min(S / W, S / H); g.drawImage(bmp, 0, 0, W, H, (S - W * r) / 2, (S - H * r) / 2, W * r, H * r); }
+    else g.drawImage(bmp, sx, sy, sw, sh, 0, 0, S, S);
+    return lib.RawImage.fromCanvas(cv);
+  };
+  const m = Math.min(W, H), views = [mk(0, 0, W, H, true)];
+  if(Math.max(W, H) / m > 1.25){
+    [0, 0.5, 1].forEach(f => { const off = (Math.max(W, H) - m) * f; views.push(W > H ? mk(off, 0, m, m) : mk(0, off, m, m)); });
+  }else views.push(mk((W - m) / 2, (H - m) / 2, m, m));
+  bmp.close && bmp.close();
+  return views;
+}
+// 画像の取得はいくつも同時に進めてよいが、AI に通すのは1つずつ（AI ごとに順番待ち）
+async function embedWith(key, blob, crop){
+  const L = loaded[key];
+  const views = await viewsOf(blob, crop);
+  const run = L.busy.then(async () => {
     const t0 = performance.now();
-    const { image_embeds } = await model(await processor(img));
+    let acc = null;
+    for(const img of views){
+      const v = vecFrom(await L.model(await L.processor(img)), L.kind);
+      if(!acc) acc = new Float32Array(v.length);
+      for(let i = 0; i < v.length; i++) acc[i] += v[i];
+    }
     embed.lastMs = performance.now() - t0;
-    return Float32Array.from(image_embeds.normalize().data);
+    return unit(acc);
   });
-  modelBusy = run.catch(() => {});
+  L.busy = run.catch(() => {});
   return run;
 }
+const embedBlob = blob => embedWith('s0', blob, 'c');
 async function fetchBlob(url){
   const r = await fetch(url, { mode:'cors', credentials:'omit', referrerPolicy:'no-referrer' });
   if(!r.ok) throw new Error('HTTP ' + r.status);
@@ -476,58 +544,107 @@ $('runAcc').addEventListener('click', async () => {
 const byCover = new Map();
 items.forEach(it => { if(!it.c) return; const a = byCover.get(it.c); if(a) a.push(it); else byCover.set(it.c, [it]); });
 const covers = [...byCover.keys()];
-let mapStop = false, mapVecs = null, simHist = [];
+// 地図の種類：AI × 切り方。S0・真ん中で切る が今の地図（保存の名前も前と同じなので、作ってあった分はそのまま使える）
+const VARIANTS = [];
+Object.keys(MODELS).forEach(m => Object.keys(CROPS).forEach(c => VARIANTS.push({ id:m + '/' + c, m, c, name:`${MODELS[m].name}・${CROPS[c]}` })));
+const vById = id => VARIANTS.find(v => v.id === id);
+const vprefix = v => window.LAB_FAKE ? 'fake:' + (v.id === 's0/c' ? '' : v.id + ':') : MODELS[v.m].id + (v.c === 'm' ? '#mc' : '') + ':';
+// 最初に作るものとして選んでおく組（速さとのつり合い）。残りの2つは「全体＋何か所か」で4倍かかる
+const DEFAULT_BUILD = new Set(['s0/m', 's2/c', 'dino/c']);
+
+// タグの情報（作者名のタグは外す）。タグ付きのものは全部付いている前提
+const info = new Map();
+byCover.forEach((its, c) => {
+  const g = new Set(); its.forEach(x => (x.g || []).forEach(t => { if(!authorTags.has(t)) g.add(t); }));
+  info.set(c, { tags:g, author:authorKey(its[0].l) });
+});
+const tagN = new Map(); info.forEach(x => x.tags.forEach(t => tagN.set(t, (tagN.get(t) || 0) + 1)));
+const nTagged = [...info.values()].filter(x => x.tags.size).length;
+const idf = t => Math.log(1 + nTagged / (tagN.get(t) || 1));
+// 決まった振り分け（毎回同じものが「問題」になる）
+const hash = s => { let h = 2166136261; for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const yieldUI = () => new Promise(r => setTimeout(r, 0));
+
+let mapStop = false, simHist = [];
+const placed = new Map();
+let entriesCache = null;          // 地図ごとの [{ c, v }]
+const indexCache = new Map();     // 並べ方ごとの計算結果
 async function refreshMapInfo(){
-  if(!items.length){ $('mapInfo').textContent = 'このブラウザには Raindrop シャッフルのデータがありません。Mac の Chrome（本体と同じ Chrome）で開いてください。'; return 0; }
-  const keys = new Set(await idb.keys());
-  const done = covers.filter(c => keys.has(keyOf(c))).length;
-  $('mapInfo').textContent = `画像のあるブックマーク ${covers.length.toLocaleString()} 枚のうち、${done.toLocaleString()} 枚を地図に置いてあります。`;
+  if(!items.length){ $('mapInfo').textContent = 'このブラウザには Raindrop シャッフルのデータがありません。Mac の Chrome（本体と同じ Chrome）で開いてください。'; return; }
+  const keys = await idb.keys();
+  const pre = VARIANTS.map(v => [v, vprefix(v)]);
+  VARIANTS.forEach(v => placed.set(v.id, new Set()));
+  for(const k of keys) for(const [v, p] of pre) if(k.startsWith(p)){ const c = k.slice(p.length); if(byCover.has(c)) placed.get(v.id).add(c); }
+  const tb = $('mapTable').querySelector('tbody');
+  const was = new Map([...tb.querySelectorAll('input')].map(i => [i.value, i.checked]));
+  tb.innerHTML = '';
+  VARIANTS.forEach(v => {
+    const n = placed.get(v.id).size, full = n >= covers.length;
+    const tr = document.createElement('tr');
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = v.id; cb.disabled = full;
+    cb.checked = !full && (was.has(v.id) ? was.get(v.id) : DEFAULT_BUILD.has(v.id));
+    const td0 = document.createElement('td'); td0.append(cb);
+    tr.append(td0);
+    [MODELS[v.m].name, CROPS[v.c], `${n.toLocaleString()} / ${covers.length.toLocaleString()}${full ? '（済み）' : ''}`].forEach(t => { const td = document.createElement('td'); td.textContent = t; tr.append(td); });
+    tb.append(tr);
+  });
+  $('mapInfo').textContent = `画像のあるブックマーク ${covers.length.toLocaleString()} 枚。「全体＋何か所か」は1枚を何回か AI に見せるので、AI の時間が数倍かかります。`;
   $('buildMap').disabled = false;
-  $('buildMap').textContent = done ? (done < covers.length ? '続きを置く' : '置き直さずに確かめる') : '地図を作る';
-  $('simRandom').disabled = !done;
-  $('simLiked').hidden = !done || !likedCovers().length;
-  return done;
+  const sel = $('simMap'), cur = sel.value;
+  sel.innerHTML = '';
+  VARIANTS.filter(v => placed.get(v.id).size).forEach(v => { const o = document.createElement('option'); o.value = v.id; o.textContent = `${v.name}（${placed.get(v.id).size.toLocaleString()}枚）`; sel.append(o); });
+  if([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  const any = sel.options.length > 0;
+  $('simRandom').disabled = !any; $('simEval').disabled = !any; $('simCompare').disabled = !any || !simHist.length;
+  $('simLiked').hidden = !any || !likedCovers().length;
 }
-// ♥ したもの（本体の保存データから読むだけ）
 function likedCovers(){
   let heat = {}; try{ heat = JSON.parse(localStorage.getItem('rdshuffle:heat') || '{}') || {}; }catch(e){}
   return items.filter(it => it.c && heat[it.i] && heat[it.i][0] > 0).map(it => it.c);
 }
+
+// ---- 地図を作る ----
 $('stopMap').addEventListener('click', () => { mapStop = true; });
 $('buildMap').addEventListener('click', async () => {
+  const sel = [...$('mapTable').querySelectorAll('input:checked')].map(i => vById(i.value));
+  if(!sel.length){ $('mapStatus').textContent = '作る地図を選んでください。'; return; }
   mapStop = false;
   const st = t => { $('mapStatus').textContent = t; };
   $('buildMap').disabled = true; $('stopMap').hidden = false; $('mapProg').hidden = false;
-  // 画面が消えると止まるので、置いている間は画面を点けたままにする（できるブラウザだけ）
   let lock = null; try{ lock = await navigator.wakeLock.request('screen'); }catch(e){}
   const lines = [];
   try{
-    st('AI を読み込み中…');
-    await loadModel(st);
-    const have = new Set(await idb.keys());
-    const todo = covers.filter(c => !have.has(keyOf(c)));
+    for(const m of new Set(sel.map(v => v.m))) await loadModelFor(m, st);
+    const todo = covers.filter(c => sel.some(v => !placed.get(v.id).has(c)));
     let next = 0, done = 0, fail = 0;
     const t0 = performance.now();
     const show = () => {
       const n = done + fail, secs = (performance.now() - t0) / 1000;
       $('mapProg').value = todo.length ? n / todo.length : 1;
       const left = n > 5 ? secs / n * (todo.length - n) : 0;
-      st(`地図に置いています… ${n.toLocaleString()} / ${todo.length.toLocaleString()}（1枚 ${n ? (secs / n).toFixed(2) : '-'} 秒${left ? `・あと約 ${Math.ceil(left / 60)} 分` : ''}）`);
+      st(`地図に置いています… ${n.toLocaleString()} / ${todo.length.toLocaleString()}（${sel.length}種類・1枚 ${n ? (secs / n).toFixed(2) : '-'} 秒${left ? `・あと約 ${Math.ceil(left / 60)} 分` : ''}）`);
     };
-    // 画像の取得は6枚ずつ同時に進める
     const worker = async () => {
       while(!mapStop && next < todo.length){
         const c = todo[next++];
-        try{ const v = await embedCover(c); await idb.set(keyOf(c), v); done++; }
-        catch(e){ fail++; }
+        try{
+          const blob = window.LAB_FAKE ? null : await coverBlob(c);
+          // 画像は1回だけ取って、選んだ地図それぞれに置く（AI が違えば同時に進む）
+          await Promise.all(sel.filter(v => !placed.get(v.id).has(c)).map(async v => {
+            const vec = window.LAB_FAKE ? await window.LAB_FAKE.embed(small(c), v.m, v.c) : await embedWith(v.m, blob, v.c);
+            await idb.set(vprefix(v) + c, vec);
+            placed.get(v.id).add(c);
+          }));
+          done++;
+        }catch(e){ fail++; }
         show();
       }
     };
     await Promise.all(Array.from({ length:6 }, worker));
     const secs = (performance.now() - t0) / 1000;
-    lines.push(`地図: ${done} 枚を置いた・読めなかった ${fail} 枚・${Math.round(secs)} 秒（1枚 ${done + fail ? (secs / (done + fail)).toFixed(2) : '-'} 秒）・${device}`);
+    lines.push(`地図: ${sel.map(v => v.id).join(', ')} に ${done} 枚を置いた・読めなかった ${fail} 枚・${Math.round(secs)} 秒（1枚 ${done + fail ? (secs / (done + fail)).toFixed(2) : '-'} 秒）・${sel.map(v => loaded[v.m].device).filter((x, i, a) => a.indexOf(x) === i).join(' / ')}`);
     lines.push(`取り方: 元のサイトから直接 ${via.direct}・縮小サービス ${via.wsrv}・元の画像 ${via.orig}`);
-    st(mapStop ? '止めました。「続きを置く」で、ここから再開できます。' : '置き終わりました。');
+    st(mapStop ? '止めました。もう一度押すと、ここから再開します。' : '置き終わりました。');
   }catch(e){
     lines.push('地図づくりでうまく動きませんでした: ' + (e && e.message || e));
     st('うまく動きませんでした。「結果をコピー」で Claude に貼ってください。');
@@ -535,26 +652,147 @@ $('buildMap').addEventListener('click', async () => {
   try{ lock && lock.release(); }catch(e){}
   report.map = [report.map, ...lines].filter(Boolean).join('\n');
   $('stopMap').hidden = true;
-  mapVecs = null;
+  entriesCache = null; indexCache.clear();
   await refreshMapInfo();
 });
-async function loadMapVecs(){
-  if(mapVecs) return mapVecs;
-  const want = new Set(covers.map(keyOf));
-  const pre = keyOf('');
-  mapVecs = (await idb.all()).filter(([k]) => want.has(k)).map(([k, v]) => ({ c:k.slice(pre.length), v }));
-  return mapVecs;
+
+// ---- 地図を読む ----
+async function entriesOf(vid){
+  if(!entriesCache){
+    entriesCache = new Map(VARIANTS.map(v => [v.id, []]));
+    const pre = VARIANTS.map(v => [v, vprefix(v)]);
+    for(const [k, vec] of await idb.all()) for(const [v, p] of pre) if(k.startsWith(p)){ const c = k.slice(p.length); if(byCover.has(c)) entriesCache.get(v.id).push({ c, v:vec }); }
+  }
+  return entriesCache.get(vid);
 }
-const shortTag = t => t.split(' - ').pop();
-function nearest(center, k){
-  const out = [];
-  for(const e of mapVecs){
-    if(e.c === center.c) continue;
-    let s = 0; const a = center.v, b = e.v; for(let i = 0; i < a.length; i++) s += a[i] * b[i];
-    if(out.length < k || s > out[out.length - 1][0]){ out.push([s, e]); out.sort((x, y) => y[0] - x[0]); if(out.length > k) out.pop(); }
+
+// ---- あなたのタグで地図を曲げる ----
+// 画像の位置から「あなたならどのタグを付けるか」を予測する式を、タグ付きのもので作る（リッジ回帰）。
+// 予測したタグの並びを、画像の位置の後ろに足して、それで近さを測る。タグなしのものにも使える
+function gram(rows, d1, T){
+  const A = new Float64Array(d1 * d1), B = new Float64Array(d1 * T);
+  const xr = new Float64Array(d1);
+  for(const r of rows){
+    for(let i = 0; i < d1 - 1; i++) xr[i] = r.x[i]; xr[d1 - 1] = 1;
+    for(let i = 0; i < d1; i++){
+      const xi = xr[i], off = i * d1;
+      for(let j = i; j < d1; j++) A[off + j] += xi * xr[j];
+      const bo = i * T; for(const t of r.y) B[bo + t] += xi;
+    }
+  }
+  return { A, B };
+}
+function solve(A0, B, d1, T, lambda){
+  const A = Float64Array.from(A0);
+  for(let i = 0; i < d1; i++) for(let j = 0; j < i; j++) A[i * d1 + j] = A[j * d1 + i];
+  for(let i = 0; i < d1 - 1; i++) A[i * d1 + i] += lambda;
+  A[(d1 - 1) * d1 + d1 - 1] += 1e-6;
+  // コレスキー分解（A = L Lᵀ）
+  for(let j = 0; j < d1; j++){
+    let s = A[j * d1 + j];
+    for(let k = 0; k < j; k++) s -= A[j * d1 + k] * A[j * d1 + k];
+    const Ljj = Math.sqrt(Math.max(s, 1e-12)); A[j * d1 + j] = Ljj;
+    for(let i = j + 1; i < d1; i++){
+      let t = A[i * d1 + j];
+      for(let k = 0; k < j; k++) t -= A[i * d1 + k] * A[j * d1 + k];
+      A[i * d1 + j] = t / Ljj;
+    }
+  }
+  const W = new Float64Array(d1 * T), y = new Float64Array(d1);
+  for(let t = 0; t < T; t++){
+    for(let i = 0; i < d1; i++){ let s = B[i * T + t]; for(let k = 0; k < i; k++) s -= A[i * d1 + k] * y[k]; y[i] = s / A[i * d1 + i]; }
+    for(let i = d1 - 1; i >= 0; i--){ let s = y[i]; for(let k = i + 1; k < d1; k++) s -= A[k * d1 + i] * W[k * T + t]; W[i * T + t] = s / A[i * d1 + i]; }
+  }
+  return W;
+}
+const predict = (x, W, d1, T) => { const z = new Float64Array(T); for(let i = 0; i < d1; i++){ const xi = i < d1 - 1 ? x[i] : 1; if(!xi) continue; const o = i * T; for(let t = 0; t < T; t++) z[t] += xi * W[o + t]; } return z; };
+function corr(a, b){
+  const n = a.length; let ma = 0, mb = 0; for(let i = 0; i < n; i++){ ma += a[i]; mb += b[i]; } ma /= n; mb /= n;
+  let sab = 0, saa = 0, sbb = 0; for(let i = 0; i < n; i++){ const x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; }
+  return saa && sbb ? sab / Math.sqrt(saa * sbb) : 0;
+}
+async function fitBend(entries, exclude, st){
+  const rowsAll = entries.filter(e => info.get(e.c).tags.size && !exclude.has(e.c));
+  const cnt = new Map(); rowsAll.forEach(e => info.get(e.c).tags.forEach(t => cnt.set(t, (cnt.get(t) || 0) + 1)));
+  const tags = [...cnt].filter(([, n]) => n >= 5).map(([t]) => t);
+  const T = tags.length, ti = new Map(tags.map((t, i) => [t, i]));
+  if(!T || rowsAll.length < 30) return null;
+  const d = entries[0].v.length, d1 = d + 1;
+  const rows = rowsAll.map(e => ({ c:e.c, x:e.v, y:[...info.get(e.c).tags].filter(t => ti.has(t)).map(t => ti.get(t)) }));
+  const hold = rows.filter(r => hash(r.c) % 5 === 1), rest = rows.filter(r => hash(r.c) % 5 !== 1);
+  st && st('あなたのタグで地図を調整しています…'); await yieldUI();
+  const gh = gram(hold, d1, T); await yieldUI();
+  const gr = gram(rest, d1, T); await yieldUI();
+  // 強さ（λ）を3通り試して、取り分けたもので一番当たるものを選ぶ
+  let best = null;
+  for(const lambda of [0.5, 2, 8]){
+    const W = solve(gr.A, gr.B, d1, T, lambda);
+    const P = hold.map(r => predict(r.x, W, d1, T));
+    const cs = tags.map((t, k) => corr(P.map(z => z[k]), hold.map(r => r.y.includes(k) ? 1 : 0)));
+    const mean = cs.reduce((a, b) => a + b, 0) / T;
+    if(!best || mean > best.mean) best = { lambda, cs, mean };
+    await yieldUI();
+  }
+  const A = gr.A.map((v, i) => v + gh.A[i]), B = gr.B.map((v, i) => v + gh.B[i]);
+  const W = solve(A, B, d1, T, best.lambda);
+  // よく当たるタグほど重く。当たらないタグ（見た目と関係ないもの）は使わない
+  const q = best.cs.map(c => Math.max(0, c - 0.1));
+  return { W, d1, T, tags, q, lambda:best.lambda, used:tags.map((t, k) => ({ t, c:best.cs[k] })).filter((x, k) => q[k] > 0).sort((a, b) => b.c - a.c) };
+}
+function bendVecs(entries, fit, w){
+  const Z = entries.map(e => predict(e.v, fit.W, fit.d1, fit.T));
+  const mu = new Float64Array(fit.T), sd = new Float64Array(fit.T);
+  Z.forEach(z => { for(let t = 0; t < fit.T; t++) mu[t] += z[t]; }); for(let t = 0; t < fit.T; t++) mu[t] /= Z.length;
+  Z.forEach(z => { for(let t = 0; t < fit.T; t++) sd[t] += (z[t] - mu[t]) ** 2; }); for(let t = 0; t < fit.T; t++) sd[t] = Math.sqrt(sd[t] / Z.length) || 1;
+  return entries.map((e, k) => {
+    const z = new Float32Array(fit.T); for(let t = 0; t < fit.T; t++) z[t] = (Z[k][t] - mu[t]) / sd[t] * fit.q[t];
+    unit(z);
+    const out = new Float32Array(e.v.length + fit.T);
+    for(let i = 0; i < e.v.length; i++) out[i] = (1 - w) * e.v[i];
+    for(let t = 0; t < fit.T; t++) out[e.v.length + t] = w * z[t];
+    return unit(out);
+  });
+}
+// 並べ方に合わせた位置の一覧を作る（曲げた地図は計算に1〜数秒）
+async function indexFor(vid, rank, w, exclude = new Set(), st){
+  const key = [vid, rank, w, exclude.size].join('|');
+  if(indexCache.has(key)) return indexCache.get(key);
+  const entries = await entriesOf(vid);
+  let vecs = entries.map(e => e.v), fit = null;
+  if(rank === 'bend' || rank === 'bendboost'){
+    fit = await fitBend(entries, exclude, st);
+    if(fit) vecs = bendVecs(entries, fit, w);
+  }
+  const idx = { vid, rank, entries, vecs, fit, boost:rank === 'boost' || rank === 'bendboost', pos:new Map(entries.map((e, i) => [e.c, i])) };
+  indexCache.set(key, idx);
+  return idx;
+}
+// 同じタグ・作者の上乗せ（珍しいタグの一致ほど大きく）
+function bonus(a, b){
+  const A = info.get(a), B = info.get(b); let s = 0;
+  if(A.tags.size && B.tags.size){
+    let inter = 0, uni = 0; const all = new Set([...A.tags, ...B.tags]);
+    all.forEach(t => { const w = idf(t); uni += w; if(A.tags.has(t) && B.tags.has(t)) inter += w; });
+    s += 0.15 * (uni ? inter / uni : 0);
+  }
+  if(A.author && A.author === B.author) s += 0.05;
+  return s;
+}
+function nearestIn(idx, qc, k, keep = null){
+  const qi = idx.pos.get(qc); if(qi == null) return [];
+  const q = idx.vecs[qi], out = [];
+  for(let i = 0; i < idx.entries.length; i++){
+    if(i === qi) continue;
+    const c = idx.entries[i].c; if(keep && !keep(c)) continue;
+    const b = idx.vecs[i]; let s = 0; for(let j = 0; j < q.length; j++) s += q[j] * b[j];
+    if(idx.boost) s += bonus(qc, c);
+    if(out.length < k || s > out[out.length - 1][0]){ out.push([s, c]); out.sort((x, y) => y[0] - x[0]); if(out.length > k) out.pop(); }
   }
   return out;
 }
+
+// ---- 見る ----
+const shortTag = t => t.split(' - ').pop();
 function imgEl(c, alt){
   const img = document.createElement('img'); img.loading = 'lazy'; img.alt = alt || '';
   img.src = directSmall(c) || small(c);
@@ -563,49 +801,131 @@ function imgEl(c, alt){
 }
 function tagsEl(g, same){
   const box = document.createElement('div'); box.className = 'tags';
-  (g || []).forEach(t => { const s = document.createElement('span'); s.textContent = shortTag(t); s.title = t; if(same && same.has(t)) s.className = 'same'; box.append(s); });
+  [...(g || [])].forEach(t => { const s = document.createElement('span'); s.textContent = shortTag(t); s.title = t; if(same && same.has(t)) s.className = 'same'; box.append(s); });
   return box;
 }
-function showSim(entry, push = true){
-  if(push) simHist.push(entry);
-  $('simBack').hidden = simHist.length < 2;
-  const its = byCover.get(entry.c) || [];
-  const it = its[0] || {};
-  const tagSet = new Set(its.flatMap(x => x.g || []));
+const cur = () => ({ vid:$('simMap').value, rank:$('simRank').value, w:+$('bendW').value });
+async function showSim(c, push = true){
+  if(push) simHist.push(c);
+  $('simBack').hidden = simHist.length < 2; $('simCompare').disabled = false;
+  const { vid, rank, w } = cur();
+  const st = t => { $('simStatus').textContent = t; };
+  const idx = await indexFor(vid, rank, w, new Set(), st); st('');
+  const its = byCover.get(c) || [], it = its[0] || {}, me = info.get(c);
   const view = $('simView'); view.innerHTML = '';
   const head = document.createElement('div'); head.className = 'sim-center';
   const meta = document.createElement('div'); meta.className = 'meta';
   const b = document.createElement('b'); b.textContent = it.t || '（タイトルなし）';
   const a = document.createElement('a'); a.href = it.l || '#'; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = '元のページを開く';
-  meta.append(b, tagsEl([...tagSet]), a);
-  head.append(imgEl(entry.c, it.t), meta);
+  meta.append(b, tagsEl(me.tags), a);
+  head.append(imgEl(c, it.t), meta);
+  view.append(head);
+  if(!idx.pos.has(c)){ const p = document.createElement('p'); p.className = 'sub'; p.textContent = 'この画像は、選んでいる地図にまだ置いていません。'; view.append(p); return; }
+  const t0 = performance.now(); const near = nearestIn(idx, c, 24); const ms = Math.round(performance.now() - t0);
+  const note = document.createElement('p'); note.className = 'sub';
+  note.textContent = `${vById(vid).name}・${$('simRank').selectedOptions[0].textContent}。${idx.entries.length.toLocaleString()} 枚から近い順に24枚（${ms}ms）。緑の枠は真ん中と同じタグ。画像を押すと、それを真ん中にしてたどれます。` + (idx.fit === null && (rank === 'bend' || rank === 'bendboost') ? '（タグ付きのものが少なくて曲げられなかったので、画像の近さだけで並べています）' : '');
+  view.append(note, gridOf(near, me.tags));
+}
+function gridOf(near, tagSet, limit){
   const grid = document.createElement('div'); grid.className = 'simgrid';
-  const t0 = performance.now();
-  const near = nearest(entry, 24);
-  const ms = Math.round(performance.now() - t0);
-  near.forEach(([s, e]) => {
-    const x = (byCover.get(e.c) || [])[0] || {};
-    const btn = document.createElement('button'); btn.type = 'button'; btn.title = (x.t || '') + '（押すと、これを中心にする）';
+  near.slice(0, limit || near.length).forEach(([s, c]) => {
+    const x = (byCover.get(c) || [])[0] || {};
+    const btn = document.createElement('button'); btn.type = 'button'; btn.title = (x.t || '') + '（押すと、これを真ん中にする）';
     const pct = document.createElement('span'); pct.className = 'pct'; pct.textContent = `近さ ${Math.round(s * 100)}`;
-    btn.append(imgEl(e.c, x.t), pct, tagsEl(x.g, tagSet));
-    btn.addEventListener('click', () => { showSim(e); view.scrollIntoView({ behavior:'smooth', block:'start' }); });
+    btn.append(imgEl(c, x.t), pct, tagsEl(info.get(c).tags, tagSet));
+    btn.addEventListener('click', () => { showSim(c); $('simView').scrollIntoView({ behavior:'smooth', block:'start' }); });
     grid.append(btn);
   });
-  const note = document.createElement('p'); note.className = 'sub';
-  note.textContent = `地図に置いた ${mapVecs.length.toLocaleString()} 枚から、近い順に24枚（探すのにかかった時間 ${ms}ms）。緑の枠のタグは、真ん中のものと同じタグ。並んでいる画像を押すと、それを真ん中にしてたどれます。`;
-  view.append(head, note, grid);
+  return grid;
 }
+// 同じ1枚で、置いてある地図と並べ方を並べて比べる（それぞれ近い8枚）
+$('simCompare').addEventListener('click', async () => {
+  const c = simHist[simHist.length - 1]; if(!c) return;
+  const st = t => { $('simStatus').textContent = t; };
+  const { w } = cur();
+  const view = $('simView'); view.querySelectorAll('.cmp').forEach(x => x.remove());
+  const box = document.createElement('div'); box.className = 'cmp';
+  const rows = [];
+  VARIANTS.filter(v => placed.get(v.id).has(c)).forEach(v => rows.push([v.id, 'img']));
+  const v0 = cur().vid; ['bend', 'boost'].forEach(r => rows.push([v0, r]));
+  const rankName = r => $('simRank').querySelector(`option[value="${r}"]`).textContent;
+  for(const [vid, rank] of rows){
+    const idx = await indexFor(vid, rank, w, new Set(), st);
+    const h = document.createElement('h3'); h.textContent = `${vById(vid).name}・${rankName(rank)}`;
+    box.append(h, gridOf(nearestIn(idx, c, 8), info.get(c).tags));
+  }
+  st('');
+  view.append(box);
+  box.scrollIntoView({ behavior:'smooth', block:'start' });
+});
 $('simRandom').addEventListener('click', async () => {
-  await loadMapVecs(); if(!mapVecs.length) return;
-  showSim(mapVecs[Math.floor(Math.random() * mapVecs.length)]);
+  const es = await entriesOf(cur().vid); if(!es.length) return;
+  showSim(es[Math.floor(Math.random() * es.length)].c);
 });
 $('simLiked').addEventListener('click', async () => {
-  await loadMapVecs();
-  const liked = new Set(likedCovers());
-  const pool = mapVecs.filter(e => liked.has(e.c));
-  if(pool.length) showSim(pool[Math.floor(Math.random() * pool.length)]);
+  const es = await entriesOf(cur().vid); const liked = new Set(likedCovers());
+  const pool = es.filter(e => liked.has(e.c)); if(pool.length) showSim(pool[Math.floor(Math.random() * pool.length)].c);
 });
-$('simBack').addEventListener('click', () => { simHist.pop(); const e = simHist[simHist.length - 1]; if(e) showSim(e, false); });
+$('simBack').addEventListener('click', () => { simHist.pop(); const c = simHist[simHist.length - 1]; if(c) showSim(c, false); });
+['simMap', 'simRank', 'bendW'].forEach(id => $(id).addEventListener('change', () => { const c = simHist[simHist.length - 1]; if(c) showSim(c, false); }));
+
+// ---- 数字で比べる ----
+$('simEval').addEventListener('click', async () => {
+  const st = t => { $('evalStatus').textContent = t; };
+  $('simEval').disabled = true;
+  const lines = [], rowsOut = [];
+  try{
+    const w = +$('bendW').value;
+    const ready = VARIANTS.filter(v => placed.get(v.id).size >= covers.length * 0.8);
+    if(!ready.length){ st('8割以上置いてある地図がまだありません。'); return; }
+    // 問題：タグ付きのものの5分の1（毎回同じ）。最大400問
+    const allTagged = covers.filter(c => info.get(c).tags.size);
+    const qs = allTagged.filter(c => hash(c) % 5 === 0).slice(0, 400), qset = new Set(qs);
+    const overlap = (q, c) => { const A = info.get(q).tags, B = info.get(c).tags; let s = 0, all = 0; A.forEach(t => { const x = idf(t); all += x; if(B.has(t)) s += x; }); return all ? s / all : 0; };
+    // 何も見ずに10枚選んだ場合（目安）
+    let base = 0; qs.forEach((q, i) => { let s = 0; for(let k = 0; k < 10; k++) s += overlap(q, allTagged[hash(q + k) % allTagged.length]); base += s / 10; });
+    base /= qs.length || 1;
+    const rankName = r => $('simRank').querySelector(`option[value="${r}"]`).textContent;
+    let bestFit = null;
+    for(const v of ready){
+      for(const rank of ['img', 'bend', 'boost', 'bendboost']){
+        st(`測っています… ${v.name}・${rankName(rank)}`); await yieldUI();
+        const idx = await indexFor(v.id, rank, w, qset, null);
+        if(idx.fit && (!bestFit || idx.fit.used.length > bestFit.used.length)) bestFit = { ...idx.fit, name:v.name };
+        let score = 0, n = 0;
+        for(const q of qs){
+          if(!idx.pos.has(q)) continue;
+          const near = nearestIn(idx, q, 10, c => info.get(c).tags.size > 0);
+          if(!near.length) continue;
+          score += near.reduce((s, [, c]) => s + overlap(q, c), 0) / near.length; n++;
+        }
+        rowsOut.push({ name:v.name, rank, score:n ? score / n : 0, n, ref:rank === 'boost' || rank === 'bendboost' });
+        await yieldUI();
+      }
+    }
+    rowsOut.sort((a, b) => (a.ref - b.ref) || (b.score - a.score));
+    const pct = x => Math.round(x * 100);
+    lines.push(`数字で比べる（問題 ${qs.length} 問・近い10枚のタグの一致度。珍しいタグほど重い）`);
+    lines.push(`何も見ずに10枚選んだ場合: ${pct(base)}%`);
+    rowsOut.forEach(r => lines.push(`${r.name}・${rankName(r.rank)}: ${pct(r.score)}%${r.ref ? '（タグを直接使うので参考）' : ''}`));
+    if(bestFit){
+      lines.push('', `曲げるときに使えたタグ（画像から当てやすい順・${bestFit.name}）:`);
+      bestFit.used.slice(0, 40).forEach(u => lines.push(`  ${u.t}: ${u.c.toFixed(2)}`));
+      lines.push(`  ほか ${Math.max(0, bestFit.used.length - 40)} 個。使えなかったタグ ${bestFit.T - bestFit.used.length} 個`);
+    }
+    const bar = v => `<span class="bar" style="width:${Math.max(2, v * 1.2)}px"></span>${v}%`;
+    $('evalOut').innerHTML = `<div class="big"><div><b>${pct(base)}%</b><span>何も見ずに選んだ場合</span></div></div>
+      <div class="tbl"><table><thead><tr><th>地図</th><th>並べ方</th><th>一致度</th></tr></thead><tbody>
+      ${rowsOut.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(rankName(r.rank))}${r.ref ? '<br><span class="sub">タグを直接使うので参考</span>' : ''}</td><td>${bar(pct(r.score))}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${bestFit ? `<h3>画像から当てやすかったタグ</h3><p class="sub">曲げた地図で使ったタグと、画像からの当たりやすさ（1に近いほどよく当たる）。下のほうのタグや、ここにないタグは、見た目からは分かりにくいタグです。</p><pre>${esc(bestFit.used.slice(0, 40).map(u => `${u.t}  ${u.c.toFixed(2)}`).join('\n'))}</pre>` : ''}`;
+    st('終わりました。');
+  }catch(e){
+    lines.push('測るところでうまく動きませんでした: ' + (e && e.message || e));
+    st('うまく動きませんでした。「結果をコピー」で Claude に貼ってください。');
+  }finally{ $('simEval').disabled = false; }
+  report.map = [report.map, ...lines].filter(Boolean).join('\n');
+});
 refreshMapInfo();
 
 function esc(s){ return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]); }
