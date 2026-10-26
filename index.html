@@ -3382,6 +3382,7 @@ async function labVectors(){
   return out;
 }
 const labSet = (c, v) => idbDo('rdlab', 'emb', 'readwrite', s => s.put(v, MAP_LAB_PREFIX + c)).catch(() => null);
+const labGet = c => idbDo('rdlab', 'emb', 'readonly', s => s.get(MAP_LAB_PREFIX + c)).catch(() => null);
 function setMapInfo(rec){ store.set('mapinfo', rec ? { n:rec.n, at:rec.at } : null); updateMapState(); }
 
 // ---- 画像の AI（地図を作るときと、地図にない画像を足すときだけ。テストでは window.RD_FAKE_EMBED）----
@@ -3501,9 +3502,24 @@ function decodeMap(rec){
   return { at:rec.at, n, dims, ids:rec.ids, V, pos };
 }
 
-// ---- Raindrop に置く・読む（1件1万文字までなので分ける。1番目に説明、2番目から中身）----
+// ---- Raindrop に置く・読む（1件1万文字までなので分ける）----
+// 1番目に説明、2番目から縮め方（Mac で作り直したときに決まる。どの端末でも新着を足せるように）、そのあとに中身（1件 99 枚分）。
+// 縮め方の件数は決まっているので、新着を足しても書き換わるのは最後の中身と説明だけ
 const b64of = u8 => { let s = ''; for(let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
 const u8of = b64 => Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+const MAP_PART = 6750;   // 1件に入れるバイト数（文字にすると9,000字）
+// 縮め方（平均と方向）を 2 バイトずつに。どれも -1〜1 の範囲に収まる
+function encodeRecipe(mean, basis){
+  const all = new Float32Array(mean.length + basis.length); all.set(mean); all.set(basis, mean.length);
+  const u = new Uint8Array(all.length * 2), dv = new DataView(u.buffer);
+  for(let i = 0; i < all.length; i++) dv.setInt16(i * 2, Math.max(-32767, Math.min(32767, Math.round(all[i] * 32767))), true);
+  return u;
+}
+function decodeRecipe(u, d, k){
+  const dv = new DataView(u.buffer, u.byteOffset, u.byteLength), all = new Float32Array(d + d * k);
+  for(let i = 0; i < all.length; i++) all[i] = dv.getInt16(i * 2, true) / 32767;
+  return { mean:all.slice(0, d), basis:all.slice(d) };
+}
 async function mapColl(create){
   if(mapRef && mapRef.coll) return mapRef.coll;
   const roots = await api('/collections');
@@ -3519,43 +3535,49 @@ async function mapParts(coll){
   for(let page = 0; page < 20; page++){
     const r = await api(`/raindrops/${coll}?perpage=50&page=${page}`);
     const its = r.items || [];
-    its.filter(x => typeof x.link === 'string' && x.link.startsWith(MAP_LINK)).forEach(x => out.push({ id:x._id, n:Number((x.link.slice(MAP_LINK.length).match(/^-(\d+)$/) || [])[1] || 1), note:x.note || '' }));
+    its.forEach(x => {
+      if(typeof x.link !== 'string' || !x.link.startsWith(MAP_LINK)) return;
+      const rest = x.link.slice(MAP_LINK.length), m = rest.match(/^-(\d+)$/);
+      if(rest && !m) return;
+      out.push({ id:x._id, n:m ? Number(m[1]) : 1, note:x.note || '' });
+    });
     if(its.length < 50) break;
   }
   return out.sort((a, b) => a.n - b.n);
 }
 async function readRemoteMap(){
-  let coll;
-  try{ coll = await mapColl(false); }catch(e){ return null; }
+  const coll = await mapColl(false);
   if(!coll) return null;
   let parts;
-  try{ parts = await mapParts(coll); }catch(e){ if(e.message === 'http'){ mapRef = null; store.del('mapref'); } return null; }
+  try{ parts = await mapParts(coll); }catch(e){ if(e.message === 'http'){ mapRef = null; store.del('mapref'); } throw e; }
   const head = parts.find(p => p.n === 1); if(!head) return null;
   let h; try{ h = JSON.parse(head.note); }catch(e){ return null; }
-  if(!h || h.v !== 1) return null;
-  const row = 4 + h.dims, buf = new Uint8Array(h.n * row);
-  let off = 0;
-  for(let k = 2; k <= h.parts + 1; k++){
-    const p = parts.find(x => x.n === k); if(!p) return null;
-    const u = u8of(p.note); buf.set(u, off); off += u.length;
-  }
-  if(off !== buf.length) return null;
+  if(!h || (h.v !== 1 && h.v !== 2)) return null;
+  const rparts = h.rparts || 0;
+  const join = (from, count) => { const us = []; for(let k = from; k < from + count; k++){ const p = parts.find(x => x.n === k); if(!p) return null; us.push(u8of(p.note)); } const u = new Uint8Array(us.reduce((a, x) => a + x.length, 0)); let o = 0; us.forEach(x => { u.set(x, o); o += x.length; }); return u; };
+  const buf = join(2 + rparts, h.parts);
+  const row = 4 + h.dims;
+  if(!buf || buf.length !== h.n * row) return null;
   const dv = new DataView(buf.buffer), ids = new Array(h.n), q = new Int8Array(h.n * h.dims);
   for(let r = 0; r < h.n; r++){ ids[r] = dv.getUint32(r * row, true); for(let j = 0; j < h.dims; j++) q[r * h.dims + j] = dv.getInt8(r * row + 4 + j); }
-  return { v:1, at:h.at, n:h.n, dims:h.dims, ids, q, scale:Float32Array.from(h.scale) };
+  const rec = { v:1, at:h.at, rb:h.rb || 0, baseN:h.baseN || 0, n:h.n, dims:h.dims, ids, q, scale:Float32Array.from(h.scale) };
+  if(rparts && h.src){ const u = join(2, rparts); if(u){ Object.assign(rec, decodeRecipe(u, h.src, h.dims)); } }
+  return rec;
 }
 async function writeRemoteMap(rec, st){
   const coll = await mapColl(true);
   const parts = await mapParts(coll);
-  const row = 4 + rec.dims, perPart = Math.floor(6750 / row);
+  const row = 4 + rec.dims, perPart = Math.floor(MAP_PART / row);
+  const rnotes = [];
+  if(rec.basis){ const u = encodeRecipe(rec.mean, rec.basis); for(let o = 0; o < u.length; o += MAP_PART) rnotes.push(b64of(u.subarray(o, o + MAP_PART))); }
   const notes = [];
   for(let r0 = 0; r0 < rec.n; r0 += perPart){
     const r1 = Math.min(rec.n, r0 + perPart), u = new Uint8Array((r1 - r0) * row), dv = new DataView(u.buffer);
     for(let r = r0; r < r1; r++){ const o = (r - r0) * row; dv.setUint32(o, rec.ids[r], true); for(let j = 0; j < rec.dims; j++) dv.setInt8(o + 4 + j, rec.q[r * rec.dims + j]); }
     notes.push(b64of(u));
   }
-  const head = JSON.stringify({ v:1, at:rec.at, n:rec.n, dims:rec.dims, parts:notes.length, scale:[...rec.scale].map(x => +x.toPrecision(6)), model:'dinov2-small#mc' });
-  const all = [head, ...notes];
+  const head = JSON.stringify({ v:2, at:rec.at, rb:rbOf(rec), baseN:rec.baseN || 0, n:rec.n, dims:rec.dims, src:rec.mean ? rec.mean.length : 0, rparts:rnotes.length, parts:notes.length, scale:[...rec.scale].map(x => +x.toPrecision(6)), model:'dinov2-small#mc' });
+  const all = [head, ...rnotes, ...notes];
   const byN = new Map(parts.map(x => [x.n, x]));
   const top = Math.max(all.length, ...parts.map(x => x.n), 1);
   let writes = 0;
@@ -3572,19 +3594,88 @@ async function writeRemoteMap(rec, st){
   return writes;
 }
 
-// ---- 地図を用意する（手元 → なければ／古ければ Raindrop から）----
+// ---- 手元の地図と Raindrop の地図を合わせる ----
+// 縮め方（rb = 作り直した時刻）が同じなら、行（ブックマークごと）を合わせる：Raindrop の並びを基本に、
+// 手元で足した・置き直した行（dirty）は手元のものを使い、手元にしかない行は後ろに足す。
+// 縮め方が違えば、新しく作り直した方を取る（古い縮め方で足した行は、元の数字が残っていれば足し直す）
+const rbOf = rec => rec ? (rec.rb || (rec.basis ? 1 : 0)) : -1;
+function mergeMaps(local, remote){
+  if(!remote) return local;
+  if(!local) return remote;
+  if(rbOf(remote) !== rbOf(local)) return rbOf(remote) > rbOf(local) ? { ...remote, dirty:[] } : local;
+  const d = remote.dims, dirty = new Set(local.dirty || []);
+  const lpos = new Map(local.ids.map((id, r) => [id, r]));
+  const cvOf = new Map((local.cv || []).map((c, r) => [local.ids[r], c]));
+  const ids = remote.ids.slice(), seen = new Set(ids);
+  local.ids.forEach(id => { if(!seen.has(id)){ ids.push(id); seen.add(id); } });
+  const rpos = new Map(remote.ids.map((id, r) => [id, r]));
+  const q = new Int8Array(ids.length * d);
+  ids.forEach((id, r) => {
+    const fromLocal = dirty.has(id) || !rpos.has(id);
+    q.set(fromLocal ? local.q.subarray(lpos.get(id) * d, lpos.get(id) * d + d) : remote.q.subarray(rpos.get(id) * d, rpos.get(id) * d + d), r * d);
+  });
+  return { ...remote, mean:local.mean || remote.mean, basis:local.basis || remote.basis, at:Math.max(local.at, remote.at), n:ids.length, ids, q, cv:ids.map(id => cvOf.get(id) || null), dirty:[...dirty] };
+}
+// Raindrop に足りない分があるか（手元で足した行がある、または手元にしかない行がある）
+const needsUpload = (rec, remote) => !!rec && (!remote || (rec.dirty || []).length > 0 || rbOf(rec) !== rbOf(remote) || rec.n !== remote.n);
+// 地図にまだないが、元の数字が手元にある画像を、縮め方を使って足す（AI は使わない）
+async function fillFromLab(rec){
+  if(!rec || !rec.basis || !cache) return rec;
+  const have = new Set(rec.ids);
+  const todo = cache.items.filter(it => it.c && !have.has(it.i));
+  if(!todo.length) return rec;
+  const add = [];
+  for(const it of todo){ const v = await labGet(it.c); if(v) add.push([it, v]); }
+  if(!add.length) return rec;
+  const d = rec.dims, q = new Int8Array((rec.n + add.length) * d); q.set(rec.q);
+  const ids = rec.ids.slice(), cv = (rec.cv || rec.ids.map(() => null)).slice(), dirty = new Set(rec.dirty || []);
+  add.forEach(([it, v]) => { q.set(quantRow(project(v, rec, v.length, d), rec.scale, d), ids.length * d); ids.push(it.i); cv.push(it.c); dirty.add(it.i); });
+  return { ...rec, n:ids.length, ids, cv, q, dirty:[...dirty] };
+}
+const quantRow = (y, scale, dims) => { const r = new Int8Array(dims); for(let j = 0; j < dims; j++) r[j] = Math.max(-127, Math.min(127, Math.round(y[j] / scale[j]))); return r; };
+function useMap(rec){
+  simMap = decodeMap(rec); simMap.rec = rec; simFit = null;
+  setMapInfo(rec);
+}
+// Raindrop と合わせて、足りない分を書き込む（手元で足したあと、少し待ってから自動で）
+let mapSyncing = null, mapUpTimer = 0;
+function scheduleMapUpload(ms = 5000){ clearTimeout(mapUpTimer); mapUpTimer = setTimeout(() => syncMap().catch(() => {}), ms); }
+function syncMap(st = () => {}){
+  if(mapSyncing) return mapSyncing;
+  mapSyncing = (async () => {
+    const remote = await readRemoteMap();
+    let rec = mergeMaps(await mapLocalGet(), remote);
+    rec = await fillFromLab(rec);
+    if(!rec) return 0;
+    let writes = 0;
+    if(needsUpload(rec, remote)){
+      rec = { ...rec, at:Date.now() };
+      writes = await writeRemoteMap(rec, st);
+      rec = { ...rec, dirty:[] };
+    }
+    await mapLocalSet(rec);
+    if(rec.at > mapKnownAt){ mapKnownAt = rec.at; store.set('mapat', mapKnownAt); }
+    useMap(rec);
+    if(writes) pullSettings();   // ほかの端末に「新しい地図がある」と知らせる
+    return writes;
+  })().finally(() => { mapSyncing = null; });
+  return mapSyncing;
+}
+
+// ---- 地図を用意する（手元 → なければ／古ければ Raindrop から合わせる）----
 async function ensureMap(st){
-  if(simMap && simMap.at >= mapKnownAt) return simMap;
+  if(simMap && simMap.at >= mapKnownAt && mapKnownAt) return simMap;
   let rec = await mapLocalGet();
   if(!rec || rec.at < mapKnownAt || !mapKnownAt){
     st('似ているものの地図を読み込んでいます…');
-    const r = await readRemoteMap().catch(() => null);
-    if(r && (!rec || r.at > rec.at)){ rec = r; await mapLocalSet(rec); }
+    const remote = await readRemoteMap().catch(() => null);
+    const merged = await fillFromLab(mergeMaps(rec, remote));
+    if(merged !== rec){ rec = merged; await mapLocalSet(rec); }
+    if(rec && rec.basis && needsUpload(rec, remote)) scheduleMapUpload(3000);
   }
   if(!rec) return null;
   if(rec.at > mapKnownAt){ mapKnownAt = rec.at; store.set('mapat', mapKnownAt); }
-  setMapInfo(rec);
-  simMap = decodeMap(rec); simMap.rec = rec; simFit = null;
+  useMap(rec);
   return simMap;
 }
 
@@ -3686,28 +3777,27 @@ function nearestSim(it, k){
   return out.map(([, r]) => byId.get(m.ids[r])).filter(Boolean);
 }
 
-// ---- 地図にない画像を足す（地図を作った Mac だけ。縮め方を覚えているので）----
+// ---- 地図にない画像を足す（縮め方が手元にあれば、どの端末でも。足したら少し待って Raindrop にも書く）----
 async function addToMap(it, st){
-  const rec = simMap && simMap.rec;
+  let rec = simMap && simMap.rec;
   if(!rec || !rec.basis || !it.c) return false;
-  await loadDino(st);
-  st('この画像を地図に置いています…');
-  const lab = await labVectors();
-  let v = lab.get(it.c);
-  if(!v){ v = await embedCover(it.c); await labSet(it.c, v); }
-  const y = project(v, { mean:rec.mean, basis:rec.basis }, v.length, rec.dims);
-  const q = new Int8Array(rec.n * rec.dims + rec.dims); q.set(rec.q);
-  for(let j = 0; j < rec.dims; j++) q[rec.n * rec.dims + j] = Math.max(-127, Math.min(127, Math.round(y[j] / rec.scale[j])));
-  const next = { ...rec, n:rec.n + 1, ids:[...rec.ids, it.i], ...(rec.cv ? { cv:[...rec.cv, it.c] } : {}), q, local:(rec.local || 0) + 1 };
+  let v = await labGet(it.c);
+  if(!v){ await loadDino(st); st('この画像を地図に置いています…'); v = await embedCover(it.c); await labSet(it.c, v); }
+  rec = await mapLocalGet() || rec;   // 合わせたあとの最新を使う
+  const d = rec.dims, q = new Int8Array((rec.n + 1) * d); q.set(rec.q);
+  q.set(quantRow(project(v, rec, v.length, d), rec.scale, d), rec.n * d);
+  const next = { ...rec, n:rec.n + 1, ids:[...rec.ids, it.i], cv:[...(rec.cv || rec.ids.map(() => null)), it.c], q, dirty:[...new Set([...(rec.dirty || []), it.i])] };
   await mapLocalSet(next);
-  simMap = decodeMap(next); simMap.rec = next; simFit = null;
-  setMapInfo(next);
+  useMap(next);
+  scheduleMapUpload();
   return true;
 }
 
 // ---- 地図を更新する（メニューの「地図を更新」）----
-// 普段は前回の縮め方をそのまま使い、新着（とサムネが変わったもの）だけを足す。Raindrop に置き直すのも変わった分だけ。
-// 前回作り直したときから2割以上増えたら、縮め方から全部作り直す（新しい画像の傾向に合わせ直すため）
+// まず Raindrop の地図と合わせる（ほかの端末で足した分も入る）。そのうえで、
+// 普段は今の縮め方のまま新着（とサムネが変わったもの）を足すだけ。Raindrop も変わった分だけ書き換える。
+// 前回作り直したときから2割を超えて増えたら、縮め方から作り直す。作り直しには全部の画像の元の数字が要るので、
+// それを持っている端末（Mac の Chrome）だけ。持っていない端末（iPhone）は足すだけを続ける
 const MAP_REBUILD_GROW = 1.2;
 let mapBuilding = false, mapStopReq = false, mapWarned = false;
 // AI に通していない画像を通す（6枚ずつ同時に取ってくる）。止めたら false
@@ -3726,52 +3816,58 @@ async function embedMissing(list, lab, st){
   await Promise.all(Array.from({ length:6 }, worker));
   return !mapStopReq;
 }
-const quantRow = (y, scale, dims) => { const r = new Int8Array(dims); for(let j = 0; j < dims; j++) r[j] = Math.max(-127, Math.min(127, Math.round(y[j] / scale[j]))); return r; };
 async function rebuildMap(){
   const btn = $('mapUpd'), stEl = $('mapState');
   if(mapBuilding){ mapStopReq = true; return; }
   const st = t => { stEl.textContent = t; };
   const withCover = cache.items.filter(it => it.c);
-  const lab = await labVectors();
-  const local = await mapLocalGet();
-  // 足すだけで済むか：この端末で作った地図（縮め方を覚えている）があって、増え方が2割未満
-  const rowOf = local && local.basis && local.cv && local.baseN ? new Map(local.ids.map((id, r) => [id, r])) : null;
-  const added = rowOf ? withCover.filter(it => !rowOf.has(it.i)) : [];
-  const changed = rowOf ? withCover.filter(it => rowOf.has(it.i) && local.cv[rowOf.get(it.i)] !== it.c) : [];
-  const incremental = !!rowOf && local.n + added.length <= local.baseN * MAP_REBUILD_GROW;
-  const need = incremental ? [...new Set([...added, ...changed].map(it => it.c))].filter(c => !lab.has(c))
-                           : [...new Set(withCover.map(it => it.c))].filter(c => !lab.has(c));
-  // 画像をたくさん読み直す必要があるとき（地図を作っていない端末）は、一度だけ確かめる
-  if(need.length > 300 && !mapWarned){
-    mapWarned = true;
-    st(`この端末には地図の元がないので、画像を ${need.length.toLocaleString()} 枚読む必要があります（Mac の Chrome だと速いです）。もう一度押すと始めます。`);
-    btn.textContent = 'それでも始める';
-    return;
-  }
-  mapBuilding = true; mapStopReq = false; btn.textContent = '止める';
-  let lock = null; try{ lock = await navigator.wakeLock.request('screen'); }catch(e){}
+  const covers = [...new Set(withCover.map(it => it.c))];
+  mapBuilding = true; mapStopReq = false;
+  let lock = null;
   try{
+    st('Raindrop の地図と合わせています…');
+    let remote = null; try{ remote = await readRemoteMap(); }catch(e){ if(e.message === 'auth') throw e; }
+    let local = mergeMaps(await mapLocalGet(), remote);
+    const lab = await labVectors();
+    // この端末が元の数字を持っているか（今の地図に入っている画像の8割以上。新着は数えない）
+    const coverOf = new Map(withCover.map(it => [it.i, it.c]));
+    const inMap = local ? local.ids.map(id => coverOf.get(id)).filter(Boolean) : covers;
+    const hasOriginals = inMap.length > 0 && inMap.filter(c => lab.has(c)).length >= inMap.length * 0.8;
+    const rowOf = local && local.basis ? new Map(local.ids.map((id, r) => [id, r])) : null;
+    const added = rowOf ? withCover.filter(it => !rowOf.has(it.i)) : [];
+    const changed = rowOf && local.cv ? withCover.filter(it => rowOf.has(it.i) && local.cv[rowOf.get(it.i)] && local.cv[rowOf.get(it.i)] !== it.c) : [];
+    const grown = rowOf && local.baseN && local.n + added.length > local.baseN * MAP_REBUILD_GROW;
+    const incremental = !!rowOf && !(grown && hasOriginals);
+    const need = incremental ? [...new Set([...added, ...changed].map(it => it.c))].filter(c => !lab.has(c)) : covers.filter(c => !lab.has(c));
+    // 画像をたくさん読み直す必要があるとき（地図を作っていない端末で、初めて作るとき）は、一度だけ確かめる
+    if(need.length > 300 && !mapWarned){
+      mapWarned = true;
+      st(`画像を ${need.length.toLocaleString()} 枚、AI に通す必要があります（Mac の Chrome だと速いです）。もう一度押すと始めます。`);
+      btn.textContent = 'それでも始める';
+      return;
+    }
+    btn.textContent = '止める';
+    try{ lock = await navigator.wakeLock.request('screen'); }catch(e){}
     if(!await embedMissing(need, lab, st)){ st('止めました。置いた分は残っているので、次は続きからです。'); return; }
     let rec, done;
     if(incremental){
       // ---- 足すだけ ----
-      const P = { mean:local.mean, basis:local.basis }, dims = local.dims;
-      const ids = local.ids.slice(), cv = local.cv.slice();
-      const q = new Int8Array((local.n + added.length) * dims); q.set(local.q);
+      const d = local.dims, ids = local.ids.slice(), cv = (local.cv || local.ids.map(() => null)).slice(), dirty = new Set(local.dirty || []);
+      const q = new Int8Array((local.n + added.length) * d); q.set(local.q);
       let fixed = 0, appended = 0;
-      changed.forEach(it => { const v = lab.get(it.c); if(!v) return; const r = rowOf.get(it.i); q.set(quantRow(project(v, P, v.length, dims), local.scale, dims), r * dims); cv[r] = it.c; fixed++; });
-      added.forEach(it => { const v = lab.get(it.c); if(!v) return; const r = ids.length; q.set(quantRow(project(v, P, v.length, dims), local.scale, dims), r * dims); ids.push(it.i); cv.push(it.c); appended++; });
-      const nothing = !appended && !fixed && !local.local;
-      rec = { ...local, at:nothing ? local.at : Date.now(), n:ids.length, ids, cv, q:q.slice(0, ids.length * dims), local:0 };
+      changed.forEach(it => { const v = lab.get(it.c); if(!v) return; const r = rowOf.get(it.i); q.set(quantRow(project(v, local, v.length, d), local.scale, d), r * d); cv[r] = it.c; dirty.add(it.i); fixed++; });
+      added.forEach(it => { const v = lab.get(it.c); if(!v) return; q.set(quantRow(project(v, local, v.length, d), local.scale, d), ids.length * d); ids.push(it.i); cv.push(it.c); dirty.add(it.i); appended++; });
+      rec = { ...local, n:ids.length, ids, cv, q:q.slice(0, ids.length * d), dirty:[...dirty] };
       done = writes => {
-        if(nothing) return `新着はありませんでした（Raindrop で書き換えたのは ${writes} 件）。`;
-        const left = Math.max(0, Math.ceil(rec.baseN * MAP_REBUILD_GROW) - rec.n);
-        return `地図に新着 ${appended.toLocaleString()} 件を足しました${fixed ? `（サムネが変わった ${fixed} 件も置き直し）` : ''}。Raindrop で書き換えたのは ${writes} 件です。あと ${left.toLocaleString()} 件増えたら、縮め方から作り直します。`;
+        const head = !appended && !fixed ? '新着はありませんでした' : `地図に新着 ${appended.toLocaleString()} 件を足しました${fixed ? `（サムネが変わった ${fixed} 件も置き直しました）` : ''}`;
+        const tail = grown && !hasOriginals ? '。前に作り直したときから2割以上増えているので、Mac の Chrome で更新すると、縮め方から作り直してもっと合うようになります。'
+          : rec.baseN ? `。あと ${Math.max(0, Math.ceil(rec.baseN * MAP_REBUILD_GROW) - rec.n).toLocaleString()} 件増えたら、縮め方から作り直します。` : '。';
+        return `${head}。Raindrop で書き換えたのは ${writes} 件です${tail}`;
       };
     }else{
       // ---- 縮め方から全部作り直す ----
       st('地図を縮めています…'); await sleep(30);
-      const useC = [...new Set(withCover.map(it => it.c))].filter(c => lab.has(c));
+      const useC = covers.filter(c => lab.has(c));
       if(useC.length < 10) throw new Error('few');
       const X = useC.map(c => lab.get(c)), d = X[0].length;
       const P = pca(X, d, MAP_DIMS);
@@ -3782,7 +3878,8 @@ async function rebuildMap(){
       const rowsIt = withCover.filter(it => Y.has(it.c));
       const q = new Int8Array(rowsIt.length * MAP_DIMS);
       rowsIt.forEach((it, r) => q.set(quantRow(Y.get(it.c), scale, MAP_DIMS), r * MAP_DIMS));
-      rec = { v:1, at:Date.now(), n:rowsIt.length, dims:MAP_DIMS, ids:rowsIt.map(it => it.i), cv:rowsIt.map(it => it.c), q, scale, mean:P.mean, basis:P.basis, baseN:rowsIt.length };
+      const now = Date.now();
+      rec = { v:1, at:now, rb:now, n:rowsIt.length, dims:MAP_DIMS, ids:rowsIt.map(it => it.i), cv:rowsIt.map(it => it.c), q, scale, mean:P.mean, basis:P.basis, baseN:rowsIt.length, dirty:[] };
       // 縮めても近さがどれくらい保たれているか（50枚それぞれの近い24枚が、縮める前とどれだけ同じか）
       const R = decodeMap(rec), step = Math.max(1, Math.floor(rowsIt.length / 50));
       const sample = rowsIt.filter(it => simHash(it.i) % step === 0).slice(0, 50);
@@ -3794,19 +3891,24 @@ async function rebuildMap(){
         top(r => { if(r === r0 || rowsIt[r].c === it.c) return null; let s = 0; for(let j = 0; j < MAP_DIMS; j++) s += R.V[r0 * MAP_DIMS + j] * R.V[r * MAP_DIMS + j]; return s; }).forEach(r => { if(full.has(r)) same++; });
       });
       const keep = sample.length ? same / sample.length : 0;
-      done = writes => `地図を縮め方から作り直しました（${rec.n.toLocaleString()}件）。縮めたあとも、近い24枚のうち平均 ${keep.toFixed(1)} 枚は縮める前と同じです。Raindrop で書き換えたのは ${writes} 件です。`;
+      done = writes => `地図を縮め方から作り直しました（${rec.n.toLocaleString()}件）。縮めたあとも、近い24枚のうち平均 ${keep.toFixed(1)} 枚は縮める前と同じです（Raindrop で書き換えたのは ${writes} 件）。`;
+    }
+    let writes = 0;
+    if(needsUpload(rec, remote)){
+      rec = { ...rec, at:Date.now() };
+      writes = await writeRemoteMap(rec, st);
+      rec = { ...rec, dirty:[] };
     }
     await mapLocalSet(rec);
-    simMap = decodeMap(rec); simMap.rec = rec; simFit = null;
-    mapKnownAt = rec.at; store.set('mapat', mapKnownAt);
-    setMapInfo(rec);
-    const writes = await writeRemoteMap(rec, st);
-    pullSettings();   // ほかの端末に「新しい地図がある」と知らせる
+    if(rec.at > mapKnownAt){ mapKnownAt = rec.at; store.set('mapat', mapKnownAt); }
+    useMap(rec);
+    if(writes) pullSettings();   // ほかの端末に「新しい地図がある」と知らせる
     st(done(writes));
   }catch(e){
     st(`地図を更新できませんでした（${whyText(e)}）`);
   }finally{
-    mapBuilding = false; mapWarned = false; btn.textContent = '地図を更新';
+    mapBuilding = false; mapWarned = btn.textContent === 'それでも始める' ? mapWarned : false;
+    if(btn.textContent !== 'それでも始める') btn.textContent = '地図を更新';
     try{ lock && lock.release(); }catch(e){}
   }
 }
