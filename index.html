@@ -276,6 +276,15 @@ body.cur-idle .rd-btn{opacity:0 !important}
 }
 .lb-cap > div{max-width:900px; margin:0 auto}
 .lb-cap-t{font-size:13px; line-height:1.45; overflow:hidden; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.lb-sim{
+  display:block; margin:6px auto 0; font:inherit; font-size:12px; color:#fff; cursor:pointer; pointer-events:auto;
+  padding:4px 12px; border-radius:999px; border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.35);
+}
+#peek.zoomed .lb-sim{pointer-events:none}
+.sim-bar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; padding:8px 12px; border-radius:10px; background:color-mix(in srgb, var(--accent) 16%, transparent); font-size:13px}
+.sim-bar[hidden]{display:none}
+.sim-bar span{flex:1; min-width:0; overflow-wrap:anywhere}
+.map-state{line-height:1.5}
 .lb-cap-d{font-size:11px; margin-top:2px; color:rgba(255,255,255,.65); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #peek.zoomed .lb-cap{opacity:0}
 /* 軽量モードの「高画質で見る」：画像の右下に */
@@ -612,6 +621,10 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
         </div>
       </div>
       <hr>
+      <div class="menu-note">似ているもの（プレビューの「似ているもの」で使う地図）</div>
+      <div class="menu-note map-state" id="mapState"></div>
+      <div class="btns"><button type="button" class="icon-btn" id="mapUpd" title="新しく保存したものも含めて地図を作り直し、ほかの端末でも使えるように Raindrop に置きます（Mac の Chrome で）">地図を更新</button></div>
+      <hr>
       <div class="menu-note">Raindrop から更新（右ほど時間がかかります）</div>
       <div class="btns">
         <button type="button" class="icon-btn" id="updNew" title="新しく保存したものだけを取り込みます（いちばん軽い）">新着だけ</button>
@@ -627,6 +640,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 </header>
 
 <main>
+  <div class="sim-bar" id="simBar" hidden><span id="simBarT"></span><button type="button" class="icon-btn" id="simExit">元の一覧に戻る</button></div>
   <div class="status" id="status" aria-live="polite"></div>
   <div class="grid" id="grid"></div>
   <div class="more" id="more" hidden></div>
@@ -665,7 +679,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   <div class="zoom-ind" id="zoomInd"></div>
   <button type="button" class="lb-like" id="peekLike" aria-pressed="false" data-n="0"><span id="peekLikeV">♡</span><span class="lb-like-n" id="peekLikeN"></span></button>
   <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
-  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div></div>
+  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div><button type="button" class="lb-sim" id="peekSim" title="似ているものを近い順に並べる（S）">似ているもの</button></div>
   <div class="lb-edit" id="edPanel" hidden></div>
   <div class="lb-toast" id="edToast" hidden role="status"><span id="edToastMsg"></span><button type="button" id="edUndo">元に戻す</button></div>
 </dialog>
@@ -733,7 +747,7 @@ const API = 'https://api.raindrop.io/rest/v1';
 // 端末間で共有する設定（プリセット・固定タグ）は、Raindrop の専用フォルダの1件のメモ欄に入れておく
 const SET_TITLE = 'rd-shuffle 設定';
 const SET_LINK = 'https://connvulpes.github.io/rd-shuffle-k7m/#settings';
-const isSettingsRaw = it => !!it && typeof it.link === 'string' && it.link.startsWith(SET_LINK);   // 一覧には出さない（長いときは #settings-2… に分けて入れる）
+const isSettingsRaw = it => !!it && typeof it.link === 'string' && (it.link.startsWith(SET_LINK) || it.link.startsWith('https://connvulpes.github.io/rd-shuffle-k7m/#map'));   // 一覧には出さない（設定と、似ているものの地図。長いときは #settings-2…／#map-2… に分けて入れる）
 const PER = 50;
 const DAY = 24 * 60 * 60 * 1000;
 const store = {
@@ -810,7 +824,7 @@ function compact(it){
 }
 
 function buildColls(roots, children){
-  const all = [...(roots.items || []), ...(children.items || [])].filter(c => c.title !== SET_TITLE);
+  const all = [...(roots.items || []), ...(children.items || [])].filter(c => c.title !== SET_TITLE && c.title !== 'rd-shuffle 地図');
   const byId = new Map(all.map(c => [c._id, c]));
   const parentOf = c => (c.parent && c.parent.$id != null) ? c.parent.$id : null;
   const pathOf = (c, depth = 0) => {
@@ -1160,6 +1174,7 @@ $('fdQ').addEventListener('keydown', e => { if(e.key === 'Enter'){ draft.q = $('
 $('fdClear').addEventListener('click', () => { draft = emptyFilter(); $('fdQ').value = ''; renderFilterDlg(); });
 $('fdCancel').addEventListener('click', () => filterDlg.close());
 function applyFilterDlg(){
+  exitSimilar();
   state.filter = cloneF(draft);
   store.set('filter', state.filter);
   filterDlg.close();
@@ -1328,6 +1343,7 @@ function sortPool(pool){
 }
 // シャッフルボタン：並び順をシャッフルにして並べ直す
 function shuffle(){
+  exitSimilar();
   if(state.sort !== 'shuffle'){ state.sort = 'shuffle'; store.set('sort', 'shuffle'); sortSel.value = 'shuffle'; }
   render();
 }
@@ -1336,8 +1352,10 @@ function render(){
   if(!cache){ refreshAll(); return; }
   newNote = '';
   clearSelection();
-  const pool = cache.items.filter(makeFilter(state.filter));
-  order = sortPool(pool);
+  // 似ているものを並べている間は、絞り込みも並び順も使わず、近い順のまま
+  const pool = sim ? sim.list : cache.items.filter(makeFilter(state.filter));
+  order = sim ? pool.slice() : sortPool(pool);
+  renderSimBar();
   poolSize = order.length;
   shownCount = 0;
   cardEls = [];
@@ -1375,6 +1393,11 @@ function appendMore(){
   updateStatus();
 }
 
+function renderSimBar(){
+  const bar = $('simBar');
+  bar.hidden = !sim;
+  if(sim) $('simBarT').textContent = `「${((sim.center.t || '').trim() || sim.center.d || 'この画像').slice(0, 40)}」に似ているもの（近い順 ${Math.max(0, sim.list.length - 1)}件）`;
+}
 function updateStatus(){
   statusEl.textContent = `${poolSize.toLocaleString()}件中 ${shownCount.toLocaleString()}件を表示（${ago(Math.max(cache.savedAt, cache.syncedAt || 0))}に更新）`;
   moreEl.hidden = !poolSize;
@@ -1874,6 +1897,7 @@ function recountTags(){
   cache.items.forEach(x => (x.g || []).forEach(t => m.set(t, (m.get(t) || 0) + 1)));
   cache.tags = [...m].map(([name, count]) => ({ name, count })).sort((a, b) => jaCmp(a.name, b.name));
   sugIndex = null; // タグが変わったので、おすすめの数え直しが必要
+  simFit = null;   // 似ているものの「曲げた地図」も作り直す
 }
 // カードの画像だけを作り直す（サムネを変えたとき）
 function refreshCardMedia(c, it){
@@ -2651,7 +2675,7 @@ peek.addEventListener('click', e => {
   // 押した直後に作り直されて画面から外れた部品（フォルダの選択欄など）は closest で親をたどれないので、
   // 押した時点の経路（composedPath）で判断する
   if(!e.target.isConnected) return;
-  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like'))) return;
+  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like, .lb-sim'))) return;
   if(zoomDragged){ zoomDragged = false; return; }   // ドラッグで動かした直後のクリックは無視
   // ズーム中はクリック（タップ）で元の大きさに戻す
   if(zoom.s !== 1){ resetZoom(true); return; }
@@ -2952,7 +2976,7 @@ countSel.addEventListener('change', () => {
 shuffleBtn.addEventListener('click', shuffle);
 const sortSel = $('sortSel');
 sortSel.value = state.sort;
-sortSel.addEventListener('change', () => { state.sort = sortSel.value; store.set('sort', state.sort); if(cache) render(); });
+sortSel.addEventListener('change', () => { exitSimilar(); state.sort = sortSel.value; store.set('sort', state.sort); if(cache) render(); });
 
 // 表示メニュー（大きさ・件数・キャプション・カーソル・読み込み直し・トークン）
 const viewBtn = $('viewBtn'), viewMenu = $('viewMenu');
@@ -3096,6 +3120,7 @@ document.addEventListener('keydown', e => {
     if((e.key === 'l' || e.key === 'L') && peekItem){ e.preventDefault(); cycleLike(peekItem); return; }
     if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); rotatePeek(e.shiftKey ? -1 : 1); return; }
     if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); flipPeek(); return; }
+    if((e.key === 's' || e.key === 'S') && peekItem){ e.preventDefault(); showSimilar(peekItem); return; }
     if((e.key === 'q' || e.key === 'Q') && !$('peekHq').hidden){ e.preventDefault(); $('peekHq').click(); return; }
     if(e.key === '+' || e.key === '=' || e.key === '-'){
       e.preventDefault();
@@ -3257,7 +3282,7 @@ function mergeHeat(remote){
 async function readSettings(){
   const list = async coll => {
     const r = await api(`/raindrops/${coll}?perpage=50`);
-    return (r.items || []).filter(isSettingsRaw).map(x => ({ id:x._id, n:Number((x.link.slice(SET_LINK.length).match(/^-(\d+)$/) || [])[1] || 1), note:x.note || '' }));
+    return (r.items || []).filter(x => typeof x.link === 'string' && x.link.startsWith(SET_LINK)).map(x => ({ id:x._id, n:Number((x.link.slice(SET_LINK.length).match(/^-(\d+)$/) || [])[1] || 1), note:x.note || '' }));
   };
   let parts = null;
   if(syncRef && syncRef.coll){ try{ parts = await list(syncRef.coll); }catch(e){ if(e.message !== 'http') throw e; } }
@@ -3296,15 +3321,16 @@ function pullSettings(){
   lastPull = Date.now();
   syncing = (async () => {
     const { parts, data } = await readSettings();
+    if(data && (data.mapAt || 0) > mapKnownAt){ mapKnownAt = data.mapAt; store.set('mapat', mapKnownAt); updateMapState(); }
     if(data){
       if(!syncAt){ mergeFirst(data); syncAt = Date.now(); store.set('syncat', syncAt); store.set('presets', presets); store.set('pins', pins); syncFilter(); }
       else if((data.at || 0) > syncAt) applyRemote(data);
       mergeHeat(heatUnpack(data.heat));
       store.set('heat', heatPacked());
-    }else if(!presets.length && !pins.length && !heat.size){
+    }else if(!presets.length && !pins.length && !heat.size && !mapKnownAt){
       return;   // どちらにも何もない：フォルダも作らない
     }else if(!syncAt){ syncAt = Date.now(); store.set('syncat', syncAt); }
-    const text = JSON.stringify({ v:1, at:syncAt, presets, pins, heat:heatPacked() });
+    const text = JSON.stringify({ v:1, at:syncAt, presets, pins, heat:heatPacked(), ...(mapKnownAt ? { mapAt:mapKnownAt } : {}) });
     if(text !== parts.map(x => x.note).join('')) await writeSettings(parts, text);
   })().catch(() => {}).finally(() => {
     syncing = null;
@@ -3312,6 +3338,475 @@ function pullSettings(){
   });
   return syncing;
 }
+
+// ===== 似ているもの（印象の地図） =====
+// 本人が試しページで選んだ組み合わせ：DINOv2 small・全体＋何か所か・あなたのタグで曲げた地図（強さ「中」）。
+// 地図は Mac で作り、64個の数字に縮めて Raindrop の「rd-shuffle 地図」フォルダに置く。iPhone はそれを読むだけ。
+// 押されるまでは何も読み込まない（起動の軽さは変えない）
+const MAP_TITLE = 'rd-shuffle 地図';
+const MAP_LINK = 'https://connvulpes.github.io/rd-shuffle-k7m/#map';
+const MAP_MODEL = 'onnx-community/dinov2-small';
+const MAP_LAB_PREFIX = MAP_MODEL + '#mc:';   // 試しページで作った地図と同じ保存名（作ってあった分はそのまま使う）
+const MAP_DIMS = 64, BEND_W = 0.5, SIM_K = 150;
+const TJS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js';
+let mapKnownAt = store.get('mapat', 0);       // いちばん新しい地図の時刻（同期で知る）
+let mapRef = store.get('mapref', null);       // { coll:フォルダID }
+var simMap = null, simFit = null, sim = null; // 読み込んだ地図・曲げた地図・今並べている「似ているもの」（起動中に先に触られるので var）
+
+// ---- 保存（ブラウザの中のデータベース）----
+const idbs = {};
+function idbOpen(name, st){
+  return idbs[name] || (idbs[name] = new Promise((res, rej) => {
+    const r = indexedDB.open(name, 1);
+    r.onupgradeneeded = () => { if(!r.result.objectStoreNames.contains(st)) r.result.createObjectStore(st); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+}
+async function idbDo(name, st, mode, fn){
+  const db = await idbOpen(name, st);
+  return new Promise((res, rej) => { const t = db.transaction(st, mode); const q = fn(t.objectStore(st)); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
+}
+const mapLocalGet = () => idbDo('rdmap', 'kv', 'readonly', s => s.get('map')).catch(() => null);
+const mapLocalSet = rec => idbDo('rdmap', 'kv', 'readwrite', s => s.put(rec, 'map')).catch(() => null);
+// 試しページの地図（画像1枚ずつの元の数字。Mac にだけある）
+async function labVectors(){
+  const out = new Map();
+  try{
+    const db = await idbOpen('rdlab', 'emb');
+    await new Promise((res, rej) => {
+      const q = db.transaction('emb').objectStore('emb').openCursor(IDBKeyRange.bound(MAP_LAB_PREFIX, MAP_LAB_PREFIX + '￿'));
+      q.onsuccess = () => { const c = q.result; if(!c) return res(); out.set(c.key.slice(MAP_LAB_PREFIX.length), c.value); c.continue(); };
+      q.onerror = () => rej(q.error);
+    });
+  }catch(e){}
+  return out;
+}
+const labSet = (c, v) => idbDo('rdlab', 'emb', 'readwrite', s => s.put(v, MAP_LAB_PREFIX + c)).catch(() => null);
+function setMapInfo(rec){ store.set('mapinfo', rec ? { n:rec.n, at:rec.at } : null); updateMapState(); }
+
+// ---- 画像の AI（地図を作るときと、地図にない画像を足すときだけ。テストでは window.RD_FAKE_EMBED）----
+let tjs = null, dino = null, dinoBusy = Promise.resolve();
+async function loadDino(st){
+  if(dino || window.RD_FAKE_EMBED) return;
+  st('画像の AI を読み込んでいます…');
+  tjs = tjs || await import(TJS_URL);
+  const files = new Map();
+  const progress_callback = e => {
+    if(e.status !== 'progress' || !e.total) return;
+    files.set(e.file, [e.loaded, e.total]); let a = 0, b = 0; files.forEach(([x, y]) => { a += x; b += y; });
+    st(`画像の AI を読み込んでいます… ${(a / 1048576).toFixed(1)} / ${(b / 1048576).toFixed(1)}MB`);
+  };
+  const processor = await tjs.AutoProcessor.from_pretrained(MAP_MODEL);
+  let model = null;
+  if('gpu' in navigator){ try{ model = await tjs.AutoModel.from_pretrained(MAP_MODEL, { device:'webgpu', dtype:'fp16', progress_callback }); }catch(e){} }
+  if(!model) model = await tjs.AutoModel.from_pretrained(MAP_MODEL, { device:'wasm', dtype:'q8', progress_callback });
+  dino = { model, processor };
+}
+const unitV = v => { let s = 0; for(let i = 0; i < v.length; i++) s += v[i] * v[i]; s = Math.sqrt(s) || 1; for(let i = 0; i < v.length; i++) v[i] /= s; return v; };
+async function fetchBlob(url){
+  const r = await fetch(url, { mode:'cors', credentials:'omit', referrerPolicy:'no-referrer' });
+  if(!r.ok) throw new Error('http');
+  return r.blob();
+}
+// X と Pinterest は元のサイトから小さいサイズを直接、それ以外は縮小サービス経由（だめなら元の画像）
+function directSmall(u){
+  try{
+    const x = new URL(u);
+    if(x.hostname === 'pbs.twimg.com'){ x.searchParams.set('name', 'small'); return x.href; }
+    if(x.hostname === 'i.pinimg.com'){ x.pathname = x.pathname.replace(/^\/(originals|\d+x\d*)\//, '/236x/'); return x.href; }
+  }catch(e){}
+  return '';
+}
+const directOK = new Map();
+async function coverBlob(u){
+  const d = directSmall(u), host = d && new URL(d).hostname;
+  if(d && directOK.get(host) !== false){
+    try{ const b = await fetchBlob(d); directOK.set(host, true); return b; }
+    catch(e){ if(!directOK.get(host)) directOK.set(host, false); }
+  }
+  try{ return await fetchBlob(`https://wsrv.nl/?url=${encodeURIComponent(u)}&w=256&h=256&fit=inside&output=jpg&q=80`); }
+  catch(e){ return fetchBlob(u); }
+}
+// 全体（余白付き）＋細長いなら長い向きに3か所、そうでなければ真ん中。AI の結果を平均する
+async function embedCover(c){
+  if(window.RD_FAKE_EMBED) return window.RD_FAKE_EMBED(c);
+  const blob = await coverBlob(c);
+  const bmp = await createImageBitmap(blob);
+  const W = bmp.width, H = bmp.height, S = 256;
+  const mk = (sx, sy, sw, sh, pad) => {
+    const cv = document.createElement('canvas'); cv.width = S; cv.height = S; const g = cv.getContext('2d');
+    if(pad){ g.fillStyle = '#808080'; g.fillRect(0, 0, S, S); const r = Math.min(S / W, S / H); g.drawImage(bmp, 0, 0, W, H, (S - W * r) / 2, (S - H * r) / 2, W * r, H * r); }
+    else g.drawImage(bmp, sx, sy, sw, sh, 0, 0, S, S);
+    return tjs.RawImage.fromCanvas(cv);
+  };
+  const m = Math.min(W, H), views = [mk(0, 0, W, H, true)];
+  if(Math.max(W, H) / m > 1.25) [0, 0.5, 1].forEach(f => { const off = (Math.max(W, H) - m) * f; views.push(W > H ? mk(off, 0, m, m) : mk(0, off, m, m)); });
+  else views.push(mk((W - m) / 2, (H - m) / 2, m, m));
+  bmp.close && bmp.close();
+  const run = dinoBusy.then(async () => {
+    let acc = null;
+    for(const img of views){
+      const out = await dino.model(await dino.processor(img));
+      let t = out.pooler_output || out.last_hidden_state;
+      if(t.type && t.type !== 'float32' && t.to) t = t.to('float32');
+      const d = t.dims[t.dims.length - 1], v = unitV(Float32Array.from(t.data.subarray(0, d)));
+      if(!acc) acc = new Float32Array(d);
+      for(let i = 0; i < d; i++) acc[i] += v[i];
+    }
+    return unitV(acc);
+  });
+  dinoBusy = run.catch(() => {});
+  return run;
+}
+
+// ---- 地図を縮める（384個 → 64個の数字。主成分分析）----
+function pca(X, d, k){
+  const n = X.length, mean = new Float64Array(d);
+  X.forEach(x => { for(let i = 0; i < d; i++) mean[i] += x[i]; }); for(let i = 0; i < d; i++) mean[i] /= n;
+  const C = new Float64Array(d * d), y = new Float64Array(d);
+  X.forEach(x => {
+    for(let i = 0; i < d; i++) y[i] = x[i] - mean[i];
+    for(let i = 0; i < d; i++){ const yi = y[i], o = i * d; for(let j = i; j < d; j++) C[o + j] += yi * y[j]; }
+  });
+  for(let i = 0; i < d; i++) for(let j = 0; j < i; j++) C[i * d + j] = C[j * d + i];
+  // 上位 k 方向を、くり返し掛けて直交させる方法で求める（方向の組さえ合っていれば近さは変わらない）
+  let Q = new Float64Array(d * k);
+  let seed = 1; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5;
+  for(let i = 0; i < d * k; i++) Q[i] = rnd();
+  const Z = new Float64Array(d * k);
+  for(let it = 0; it < 40; it++){
+    Z.fill(0);
+    for(let i = 0; i < d; i++){ const o = i * d; for(let j = 0; j < d; j++){ const c = C[o + j]; if(!c) continue; const qo = j * k, zo = i * k; for(let t = 0; t < k; t++) Z[zo + t] += c * Q[qo + t]; } }
+    for(let t = 0; t < k; t++){
+      for(let s = 0; s < t; s++){ let dot = 0; for(let i = 0; i < d; i++) dot += Z[i * k + t] * Z[i * k + s]; for(let i = 0; i < d; i++) Z[i * k + t] -= dot * Z[i * k + s]; }
+      let nn = 0; for(let i = 0; i < d; i++) nn += Z[i * k + t] ** 2; nn = Math.sqrt(nn) || 1; for(let i = 0; i < d; i++) Z[i * k + t] /= nn;
+    }
+    Q.set(Z);
+  }
+  return { mean:Float32Array.from(mean), basis:Float32Array.from(Q) };
+}
+function project(x, P, d, k){
+  const y = new Float32Array(k);
+  for(let i = 0; i < d; i++){ const xi = x[i] - P.mean[i], o = i * k; for(let t = 0; t < k; t++) y[t] += xi * P.basis[o + t]; }
+  return y;
+}
+function decodeMap(rec){
+  const { n, dims } = rec, V = new Float32Array(n * dims), pos = new Map();
+  for(let r = 0; r < n; r++){
+    let s = 0; const o = r * dims;
+    for(let j = 0; j < dims; j++){ const v = rec.q[o + j] * rec.scale[j]; V[o + j] = v; s += v * v; }
+    s = Math.sqrt(s) || 1; for(let j = 0; j < dims; j++) V[o + j] /= s;
+    pos.set(rec.ids[r], r);
+  }
+  return { at:rec.at, n, dims, ids:rec.ids, V, pos };
+}
+
+// ---- Raindrop に置く・読む（1件1万文字までなので分ける。1番目に説明、2番目から中身）----
+const b64of = u8 => { let s = ''; for(let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const u8of = b64 => Uint8Array.from(atob(b64), ch => ch.charCodeAt(0));
+async function mapColl(create){
+  if(mapRef && mapRef.coll) return mapRef.coll;
+  const roots = await api('/collections');
+  const c = (roots.items || []).find(x => x.title === MAP_TITLE);
+  if(c){ mapRef = { coll:c._id }; store.set('mapref', mapRef); return c._id; }
+  if(!create) return null;
+  const r = await api('/collection', { method:'POST', body:{ title:MAP_TITLE } });
+  mapRef = { coll:r.item._id }; store.set('mapref', mapRef);
+  return r.item._id;
+}
+async function mapParts(coll){
+  const out = [];
+  for(let page = 0; page < 20; page++){
+    const r = await api(`/raindrops/${coll}?perpage=50&page=${page}`);
+    const its = r.items || [];
+    its.filter(x => typeof x.link === 'string' && x.link.startsWith(MAP_LINK)).forEach(x => out.push({ id:x._id, n:Number((x.link.slice(MAP_LINK.length).match(/^-(\d+)$/) || [])[1] || 1), note:x.note || '' }));
+    if(its.length < 50) break;
+  }
+  return out.sort((a, b) => a.n - b.n);
+}
+async function readRemoteMap(){
+  let coll;
+  try{ coll = await mapColl(false); }catch(e){ return null; }
+  if(!coll) return null;
+  let parts;
+  try{ parts = await mapParts(coll); }catch(e){ if(e.message === 'http'){ mapRef = null; store.del('mapref'); } return null; }
+  const head = parts.find(p => p.n === 1); if(!head) return null;
+  let h; try{ h = JSON.parse(head.note); }catch(e){ return null; }
+  if(!h || h.v !== 1) return null;
+  const row = 4 + h.dims, buf = new Uint8Array(h.n * row);
+  let off = 0;
+  for(let k = 2; k <= h.parts + 1; k++){
+    const p = parts.find(x => x.n === k); if(!p) return null;
+    const u = u8of(p.note); buf.set(u, off); off += u.length;
+  }
+  if(off !== buf.length) return null;
+  const dv = new DataView(buf.buffer), ids = new Array(h.n), q = new Int8Array(h.n * h.dims);
+  for(let r = 0; r < h.n; r++){ ids[r] = dv.getUint32(r * row, true); for(let j = 0; j < h.dims; j++) q[r * h.dims + j] = dv.getInt8(r * row + 4 + j); }
+  return { v:1, at:h.at, n:h.n, dims:h.dims, ids, q, scale:Float32Array.from(h.scale) };
+}
+async function writeRemoteMap(rec, st){
+  const coll = await mapColl(true);
+  const parts = await mapParts(coll);
+  const row = 4 + rec.dims, perPart = Math.floor(6750 / row);
+  const notes = [];
+  for(let r0 = 0; r0 < rec.n; r0 += perPart){
+    const r1 = Math.min(rec.n, r0 + perPart), u = new Uint8Array((r1 - r0) * row), dv = new DataView(u.buffer);
+    for(let r = r0; r < r1; r++){ const o = (r - r0) * row; dv.setUint32(o, rec.ids[r], true); for(let j = 0; j < rec.dims; j++) dv.setInt8(o + 4 + j, rec.q[r * rec.dims + j]); }
+    notes.push(b64of(u));
+  }
+  const head = JSON.stringify({ v:1, at:rec.at, n:rec.n, dims:rec.dims, parts:notes.length, scale:[...rec.scale].map(x => +x.toPrecision(6)), model:'dinov2-small#mc' });
+  const all = [head, ...notes];
+  const byN = new Map(parts.map(x => [x.n, x]));
+  const top = Math.max(all.length, ...parts.map(x => x.n), 1);
+  for(let n = 1; n <= top; n++){
+    st(`地図を Raindrop に置いています… ${n} / ${top}`);
+    const note = all[n - 1] || '';
+    const cur = byN.get(n);
+    if(cur){ if(cur.note !== note) await api(`/raindrop/${cur.id}`, { method:'PUT', body:{ note } }); else continue; }
+    else if(note) await api('/raindrop', { method:'POST', body:{ link:n === 1 ? MAP_LINK : `${MAP_LINK}-${n}`, title:`Raindrop シャッフルの似ているものの地図${n === 1 ? '' : ' ' + n}（消さないでください）`, note, collection:{ $id:coll } } });
+    else continue;
+    await sleep(300);   // 書き込みの上限に当たらないように、少し間をあける
+  }
+}
+
+// ---- 地図を用意する（手元 → なければ／古ければ Raindrop から）----
+async function ensureMap(st){
+  if(simMap && simMap.at >= mapKnownAt) return simMap;
+  let rec = await mapLocalGet();
+  if(!rec || rec.at < mapKnownAt || !mapKnownAt){
+    st('似ているものの地図を読み込んでいます…');
+    const r = await readRemoteMap().catch(() => null);
+    if(r && (!rec || r.at > rec.at)){ rec = r; await mapLocalSet(rec); }
+  }
+  if(!rec) return null;
+  if(rec.at > mapKnownAt){ mapKnownAt = rec.at; store.set('mapat', mapKnownAt); }
+  setMapInfo(rec);
+  simMap = decodeMap(rec); simMap.rec = rec; simFit = null;
+  return simMap;
+}
+
+// ---- あなたのタグで地図を曲げる ----
+// 画像の位置から「あなたならどのタグを付けるか」を予測する式をタグ付きのもので作り（リッジ回帰）、
+// 予測したタグの並びを位置の後ろに足す。よく当たるタグほど重く、ほとんど当たらないタグ（見た目と関係ないもの）は使わない。
+// タグ付きのものは全部付いている前提なので、付いていないタグは「違う」として数える。タグなしのものは見本にしない
+const simHash = s => { s = String(s); let h = 2166136261; for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+function ridgeGram(rows, d1, T, X){
+  const A = new Float64Array(d1 * d1), B = new Float64Array(d1 * T), xr = new Float64Array(d1);
+  for(const r of rows){
+    const o0 = r.row * (d1 - 1);
+    for(let i = 0; i < d1 - 1; i++) xr[i] = X[o0 + i]; xr[d1 - 1] = 1;
+    for(let i = 0; i < d1; i++){ const xi = xr[i], o = i * d1; for(let j = i; j < d1; j++) A[o + j] += xi * xr[j]; const bo = i * T; for(const t of r.y) B[bo + t] += xi; }
+  }
+  return { A, B };
+}
+function ridgeSolve(A0, B, d1, T, lambda){
+  const A = Float64Array.from(A0);
+  for(let i = 0; i < d1; i++) for(let j = 0; j < i; j++) A[i * d1 + j] = A[j * d1 + i];
+  for(let i = 0; i < d1 - 1; i++) A[i * d1 + i] += lambda;
+  A[d1 * d1 - 1] += 1e-6;
+  for(let j = 0; j < d1; j++){
+    let s = A[j * d1 + j]; for(let k = 0; k < j; k++) s -= A[j * d1 + k] ** 2;
+    const L = Math.sqrt(Math.max(s, 1e-12)); A[j * d1 + j] = L;
+    for(let i = j + 1; i < d1; i++){ let t = A[i * d1 + j]; for(let k = 0; k < j; k++) t -= A[i * d1 + k] * A[j * d1 + k]; A[i * d1 + j] = t / L; }
+  }
+  const W = new Float64Array(d1 * T), y = new Float64Array(d1);
+  for(let t = 0; t < T; t++){
+    for(let i = 0; i < d1; i++){ let s = B[i * T + t]; for(let k = 0; k < i; k++) s -= A[i * d1 + k] * y[k]; y[i] = s / A[i * d1 + i]; }
+    for(let i = d1 - 1; i >= 0; i--){ let s = y[i]; for(let k = i + 1; k < d1; k++) s -= A[k * d1 + i] * W[k * T + t]; W[i * T + t] = s / A[i * d1 + i]; }
+  }
+  return W;
+}
+function ridgePredict(X, row, W, d1, T){
+  const z = new Float64Array(T), o0 = row * (d1 - 1);
+  for(let i = 0; i < d1; i++){ const xi = i < d1 - 1 ? X[o0 + i] : 1; if(!xi) continue; const o = i * T; for(let t = 0; t < T; t++) z[t] += xi * W[o + t]; }
+  return z;
+}
+function corrOf(a, b){
+  const n = a.length; let ma = 0, mb = 0; for(let i = 0; i < n; i++){ ma += a[i]; mb += b[i]; } ma /= n; mb /= n;
+  let sab = 0, saa = 0, sbb = 0; for(let i = 0; i < n; i++){ const x = a[i] - ma, y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; }
+  return saa && sbb ? sab / Math.sqrt(saa * sbb) : 0;
+}
+function bentMap(){
+  if(simFit && simFit.map === simMap) return simFit;
+  const m = simMap, d = m.dims, d1 = d + 1;
+  if(!sugIndex || sugIndex.items !== cache.items || sugIndex.len !== cache.items.length) buildSugIndex();
+  const byId = new Map(cache.items.map(it => [it.i, it]));
+  const tagsOf = r => { const it = byId.get(m.ids[r]); return it ? (it.g || []).filter(t => !sugIndex.authorTags.has(t)) : []; };
+  const cnt = new Map(); const tagged = [];
+  for(let r = 0; r < m.n; r++){ const g = tagsOf(r); if(!g.length) continue; tagged.push(r); g.forEach(t => cnt.set(t, (cnt.get(t) || 0) + 1)); }
+  const tags = [...cnt].filter(([, n]) => n >= 5).map(([t]) => t), T = tags.length, ti = new Map(tags.map((t, i) => [t, i]));
+  let F = m.V, D = d, used = 0;
+  if(T && tagged.length >= 30){
+    const rows = tagged.map(r => ({ row:r, y:tagsOf(r).filter(t => ti.has(t)).map(t => ti.get(t)) }));
+    const hold = rows.filter(r => simHash(m.ids[r.row]) % 5 === 1), rest = rows.filter(r => simHash(m.ids[r.row]) % 5 !== 1);
+    const gh = ridgeGram(hold, d1, T, m.V), gr = ridgeGram(rest, d1, T, m.V);
+    let best = null;
+    for(const lambda of [0.5, 2, 8]){
+      const W = ridgeSolve(gr.A, gr.B, d1, T, lambda);
+      const P = hold.map(r => ridgePredict(m.V, r.row, W, d1, T));
+      const cs = tags.map((t, k) => corrOf(P.map(z => z[k]), hold.map(r => r.y.includes(k) ? 1 : 0)));
+      const mean = cs.reduce((a, b) => a + b, 0) / T;
+      if(!best || mean > best.mean) best = { lambda, cs, mean };
+    }
+    const q = best.cs.map(c => Math.max(0, c - 0.1));
+    used = q.filter(x => x > 0).length;
+    if(used){
+      const W = ridgeSolve(gr.A.map((v, i) => v + gh.A[i]), gr.B.map((v, i) => v + gh.B[i]), d1, T, best.lambda);
+      const Z = []; for(let r = 0; r < m.n; r++) Z.push(ridgePredict(m.V, r, W, d1, T));
+      const mu = new Float64Array(T), sd = new Float64Array(T);
+      Z.forEach(z => { for(let t = 0; t < T; t++) mu[t] += z[t]; }); for(let t = 0; t < T; t++) mu[t] /= m.n;
+      Z.forEach(z => { for(let t = 0; t < T; t++) sd[t] += (z[t] - mu[t]) ** 2; }); for(let t = 0; t < T; t++) sd[t] = Math.sqrt(sd[t] / m.n) || 1;
+      D = d + T; F = new Float32Array(m.n * D);
+      const z = new Float32Array(T);
+      for(let r = 0; r < m.n; r++){
+        for(let t = 0; t < T; t++) z[t] = (Z[r][t] - mu[t]) / sd[t] * q[t];
+        unitV(z);
+        const o = r * D; let s = 0;
+        for(let j = 0; j < d; j++){ const v = (1 - BEND_W) * m.V[r * d + j]; F[o + j] = v; s += v * v; }
+        for(let t = 0; t < T; t++){ const v = BEND_W * z[t]; F[o + d + t] = v; s += v * v; }
+        s = Math.sqrt(s) || 1; for(let j = 0; j < D; j++) F[o + j] /= s;
+      }
+    }
+  }
+  simFit = { map:m, F, D, used };
+  return simFit;
+}
+function nearestSim(it, k){
+  const m = simMap, r0 = m.pos.get(it.i); if(r0 == null) return null;
+  const { F, D } = bentMap(), out = [], o0 = r0 * D;
+  for(let r = 0; r < m.n; r++){
+    if(r === r0) continue;
+    let s = 0; const o = r * D; for(let j = 0; j < D; j++) s += F[o0 + j] * F[o + j];
+    if(out.length < k || s > out[out.length - 1][0]){ out.push([s, r]); out.sort((a, b) => b[0] - a[0]); if(out.length > k) out.pop(); }
+  }
+  const byId = new Map(cache.items.map(x => [x.i, x]));
+  return out.map(([, r]) => byId.get(m.ids[r])).filter(Boolean);
+}
+
+// ---- 地図にない画像を足す（地図を作った Mac だけ。縮め方を覚えているので）----
+async function addToMap(it, st){
+  const rec = simMap && simMap.rec;
+  if(!rec || !rec.basis || !it.c) return false;
+  await loadDino(st);
+  st('この画像を地図に置いています…');
+  const lab = await labVectors();
+  let v = lab.get(it.c);
+  if(!v){ v = await embedCover(it.c); await labSet(it.c, v); }
+  const y = project(v, { mean:rec.mean, basis:rec.basis }, v.length, rec.dims);
+  const q = new Int8Array(rec.n * rec.dims + rec.dims); q.set(rec.q);
+  for(let j = 0; j < rec.dims; j++) q[rec.n * rec.dims + j] = Math.max(-127, Math.min(127, Math.round(y[j] / rec.scale[j])));
+  const next = { ...rec, n:rec.n + 1, ids:[...rec.ids, it.i], q, local:(rec.local || 0) + 1 };
+  await mapLocalSet(next);
+  simMap = decodeMap(next); simMap.rec = next; simFit = null;
+  setMapInfo(next);
+  return true;
+}
+
+// ---- 地図を作り直す（メニューの「地図を更新」）----
+let mapBuilding = false, mapStopReq = false, mapWarned = false;
+async function rebuildMap(){
+  const btn = $('mapUpd'), stEl = $('mapState');
+  if(mapBuilding){ mapStopReq = true; return; }
+  const st = t => { stEl.textContent = t; };
+  const withCover = cache.items.filter(it => it.c);
+  const covers = [...new Set(withCover.map(it => it.c))];
+  const lab = await labVectors();
+  const missing = covers.filter(c => !lab.has(c));
+  // 画像をたくさん読み直す必要があるとき（地図を作っていない端末）は、一度だけ確かめる
+  if(missing.length > 300 && !mapWarned){
+    mapWarned = true;
+    st(`この端末には地図の元がないので、画像を ${missing.length.toLocaleString()} 枚読む必要があります（Mac の Chrome だと速いです）。もう一度押すと始めます。`);
+    btn.textContent = 'それでも始める';
+    return;
+  }
+  mapBuilding = true; mapStopReq = false; btn.textContent = '止める';
+  let lock = null; try{ lock = await navigator.wakeLock.request('screen'); }catch(e){}
+  try{
+    if(missing.length){
+      await loadDino(st);
+      let next = 0, done = 0, fail = 0; const t0 = performance.now();
+      const worker = async () => {
+        while(!mapStopReq && next < missing.length){
+          const c = missing[next++];
+          try{ const v = await embedCover(c); lab.set(c, v); await labSet(c, v); done++; }catch(e){ fail++; }
+          const n = done + fail, secs = (performance.now() - t0) / 1000, left = n > 5 ? secs / n * (missing.length - n) : 0;
+          st(`足りない画像を地図に置いています… ${n.toLocaleString()} / ${missing.length.toLocaleString()}${left ? `（あと約 ${Math.ceil(left / 60)} 分）` : ''}`);
+        }
+      };
+      await Promise.all(Array.from({ length:6 }, worker));
+      if(mapStopReq){ st('止めました。置いた分は残っているので、次は続きからです。'); return; }
+    }
+    st('地図を縮めています…'); await sleep(30);
+    const useC = covers.filter(c => lab.has(c));
+    if(useC.length < 10) throw new Error('few');
+    const X = useC.map(c => lab.get(c)), d = X[0].length;
+    const P = pca(X, d, MAP_DIMS);
+    const Y = new Map(useC.map((c, i) => [c, project(X[i], P, d, MAP_DIMS)]));
+    const scale = new Float32Array(MAP_DIMS);
+    Y.forEach(y => { for(let j = 0; j < MAP_DIMS; j++) scale[j] = Math.max(scale[j], Math.abs(y[j])); });
+    for(let j = 0; j < MAP_DIMS; j++) scale[j] = (scale[j] || 1) / 127;
+    const rowsIt = withCover.filter(it => Y.has(it.c));
+    const q = new Int8Array(rowsIt.length * MAP_DIMS);
+    rowsIt.forEach((it, r) => { const y = Y.get(it.c); for(let j = 0; j < MAP_DIMS; j++) q[r * MAP_DIMS + j] = Math.max(-127, Math.min(127, Math.round(y[j] / scale[j]))); });
+    const rec = { v:1, at:Date.now(), n:rowsIt.length, dims:MAP_DIMS, ids:rowsIt.map(it => it.i), q, scale, mean:P.mean, basis:P.basis };
+    // 縮めても近さがどれくらい保たれているか（ランダムに選んだ50枚の、近い24枚がどれだけ同じか）
+    const keep = (() => {
+      const R = decodeMap(rec), sample = rowsIt.filter((_, r) => simHash(rowsIt[r].i) % Math.max(1, Math.floor(rowsIt.length / 50)) === 0).slice(0, 50);
+      const top = (score) => { const out = []; for(let r = 0; r < R.n; r++){ const s = score(r); if(s === null) continue; if(out.length < 24 || s > out[23][0]){ out.push([s, r]); out.sort((a, b) => b[0] - a[0]); if(out.length > 24) out.pop(); } } return new Set(out.map(x => x[1])); };
+      let same = 0;
+      sample.forEach(it => {
+        const r0 = R.pos.get(it.i), a = lab.get(it.c);
+        const full = top(r => { if(r === r0 || rowsIt[r].c === it.c) return null; const b = lab.get(rowsIt[r].c); let s = 0; for(let j = 0; j < d; j++) s += a[j] * b[j]; return s; });
+        const small = top(r => { if(r === r0 || rowsIt[r].c === it.c) return null; let s = 0; for(let j = 0; j < MAP_DIMS; j++) s += R.V[r0 * MAP_DIMS + j] * R.V[r * MAP_DIMS + j]; return s; });
+        small.forEach(r => { if(full.has(r)) same++; });
+      });
+      return sample.length ? same / sample.length : 0;
+    })();
+    await mapLocalSet(rec);
+    simMap = decodeMap(rec); simMap.rec = rec; simFit = null;
+    mapKnownAt = rec.at; store.set('mapat', mapKnownAt);
+    setMapInfo(rec);
+    await writeRemoteMap(rec, st);
+    pullSettings();   // ほかの端末に「新しい地図がある」と知らせる
+    st(`地図を更新しました（${rec.n.toLocaleString()}件）。縮めたあとも、近い24枚のうち平均 ${keep.toFixed(1)} 枚は縮める前と同じです。`);
+  }catch(e){
+    st(`地図を更新できませんでした（${whyText(e)}）`);
+  }finally{
+    mapBuilding = false; mapWarned = false; btn.textContent = '地図を更新';
+    try{ lock && lock.release(); }catch(e){}
+  }
+}
+function updateMapState(){
+  const el = $('mapState'); if(!el || mapBuilding) return;
+  const info = store.get('mapinfo', null);
+  if(info && info.at >= mapKnownAt) el.textContent = `地図：${info.n.toLocaleString()}件（${new Date(info.at).toLocaleDateString('ja-JP')} に更新）`;
+  else if(mapKnownAt) el.textContent = '新しい地図があります（「似ているもの」を押したときに読み込みます）';
+  else el.textContent = '地図：まだありません（Mac の Chrome で「地図を更新」を押すと作れます）';
+}
+$('mapUpd').addEventListener('click', () => { if(cache) rebuildMap(); });
+
+// ---- 似ているものを並べる ----
+async function showSimilar(it){
+  if(!it || !cache) return;
+  const st = t => showToast(t, null);
+  let m;
+  try{ m = await ensureMap(st); }catch(e){ m = null; }
+  if(!m){ st('まだ似ているものの地図がありません。Mac の Chrome で、メニューの「地図を更新」を押すと作れます'); return; }
+  if(!m.pos.has(it.i)){
+    let ok = false;
+    try{ ok = await addToMap(it, st); }catch(e){ ok = false; }
+    if(!ok){ st(it.c ? 'この画像はまだ地図にありません（Mac で地図を更新すると入ります）' : '画像のないブックマークなので、似ているものは探せません'); return; }
+  }
+  const near = nearestSim(it, SIM_K) || [];
+  sim = { center:it, list:[it, ...near.filter(x => x !== it)] };
+  edToast.hidden = true;
+  render();
+  if(peek.open) openPeek(it, true);
+}
+function exitSimilar(){ if(!sim) return false; sim = null; return true; }
+$('simExit').addEventListener('click', () => { exitSimilar(); if(cache) render(); });
+$('peekSim').addEventListener('click', () => showSimilar(peekItem));
+updateMapState();
 
 applyCap();
 applyWake();
