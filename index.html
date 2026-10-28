@@ -78,8 +78,6 @@ select,input{
   border:1px solid var(--line); border-radius:var(--r-s); padding:8px 12px;
 }
 select{max-width:280px}
-.sizer{display:inline-flex; align-items:center; gap:8px; color:var(--muted); font-size:var(--fs-s)}
-.sizer input{width:120px; padding:0; border:0; background:transparent; accent-color:var(--accent)}
 .spacer{flex:1}
 .shuffle{
   font:inherit; font-weight:700; color:var(--accent-ink); background:var(--accent);
@@ -110,25 +108,22 @@ header .shuffle{display:inline-flex; align-items:center; gap:6px; height:36px; p
 .menu-wrap{position:relative}
 /* 表示メニュー */
 .menu{
-  position:absolute; top:calc(100% + 8px); right:0; z-index:6; width:330px;
+  position:absolute; top:calc(100% + 8px); right:0; z-index:6; width:288px;
   display:flex; flex-direction:column; gap:4px; padding:8px;
   background:var(--card); border:1px solid var(--line); border-radius:var(--r-m);
   box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:var(--fs);
   max-height:calc(100vh - 80px); overflow:auto; overscroll-behavior:contain;
 }
 .menu[hidden]{display:none}
-.menu-row > span:first-child{white-space:nowrap}
-.menu-row{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:8px; border-radius:var(--r-s); min-height:40px}
-label.menu-row{cursor:pointer}
-label.menu-row:hover{background:var(--field)}
-.menu-row.sub{padding-left:20px; color:var(--muted); font-size:var(--fs-s)}
-.menu-row .sizer input{width:110px}
-.menu-row select{height:32px; padding:0 8px}
+/* メニューの行は高さ 48 */
+.menu-item{display:flex; align-items:center; width:100%; min-height:48px; padding:0 12px; font:inherit; color:var(--text); text-align:left; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
+.menu-item:hover{background:var(--field)}
+.menu-item:disabled{opacity:.5; cursor:progress}
+.menu-size{display:flex; flex-direction:column; gap:0; padding:8px 12px 0}
+/* スライダー：見た目は細く、押せる範囲は高さ 44 */
+input[type=range]{height:44px; margin:0; padding:0; border:0; background:transparent; accent-color:var(--accent)}
+.menu-size input{width:100%}
 .menu hr{border:0; border-top:1px solid var(--line); margin:4px 0}
-.menu .btns{display:flex; gap:8px; padding:4px 8px}
-.menu .btns .icon-btn{flex:1; font-size:var(--fs-s); white-space:nowrap}
-.menu .btns .icon-btn:disabled{opacity:.5; cursor:progress}
-.menu-note{font-size:var(--fs-s); color:var(--muted); padding:4px 8px 0}
 kbd{font:inherit; font-size:var(--fs-xs); color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:0 4px; margin-left:8px} /* キーの形だけは角を小さく（例外） */
 /* オン・オフのスイッチ */
 .switch input{
@@ -189,8 +184,46 @@ body.cur-idle .grid{pointer-events:none}
 body.cur-idle .rd-btn{opacity:0 !important}
 .cur-group{display:none}
 @media (hover:hover){ .cur-group{display:block} }
-.wake-val{min-width:3.6em; text-align:right; font-variant-numeric:tabular-nums}
 .cur-group.off .sub{opacity:.45}
+/* 設定の画面：PC は窓で2列、スマホは画面いっぱいで1列。iPhone の設定と同じく、角の丸いまとまりに行を並べる */
+.set-dlg{width:min(800px, 94vw); max-height:90vh; padding:0; overflow:hidden; background:var(--bg-bottom)}
+.set-dlg[open]{display:flex; flex-direction:column}
+.set-head{flex:none; display:flex; align-items:center; gap:12px; padding:12px 16px 12px 24px; border-bottom:1px solid var(--line)}
+.set-head h2{margin:0 auto 0 0; font-size:var(--fs-h)}
+.set-done{display:none; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; padding:8px; min-height:44px; cursor:pointer}
+.set-x{display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; color:var(--muted); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
+.set-x:hover{background:var(--field); color:var(--text)}
+.set-body{flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:grid; grid-template-columns:1fr 1fr; gap:0 24px; padding:8px 24px 24px}
+.set-col{min-width:0}
+.set-dlg h3{margin:20px 0 8px 16px; font-size:var(--fs-s); font-weight:400; color:var(--muted)}
+.set-group{background:var(--card); border-radius:var(--r-m); overflow:hidden}
+.set-row{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:48px; padding:8px 16px; width:100%; font:inherit; color:var(--text); text-align:left; background:transparent; border:0}
+.set-row + .set-row, .set-group:not(.set-keys) > * + *{border-top:1px solid color-mix(in srgb, var(--line) 60%, transparent)}
+.cur-group > .set-row + .set-row{border-top:1px solid color-mix(in srgb, var(--line) 60%, transparent)}
+label.set-row{cursor:pointer}
+.set-row.sub{padding-left:32px; color:var(--muted)}
+.set-row input[type=range]{flex:1; min-width:80px; max-width:200px; margin-left:auto}
+.set-val{flex:none; min-width:3.6em; text-align:right; font-size:var(--fs-s); color:var(--muted); font-variant-numeric:tabular-nums}
+.set-seg button{padding:4px 16px; font-variant-numeric:tabular-nums}
+.set-act{color:var(--accent); cursor:pointer}
+.set-act:hover{background:var(--field)}
+.set-act:disabled{opacity:.5; cursor:progress}
+.map-state{flex:1; min-width:0; font-size:var(--fs-s); color:var(--muted); line-height:1.5}
+.set-note{margin:8px 16px 0; font-size:var(--fs-s); color:var(--muted); line-height:1.6}
+.set-pc{display:none}
+@media (hover:hover){ .set-pc{display:block} }
+.set-keys{display:grid; grid-template-columns:max-content 1fr max-content 1fr; align-items:center; gap:8px 12px; padding:12px 16px; font-size:var(--fs-s)}
+.set-keys kbd{margin:0; justify-self:start; font-size:var(--fs-xs); color:var(--text)}
+.set-keys-h{grid-column:1 / -1; color:var(--muted); font-size:var(--fs-xs)}
+.set-keys-h:not(:first-child){margin-top:8px}
+@media (max-width:640px){
+  .set-dlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
+  .set-head{display:grid; grid-template-columns:1fr auto 1fr; padding:4px 8px; padding-top:calc(4px + env(safe-area-inset-top)); border-bottom:0}
+  .set-head h2{grid-column:2; margin:0}
+  .set-done{display:inline-flex; align-items:center; grid-column:3; justify-self:end}
+  .set-x{display:none}
+  .set-body{grid-template-columns:1fr; padding:0 16px calc(32px + env(safe-area-inset-bottom))}
+}
 .more{padding:24px 0 8px; text-align:center; color:var(--muted); font-size:var(--fs-s)}
 
 /* プレビュー：画像を画面いっぱいに見せるだけ */
@@ -295,7 +328,6 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .sim-bar{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 10px; padding:8px 12px; border-radius:var(--r-m); background:color-mix(in srgb, var(--accent) 16%, transparent); font-size:var(--fs-s)}
 .sim-bar[hidden]{display:none}
 .sim-bar span{flex:1; min-width:0; overflow-wrap:anywhere}
-.map-state{line-height:1.5}
 .lb-cap-d{font-size:var(--fs-xs); margin-top:4px; color:rgba(255,255,255,.65); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #peek.zoomed .lb-cap{opacity:0}
 /* 軽量モードの「高画質で見る」：画像の右下に */
@@ -353,8 +385,7 @@ body.cur-idle .rd-btn{opacity:0 !important}
 .lb-edit.sheet .ed-head{touch-action:none}
 .ed-head strong{font-size:var(--fs); margin-right:auto}
 .ed-head .switch{display:flex; align-items:center; gap:8px; font-size:var(--fs-s); color:var(--muted); cursor:pointer}
-.ed-x, .ed-size{display:inline-flex; align-items:center; justify-content:center; padding:0; width:30px; height:30px; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer; flex:none}
-.lb-edit.side .ed-size{display:none}
+.ed-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:30px; height:30px; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer; flex:none}
 .ed-scroll{flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:16px; padding:4px 16px 16px}
 .ed-sec{display:flex; flex-direction:column; gap:8px}
 .ed-h{display:flex; align-items:center; gap:8px; font-size:var(--fs-s); color:var(--muted)}
@@ -609,47 +640,11 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
       <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M12 4h2M2 8h2M7 8h7M2 12h8M13 12h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="8" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="11.5" cy="12" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
     </button>
     <div class="menu" id="viewMenu" hidden>
-      <div class="menu-row"><span>カードの大きさ</span>
-        <label class="sizer" for="size" title="キー 1・2・3 で小・中・大"><span aria-hidden="true">小</span><input type="range" id="size" min="90" max="380" step="5" aria-label="カードの大きさ"><span aria-hidden="true">大</span></label>
-      </div>
-      <div class="menu-row"><span>一度に読み込む数</span>
-        <select id="count" aria-label="一度に読み込む件数">
-          <option value="20">20件</option>
-          <option value="40">40件</option>
-          <option value="80">80件</option>
-        </select>
-      </div>
-      <label class="menu-row switch"><span>キャプション<kbd>C</kbd></span><input type="checkbox" id="capToggle"></label>
-      <div class="menu-row" title="♥ や見た動きで熱くなったものを、ランダムのときに多めに出します（2週間で半分に冷めます）"><span>♥ と熱の効き具合</span>
-        <select id="heatSel" aria-label="♥ と熱の効き具合"><option value="off">なし</option><option value="low">弱</option><option value="mid">中</option><option value="high">強</option></select>
-      </div>
-      <label class="menu-row switch" title="プレビューで長く見た・拡大した・高画質で開いた・サイトを開いたものにも、少しずつ熱をためます"><span>見た動きからも熱をためる</span><input type="checkbox" id="heatImpToggle"></label>
-      <label class="menu-row switch" title="一覧とプレビューの画像を小さいサイズで読み込みます。プレビューで「高画質で見る」を押すと、その1枚だけ元の大きさで読み込みます"><span>軽量モード（外出先向け）</span><input type="checkbox" id="saverToggle"></label>
-      <div class="cur-group" id="curGroup">
-        <label class="menu-row switch" title="マウスを止めて少したつとカーソルを隠します。隠れている間はカードに反応しません"><span>カーソルを自動で隠す<kbd>H</kbd></span><input type="checkbox" id="curToggle"></label>
-        <div class="menu-row sub"><span>戻るまでの動き</span>
-          <label class="sizer" for="wake" title="隠れたカーソルが戻るまでに必要な、ひと続きのマウス移動の距離"><input type="range" id="wake" min="30" max="1200" step="10" aria-label="カーソルが戻るまでの移動距離"><output id="wakeVal" for="wake" class="wake-val"></output></label>
-        </div>
-      </div>
+      <div class="menu-size"><label for="size">カードの大きさ</label><input type="range" id="size" min="90" max="380" step="5"></div>
+      <button type="button" class="menu-item" id="ntBtn">サムネイルが出ないもの</button>
+      <button type="button" class="menu-item" id="updDiff">Raindrop から更新</button>
       <hr>
-      <div class="menu-note">似ているもの（プレビューの「似ているもの」で使う地図）</div>
-      <div class="menu-note map-state" id="mapState"></div>
-      <div class="btns"><button type="button" class="icon-btn" id="mapUpd" title="新しく保存したものも含めて地図を作り直し、ほかの端末でも使えるように Raindrop に置きます（Mac の Chrome で）">地図を更新</button></div>
-      <hr>
-      <div class="menu-note">Raindrop から更新（右ほど時間がかかります）</div>
-      <div class="btns">
-        <button type="button" class="icon-btn" id="updNew" title="新しく保存したものだけを取り込みます（いちばん軽い）">新着だけ</button>
-        <button type="button" class="icon-btn" id="updDiff" title="前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込みます">変更分</button>
-        <button type="button" class="icon-btn" id="refresh" title="Raindrop から全部を読み込み直します（時間がかかります）">全部</button>
-      </div>
-      <hr>
-      <div class="btns">
-        <button type="button" class="icon-btn" id="ntBtn" title="画像が出ていないブックマークだけを並べます（今の絞り込みの中から）。サムネを直したいときに">サムネが出ないものを表示</button>
-      </div>
-      <div class="btns">
-        <button type="button" class="icon-btn" id="settings">トークン設定</button>
-      </div>
-      <div class="menu-note">絞り込みのプリセット・固定タグ・♥ と熱は、Raindrop の「rd-shuffle 設定」フォルダを通して端末間で同期します</div>
+      <button type="button" class="menu-item" id="settings">設定…</button>
     </div>
   </div>
 </header>
@@ -695,7 +690,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   <div class="zoom-ind" id="zoomInd"></div>
   <button type="button" class="lb-like" id="peekLike" aria-pressed="false" data-n="0"><span id="peekLikeV"></span><span class="lb-like-n" id="peekLikeN"></span></button>
   <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
-  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div><button type="button" class="lb-sim" id="peekSim" title="似ているものを近い順に並べる（S）">似ているもの</button></div>
+  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div><button type="button" class="lb-sim" id="peekSim" title="似た画像（S）">似た画像</button></div>
   <div class="lb-edit" id="edPanel" hidden></div>
   <div class="lb-toast" id="edToast" hidden role="status"><span id="edToastMsg"></span><button type="button" id="edUndo">元に戻す</button></div>
 </dialog>
@@ -746,6 +741,49 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   </div>
 </dialog>
 
+<dialog id="setDlg" class="set-dlg" aria-labelledby="setTitle">
+  <div class="set-head">
+    <h2 id="setTitle">設定</h2>
+    <button type="button" class="set-done" id="setDone">完了</button>
+    <button type="button" class="set-x" id="setX" aria-label="閉じる"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+  </div>
+  <div class="set-body">
+    <div class="set-col">
+      <h3>表示</h3>
+      <div class="set-group">
+        <label class="set-row switch"><span>キャプション</span><input type="checkbox" id="capToggle"></label>
+        <div class="set-row"><span>一度に読み込む数</span><div class="seg set-seg" id="countSeg" role="group" aria-label="一度に読み込む数"><button type="button" data-n="20">20</button><button type="button" data-n="40">40</button><button type="button" data-n="80">80</button></div></div>
+        <label class="set-row switch"><span>省データモード</span><input type="checkbox" id="saverToggle"></label>
+        <div class="cur-group" id="curGroup">
+          <label class="set-row switch"><span>カーソルを自動で隠す</span><input type="checkbox" id="curToggle"></label>
+          <div class="set-row sub"><label for="wake">再表示までの移動量</label><input type="range" id="wake" min="30" max="1200" step="10"><output id="wakeVal" for="wake" class="set-val"></output></div>
+        </div>
+      </div>
+      <h3>♥ の優先度</h3>
+      <div class="set-group">
+        <div class="set-row"><label for="heatPct">強さ</label><input type="range" id="heatPct" min="0" max="100" step="10"><output id="heatPctVal" for="heatPct" class="set-val"></output></div>
+        <label class="set-row switch"><span>閲覧履歴も反映</span><input type="checkbox" id="heatImpToggle"></label>
+      </div>
+    </div>
+    <div class="set-col">
+      <h3>似た画像</h3>
+      <div class="set-group">
+        <div class="set-row"><span class="map-state" id="mapState"></span><button type="button" class="icon-btn" id="mapUpd">更新</button></div>
+      </div>
+      <h3>Raindrop</h3>
+      <div class="set-group">
+        <button type="button" class="set-row set-act" id="refresh">すべて読み直す</button>
+        <div class="set-row"><span>トークン</span><button type="button" class="icon-btn" id="tokenBtn">変更</button></div>
+      </div>
+      <p class="set-note">♥・閲覧履歴・プリセット・固定タグは、Raindrop 経由でほかの端末と同期されます。</p>
+      <div class="set-pc">
+        <h3>キーの一覧</h3>
+        <div class="set-group set-keys"><div class="set-keys-h">一覧</div><kbd>R</kbd><span>シャッフル</span><kbd>F</kbd><span>絞り込み</span><kbd>/</kbd><span>言葉で探す</span><kbd>C</kbd><span>キャプション</span><kbd>H</kbd><span>カーソルを隠す</span><kbd>1 2 3</kbd><span>カードの大きさ</span><div class="set-keys-h">プレビュー</div><kbd>← →</kbd><span>前・次</span><kbd>L</kbd><span>♥</span><kbd>S</kbd><span>似た画像</span><kbd>E</kbd><span>編集</span><kbd>T</kbd><span>タグを入力</span><kbd>1〜9</kbd><span>固定タグ</span><kbd>R</kbd><span>回転</span><kbd>F</kbd><span>反転</span><kbd>+ − 0</kbd><span>拡大・縮小・戻す</span><kbd>↑ ↓</kbd><span>明るさ</span><kbd>B</kbd><span>明るさを戻す</span><kbd>Q</kbd><span>高画質</span><kbd>Esc</kbd><span>閉じる</span></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
 <dialog id="dlg">
   <form method="dialog" id="tokenForm">
     <h2>Raindrop のトークン</h2>
@@ -791,7 +829,7 @@ let refreshing = false;
 
 const $ = id => document.getElementById(id);
 const grid = $('grid'), empty = $('empty'), statusEl = $('status');
-const countSel = $('count'), shuffleBtn = $('shuffle'), refreshBtn = $('refresh');
+const shuffleBtn = $('shuffle'), refreshBtn = $('refresh');
 const dlg = $('dlg'), tokenInput = $('tokenInput');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // 日本語の並べ替え（毎回 localeCompare を呼ぶより速い）
@@ -1212,11 +1250,11 @@ function shuffleArray(a){
 // 条件に合う全件を一度に並べ、スクロールに合わせて少しずつカードを足していく
 let newNote = '';
 // ---- 更新は3種類 ----
-// 新着だけ：新しく保存したものだけを取りに行く（数リクエスト）
-// 変更分　：前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込む
-// 全部　　：全部読み込み直す（refreshAll）
+// 新着　　　　　　：開いたとき・アプリに戻ったときに自動で（数リクエスト）
+// Raindrop から更新：メニューから。前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込む
+// すべて読み直す　：設定の画面から（refreshAll）
 let lastSync = 0;
-function setUpdateBusy(b){ ['updNew', 'updDiff', 'refresh'].forEach(id => { $(id).disabled = b; }); }
+function setUpdateBusy(b){ ['updDiff', 'refresh'].forEach(id => { $(id).disabled = b; }); }
 // 新しい順に見ていき、知っているものに当たったら止める
 async function syncNew(manual = false){
   if(!cache || refreshing || !state.token) return;
@@ -1352,7 +1390,7 @@ function sortPool(pool){
   // ♥ した順：♥ したものだけを、最後に ♥ した順に
   if(state.sort === 'liked') return a.filter(x => likesOf(x)).sort((x, y) => heat.get(y.i).tl - heat.get(x.i).tl || likesOf(y) - likesOf(x));
   // ランダム：熱いものほどくじが当たりやすい（並び全体に散らばって、少し多めに前の方に来る）
-  const s = HEAT_STR[state.heat] || 0;
+  const s = heatStrength();
   if(!s || !heat.size) return shuffleArray(a);
   const now = Date.now();
   return a.map(x => [x, -Math.log(1 - Math.random()) / heatWeight(x.i, now, s)]).sort((p, q) => p[1] - q[1]).map(p => p[0]);
@@ -1414,7 +1452,7 @@ function appendMore(){
 function renderSimBar(){
   const bar = $('simBar');
   bar.hidden = !sim;
-  if(sim) $('simBarT').textContent = `「${((sim.center.t || '').trim() || sim.center.d || 'この画像').slice(0, 40)}」に似ているもの（近い順 ${Math.max(0, sim.list.length - 1)}件）`;
+  if(sim) $('simBarT').textContent = `「${((sim.center.t || '').trim() || sim.center.d || 'この画像').slice(0, 40)}」に似た画像（${Math.max(0, sim.list.length - 1)}件）`;
 }
 function updateStatus(){
   statusEl.textContent = `${poolSize.toLocaleString()}件中 ${shownCount.toLocaleString()}件を表示（${ago(Math.max(cache.savedAt, cache.syncedAt || 0))}に更新）`;
@@ -2209,8 +2247,6 @@ function layoutEdit(){
     peek.style.setProperty('--edit-h', h + 'px');
     peek.style.setProperty('--toast-b', (Math.min(h, H - 70) + 12) + 'px');
   }
-  const sz = edPanel.querySelector('.ed-size');
-  if(sz){ sz.innerHTML = icon(sheetFull ? 'down' : 'up'); sz.setAttribute('aria-label', sheetFull ? '半分に戻す' : '画面いっぱいに広げる'); }
 }
 function setSheetFull(v){ sheetFull = v; store.set('sheetfull', v); layoutEdit(); }
 addEventListener('resize', () => layoutEdit());
@@ -2378,11 +2414,9 @@ function editFrame(){
   const swIn = el('input'); swIn.type = 'checkbox'; swIn.checked = autoNext;
   swIn.addEventListener('change', () => { autoNext = swIn.checked; store.set('autonext', autoNext); });
   sw.append(el('span', '', '整理モード'), swIn);
-  const size = el('button', 'ed-size'); size.type = 'button';
-  size.addEventListener('click', () => setSheetFull(!sheetFull));
   const x = el('button', 'ed-x'); x.innerHTML = icon('x'); x.type = 'button'; x.setAttribute('aria-label', '編集を閉じる');
   x.addEventListener('click', () => setEditOpen(false));
-  head.append(el('strong', '', 'タグ・フォルダ'), sw, size, x);
+  head.append(el('strong', '', 'タグ・フォルダ'), sw, x);
   return [rz, grip, head];
 }
 function editFolderSec(it){
@@ -2888,7 +2922,15 @@ function setShuffleBusy(b){
   $('shuffleLabel').textContent = b ? '読み込み中…' : 'シャッフル';
 }
 
-function openSettings(){
+// 設定の画面（メニューの「設定…」）
+const setDlg = $('setDlg');
+function openSettings(){ setMenu(false); updateMapState(); setDlg.showModal(); }
+$('setDone').addEventListener('click', () => setDlg.close());
+$('setX').addEventListener('click', () => setDlg.close());
+setDlg.addEventListener('click', e => { if(e.target === setDlg) setDlg.close(); });
+$('tokenBtn').addEventListener('click', () => { setDlg.close(); openToken(); });
+// トークンの窓
+function openToken(){
   tokenInput.value = state.token;
   if(typeof dlg.showModal === 'function') dlg.showModal();
   tokenInput.focus();
@@ -2926,7 +2968,7 @@ function armIdle(){
   clearTimeout(idleTimer);
   if(!state.hideCur || !canHover) return;
   idleTimer = setTimeout(() => {
-    if(dlg.open || peek.open || filterDlg.open) return armIdle();
+    if(dlg.open || peek.open || filterDlg.open || setDlg.open) return armIdle();
     setIdle(true);
   }, IDLE_MS);
 }
@@ -2996,16 +3038,19 @@ function setSize(px){
   applySize();
 }
 sizeInput.addEventListener('input', () => setSize(Number(sizeInput.value)));
-countSel.addEventListener('change', () => {
-  state.count = Number(countSel.value);
-  store.set('count', state.count);
+// 一度に読み込む数：20・40・80
+const countSeg = $('countSeg');
+function applyCount(){ countSeg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.n) === state.count))); }
+countSeg.addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  state.count = Number(b.dataset.n); store.set('count', state.count); applyCount();
 });
 shuffleBtn.addEventListener('click', shuffle);
 const sortSel = $('sortSel');
 sortSel.value = state.sort;
 sortSel.addEventListener('change', () => { exitSimilar(); state.sort = sortSel.value; store.set('sort', state.sort); if(cache) render(); });
 
-// 表示メニュー（大きさ・件数・キャプション・カーソル・読み込み直し・トークン）
+// メニュー（カードの大きさ・サムネイルが出ないもの・Raindrop から更新・設定…）
 const viewBtn = $('viewBtn'), viewMenu = $('viewMenu');
 function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); }
 viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.hidden); });
@@ -3013,10 +3058,9 @@ viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.h
 document.addEventListener('click', e => {
   if(!viewMenu.hidden && !e.target.closest('.menu-wrap')){ e.preventDefault(); e.stopPropagation(); setMenu(false); }
 }, true);
-refreshBtn.addEventListener('click', () => { setMenu(false); refreshAll(); });
-$('updNew').addEventListener('click', () => { setMenu(false); syncNew(true); });
+refreshBtn.addEventListener('click', () => { setDlg.close(); refreshAll(); });
 $('updDiff').addEventListener('click', () => { setMenu(false); syncChanged(); });
-$('settings').addEventListener('click', () => { setMenu(false); openSettings(); });
+$('settings').addEventListener('click', openSettings);
 $('cancel').addEventListener('click', () => dlg.close());
 $('tokenForm').addEventListener('submit', () => {
   const next = tokenInput.value.trim();
@@ -3159,7 +3203,7 @@ document.addEventListener('keydown', e => {
     if(/^[1-9]$/.test(e.key) && pins[Number(e.key) - 1] && peekItem){ e.preventDefault(); toggleTag(peekItem, pins[Number(e.key) - 1]); return; }
     return;
   }
-  if(typing || dlg.open || filterDlg.open) return;
+  if(typing || dlg.open || filterDlg.open || setDlg.open) return;
   if(e.key === 'Escape' && selected.size){ e.preventDefault(); if(popKind){ popKind = ''; renderSelPop(); } else clearSelection(); return; }
   if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); openFilter(); return; }
   if(e.key === '/'){ e.preventDefault(); openFilter('other'); return; }
@@ -3176,8 +3220,10 @@ document.addEventListener('keydown', e => {
 // 熱は2週間で半分に冷める。♥ したものは冷めきっても、普通より少しだけ出やすいまま残る
 const HALF = 14 * DAY;
 const LIKE_HEAT = 3, LIKE_FLOOR = 0.3;
-const HEAT_STR = { off:0, low:0.5, mid:1, high:2 };
-state.heat = store.get('heatstr', 'mid');
+// 強さは 0〜100%。50% が前の「中」（効き具合 1）、100% が前の「強」（2）
+const HEAT_OLD = { off:0, low:25, mid:50, high:100 };
+state.heatPct = Number(store.get('heatpct', HEAT_OLD[store.get('heatstr', 'mid')] ?? 50));
+const heatStrength = () => Math.max(0, Math.min(100, state.heatPct || 0)) / 50;
 state.heatImp = store.get('heatimp', true);
 // heat: ID → { L:♥の数, tl:♥を変えた時刻, e:動きの熱, te:動きの熱を足した時刻 }
 let heat = new Map();
@@ -3264,9 +3310,10 @@ function viewEnd(){
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') viewResume(); else viewPause(); });
 $('peekOpen').addEventListener('click', () => viewBonus('site'));
 // メニュー：効き具合と、動きをためるかどうか
-const heatSel = $('heatSel'), heatImpBtn = $('heatImpToggle');
-heatSel.value = state.heat in HEAT_STR ? state.heat : 'mid';
-heatSel.addEventListener('change', () => { state.heat = heatSel.value; store.set('heatstr', state.heat); });
+const heatPct = $('heatPct'), heatImpBtn = $('heatImpToggle');
+function applyHeatPct(){ heatPct.value = String(state.heatPct); $('heatPctVal').textContent = state.heatPct + '%'; }
+heatPct.addEventListener('input', () => { state.heatPct = Number(heatPct.value); store.set('heatpct', state.heatPct); applyHeatPct(); });
+applyHeatPct();
 heatImpBtn.checked = state.heatImp;
 heatImpBtn.addEventListener('change', () => { state.heatImp = heatImpBtn.checked; store.set('heatimp', state.heatImp); });
 
@@ -3442,7 +3489,7 @@ function renderNtBar(){
   if(bar.hidden || ntChecking){ $('ntCheck').textContent = ntChecking ? '止める' : $('ntCheck').textContent; return; }
   const pool = cache ? cache.items.filter(makeFilter(state.filter)) : [];
   const unknown = pool.filter(isThumbUnknown).length;
-  $('ntBarT').textContent = `サムネが出ないもの ${poolSize.toLocaleString()}件` + (unknown ? `（ほかに、まだ確かめていないものが ${unknown.toLocaleString()}件）` : '');
+  $('ntBarT').textContent = `サムネイルが出ないもの ${poolSize.toLocaleString()}件` + (unknown ? `（ほかに、まだ確かめていないものが ${unknown.toLocaleString()}件）` : '');
   $('ntCheck').textContent = unknown ? `確かめる（${unknown.toLocaleString()}件）` : '確かめ直す';
   $('ntCheck').title = unknown ? 'まだ一度も画像を出していないものを、小さいサイズで読んで確かめます' : '今並んでいるものを、もう一度読んで確かめます（直したものは外れます）';
 }
@@ -3698,7 +3745,7 @@ async function writeRemoteMap(rec, st){
   const top = Math.max(all.length, ...parts.map(x => x.n), 1);
   let writes = 0;
   for(let n = 1; n <= top; n++){
-    st(`地図を Raindrop に置いています… ${n} / ${top}`);
+    st(`Raindrop に保存しています… ${n} / ${top}`);
     const note = all[n - 1] || '';
     const cur = byN.get(n);
     if(cur){ if(cur.note !== note) await api(`/raindrop/${cur.id}`, { method:'PUT', body:{ note } }); else continue; }
@@ -3783,7 +3830,7 @@ async function ensureMap(st){
   if(simMap && simMap.at >= mapKnownAt && mapKnownAt) return simMap;
   let rec = await mapLocalGet();
   if(!rec || rec.at < mapKnownAt || !mapKnownAt){
-    st('似ているものの地図を読み込んでいます…');
+    st('似た画像の準備をしています…');
     const remote = await readRemoteMap().catch(() => null);
     const merged = await fillFromLab(mergeMaps(rec, remote));
     if(merged !== rec){ rec = merged; await mapLocalSet(rec); }
@@ -3898,7 +3945,7 @@ async function addToMap(it, st){
   let rec = simMap && simMap.rec;
   if(!rec || !rec.basis || !it.c) return false;
   let v = await labGet(it.c);
-  if(!v){ await loadDino(st); st('この画像を地図に置いています…'); v = await embedCover(it.c); await labSet(it.c, v); }
+  if(!v){ await loadDino(st); st('この画像を調べています…'); v = await embedCover(it.c); await labSet(it.c, v); }
   rec = await mapLocalGet() || rec;   // 合わせたあとの最新を使う
   const d = rec.dims, q = new Int8Array((rec.n + 1) * d); q.set(rec.q);
   q.set(quantRow(project(v, rec, v.length, d), rec.scale, d), rec.n * d);
@@ -3926,7 +3973,7 @@ async function embedMissing(list, lab, st){
       const c = list[next++];
       try{ const v = await embedCover(c); lab.set(c, v); await labSet(c, v); done++; }catch(e){ fail++; }
       const n = done + fail, secs = (performance.now() - t0) / 1000, left = n > 5 ? secs / n * (list.length - n) : 0;
-      st(`足りない画像を地図に置いています… ${n.toLocaleString()} / ${list.length.toLocaleString()}${left ? `（あと約 ${Math.ceil(left / 60)} 分）` : ''}`);
+      st(`画像を調べています… ${n.toLocaleString()} / ${list.length.toLocaleString()}${left ? `（あと約 ${Math.ceil(left / 60)} 分）` : ''}`);
     }
   };
   await Promise.all(Array.from({ length:6 }, worker));
@@ -3941,7 +3988,7 @@ async function rebuildMap(){
   mapBuilding = true; mapStopReq = false;
   let lock = null;
   try{
-    st('Raindrop の地図と合わせています…');
+    st('Raindrop のデータと合わせています…');
     let remote = null; try{ remote = await readRemoteMap(); }catch(e){ if(e.message === 'auth') throw e; }
     let local = mergeMaps(await mapLocalGet(), remote);
     const lab = await labVectors();
@@ -3975,14 +4022,14 @@ async function rebuildMap(){
       added.forEach(it => { const v = lab.get(it.c); if(!v) return; q.set(quantRow(project(v, local, v.length, d), local.scale, d), ids.length * d); ids.push(it.i); cv.push(it.c); dirty.add(it.i); appended++; });
       rec = { ...local, n:ids.length, ids, cv, q:q.slice(0, ids.length * d), dirty:[...dirty] };
       done = writes => {
-        const head = !appended && !fixed ? '新着はありませんでした' : `地図に新着 ${appended.toLocaleString()} 件を足しました${fixed ? `（サムネが変わった ${fixed} 件も置き直しました）` : ''}`;
-        const tail = grown && !hasOriginals ? '。前に作り直したときから2割以上増えているので、Mac の Chrome で更新すると、縮め方から作り直してもっと合うようになります。'
-          : rec.baseN ? `。あと ${Math.max(0, Math.ceil(rec.baseN * MAP_REBUILD_GROW) - rec.n).toLocaleString()} 件増えたら、縮め方から作り直します。` : '。';
-        return `${head}。Raindrop で書き換えたのは ${writes} 件です${tail}`;
+        const head = !appended && !fixed ? '新着はありませんでした' : `新着 ${appended.toLocaleString()}枚を足しました${fixed ? `（サムネイルが変わった ${fixed}枚も入れ直しました）` : ''}`;
+        const tail = grown && !hasOriginals ? '。Mac で更新すると、作り直して精度が上がります' : '';
+        console.info(`似た画像：Raindrop の書き換え ${writes} 件`);
+        return head + tail;
       };
     }else{
       // ---- 縮め方から全部作り直す ----
-      st('地図を縮めています…'); await sleep(30);
+      st('まとめています…'); await sleep(30);
       const useC = covers.filter(c => lab.has(c));
       if(useC.length < 10) throw new Error('few');
       const X = useC.map(c => lab.get(c)), d = X[0].length;
@@ -4007,7 +4054,7 @@ async function rebuildMap(){
         top(r => { if(r === r0 || rowsIt[r].c === it.c) return null; let s = 0; for(let j = 0; j < MAP_DIMS; j++) s += R.V[r0 * MAP_DIMS + j] * R.V[r * MAP_DIMS + j]; return s; }).forEach(r => { if(full.has(r)) same++; });
       });
       const keep = sample.length ? same / sample.length : 0;
-      done = writes => `地図を縮め方から作り直しました（${rec.n.toLocaleString()}件）。縮めたあとも、近い24枚のうち平均 ${keep.toFixed(1)} 枚は縮める前と同じです（Raindrop で書き換えたのは ${writes} 件）。`;
+      done = writes => { console.info(`似た画像：作り直し。近い24枚の一致 ${keep.toFixed(1)}、Raindrop の書き換え ${writes} 件`); return `作り直しました（${rec.n.toLocaleString()}枚）`; };
     }
     let writes = 0;
     if(needsUpload(rec, remote)){
@@ -4021,19 +4068,20 @@ async function rebuildMap(){
     if(writes) pullSettings();   // ほかの端末に「新しい地図がある」と知らせる
     st(done(writes));
   }catch(e){
-    st(`地図を更新できませんでした（${whyText(e)}）`);
+    st(`更新できませんでした（${whyText(e)}）`);
   }finally{
     mapBuilding = false; mapWarned = btn.textContent === 'それでも始める' ? mapWarned : false;
-    if(btn.textContent !== 'それでも始める') btn.textContent = '地図を更新';
+    if(btn.textContent !== 'それでも始める') btn.textContent = '更新';
     try{ lock && lock.release(); }catch(e){}
   }
 }
 function updateMapState(){
   const el = $('mapState'); if(!el || mapBuilding) return;
   const info = store.get('mapinfo', null);
-  if(info && info.at >= mapKnownAt) el.textContent = `地図：${info.n.toLocaleString()}件（${new Date(info.at).toLocaleDateString('ja-JP')} に更新）`;
-  else if(mapKnownAt) el.textContent = '新しい地図があります（「似ているもの」を押したときに読み込みます）';
-  else el.textContent = '地図：まだありません（Mac の Chrome で「地図を更新」を押すと作れます）';
+  const d = t => { const x = new Date(t); return `${x.getMonth() + 1}月${x.getDate()}日`; };
+  if(info && info.at >= mapKnownAt) el.textContent = `${info.n.toLocaleString()}枚・${d(info.at)}に更新`;
+  else if(mapKnownAt) el.textContent = 'ほかの端末で更新されています。似た画像を開くと読み込みます';
+  else el.textContent = 'まだありません。Mac の Chrome で作れます';
 }
 $('mapUpd').addEventListener('click', () => { if(cache) rebuildMap(); });
 
@@ -4043,11 +4091,11 @@ async function showSimilar(it){
   const st = t => showToast(t, null);
   let m;
   try{ m = await ensureMap(st); }catch(e){ m = null; }
-  if(!m){ st('まだ似ているものの地図がありません。Mac の Chrome で、メニューの「地図を更新」を押すと作れます'); return; }
+  if(!m){ st('似た画像はまだ使えません。Mac の設定から準備できます'); return; }
   if(!m.pos.has(it.i)){
     let ok = false;
     try{ ok = await addToMap(it, st); }catch(e){ ok = false; }
-    if(!ok){ st(it.c ? 'この画像はまだ地図にありません（Mac で地図を更新すると入ります）' : '画像のないブックマークなので、似ているものは探せません'); return; }
+    if(!ok){ st(it.c ? 'この画像はまだ調べていません。Mac の設定で更新すると入ります' : '画像がないので、似た画像は探せません'); return; }
   }
   const near = nearestSim(it, SIM_K) || [];
   sim = { center:it, list:[it, ...near.filter(x => x !== it)] };
@@ -4064,12 +4112,13 @@ applyCap();
 applyWake();
 applyCur();
 applySize();
-countSel.value = String(state.count);
-if(!['20', '40', '80'].includes(countSel.value)){ countSel.value = '40'; state.count = 40; }
+state.count = Number(state.count);
+if(![20, 40, 80].includes(state.count)) state.count = 40;
+applyCount();
 if(cache && !(cache.v === 2 && cache.items && cache.colls && cache.tags)) cache = null;
 if(cache) applyCache(); else syncFilter();
 if(!state.token){
-  openSettings();
+  openToken();
 }else if(cache){
   render();
   setTimeout(pullSettings, 1500);
