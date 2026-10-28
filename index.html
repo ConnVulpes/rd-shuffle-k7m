@@ -210,6 +210,10 @@ label.set-row{cursor:pointer}
 .set-act:disabled{opacity:.5; cursor:progress}
 .map-state{flex:1; min-width:0; font-size:var(--fs-s); color:var(--muted); line-height:1.5}
 .set-note{margin:8px 16px 0; font-size:var(--fs-s); color:var(--muted); line-height:1.6}
+.set-grip{display:none}
+.set-dlg{transition:transform .2s ease-out}
+.set-dlg.drag{transition:none}
+@media (prefers-reduced-motion: reduce){ .set-dlg{transition:none} }
 .set-pc{display:none}
 @media (hover:hover){ .set-pc{display:block} }
 .set-keys{display:grid; grid-template-columns:max-content 1fr max-content 1fr; align-items:center; gap:8px 12px; padding:12px 16px; font-size:var(--fs-s)}
@@ -218,12 +222,17 @@ label.set-row{cursor:pointer}
 .set-keys-h:not(:first-child){margin-top:8px}
 @media (max-width:640px){
   .set-dlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
-  .set-head{display:grid; grid-template-columns:1fr auto 1fr; padding:4px 8px; padding-top:calc(4px + env(safe-area-inset-top)); border-bottom:0}
+  .set-dlg{animation:setUp .2s ease-out}
+  @keyframes setUp{ from{ transform:translateY(100%) } }
+  .set-grip{display:flex; flex:none; height:20px; padding-top:env(safe-area-inset-top); box-sizing:content-box; align-items:flex-end; justify-content:center; touch-action:none}
+  .set-grip::before{content:''; width:40px; height:4px; border-radius:var(--r-full); background:var(--line)}
+  .set-head{display:grid; grid-template-columns:1fr auto 1fr; padding:0 8px 4px; border-bottom:0; touch-action:none}
   .set-head h2{grid-column:2; margin:0}
   .set-done{display:inline-flex; align-items:center; grid-column:3; justify-self:end}
   .set-x{display:none}
   .set-body{grid-template-columns:1fr; padding:0 16px calc(32px + env(safe-area-inset-bottom))}
 }
+@media (max-width:640px) and (prefers-reduced-motion: reduce){ .set-dlg{animation:none} }
 .more{padding:24px 0 8px; text-align:center; color:var(--muted); font-size:var(--fs-s)}
 
 /* プレビュー：画像を画面いっぱいに見せるだけ */
@@ -742,6 +751,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 </dialog>
 
 <dialog id="setDlg" class="set-dlg" aria-labelledby="setTitle">
+  <div class="set-grip" id="setGrip" aria-hidden="true"></div>
   <div class="set-head">
     <h2 id="setTitle">設定</h2>
     <button type="button" class="set-done" id="setDone">完了</button>
@@ -1214,7 +1224,7 @@ function openFilter(tab){
   fdSearch.value = '';
   $('fdQ').value = draft.q || '';
   renderFilterDlg();
-  filterDlg.showModal();
+  lockScroll(); filterDlg.showModal();
   if(tab === 'other') $('fdQ').focus();
 }
 $('filterBtn').addEventListener('click', () => openFilter());
@@ -1775,13 +1785,15 @@ function stepPeek(d){
 }
 
 // プレビュー中は後ろの一覧が動かないように固定する（iPhone でも効く方法）
-let lockedY = 0;
+let lockedY = 0, lockN = 0;
 function lockScroll(){
+  if(lockN++) return;
   lockedY = window.scrollY;
   const b = document.body.style;
   b.position = 'fixed'; b.top = `-${lockedY}px`; b.left = '0'; b.right = '0'; b.width = '100%';
 }
 function unlockScroll(){
+  if(!lockN || --lockN) return;
   const b = document.body.style;
   b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
   window.scrollTo(0, lockedY);
@@ -2924,7 +2936,31 @@ function setShuffleBusy(b){
 
 // 設定の画面（メニューの「設定…」）
 const setDlg = $('setDlg');
-function openSettings(){ setMenu(false); updateMapState(); setDlg.showModal(); }
+function openSettings(){ setMenu(false); updateMapState(); lockScroll(); setDlg.style.transform = ''; setDlg.showModal(); }
+// 設定・絞り込み・トークンの窓を開いている間は、後ろの一覧が動かないように固定する
+[setDlg, filterDlg, dlg].forEach(d => d.addEventListener('close', unlockScroll));
+// スマホ：上のつまみ（と見出し）を下に引くと閉じる。編集の画面いっぱいのときと同じ
+function startSetDrag(e){
+  if(!matchMedia('(max-width:640px)').matches || e.target.closest('button')) return;
+  e.preventDefault();
+  const y0 = e.clientY, t0 = performance.now();
+  let dy = 0;
+  setDlg.classList.add('drag');
+  const move = ev => { dy = Math.max(0, ev.clientY - y0); setDlg.style.transform = dy ? `translateY(${dy}px)` : ''; };
+  const up = () => {
+    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
+    setDlg.classList.remove('drag');
+    const fast = dy > 40 && dy / Math.max(1, performance.now() - t0) > 0.6;
+    if(dy > innerHeight * 0.25 || fast){
+      setDlg.style.transform = 'translateY(100%)';
+      setTimeout(() => { setDlg.close(); setDlg.style.transform = ''; }, reduceMotion() ? 0 : 200);
+    }else setDlg.style.transform = '';
+  };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+$('setGrip').addEventListener('pointerdown', startSetDrag);
+document.querySelector('#setDlg .set-head').addEventListener('pointerdown', startSetDrag);
 $('setDone').addEventListener('click', () => setDlg.close());
 $('setX').addEventListener('click', () => setDlg.close());
 setDlg.addEventListener('click', e => { if(e.target === setDlg) setDlg.close(); });
@@ -2932,7 +2968,7 @@ $('tokenBtn').addEventListener('click', () => { setDlg.close(); openToken(); });
 // トークンの窓
 function openToken(){
   tokenInput.value = state.token;
-  if(typeof dlg.showModal === 'function') dlg.showModal();
+  if(typeof dlg.showModal === 'function'){ lockScroll(); dlg.showModal(); }
   tokenInput.focus();
 }
 
