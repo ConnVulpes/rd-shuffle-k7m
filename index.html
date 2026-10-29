@@ -384,6 +384,12 @@ header.deep > .deep-bar{display:flex}
 #ntCheck[hidden]{display:none}
 /* 来た画像（似た画像の元）を枠で示す */
 .card.is-base{box-shadow:0 0 0 2px var(--accent)}
+/* 似た画像の画面：押した画像を一覧の上（列の外）に、カード2枚分ほどの大きさで真ん中に置く */
+.grid:has(> .sim-top){flex-wrap:wrap}
+.sim-top{flex:0 0 100%; display:flex; justify-content:center; min-width:0}
+.sim-hero{flex:none; max-width:100%}
+/* 似た画像の画面の長押しで出す選択肢（カードの近くに） */
+.menu.press-menu{position:absolute; top:0; left:0; right:auto; width:160px; max-height:none}
 /* 入るときは右から、戻るときは左へ */
 @keyframes viewIn{ from{ transform:translateX(32px); opacity:.3 } }
 @keyframes viewBack{ from{ transform:translateX(-32px); opacity:.3 } }
@@ -538,6 +544,9 @@ header.deep > .deep-bar{display:flex}
   .rd-btn{opacity:0}
   .card:hover .rd-btn,.rd-btn:focus-visible{opacity:.9}
 }
+/* 似た画像の画面だけ：水滴の隣の「プレビュー」（PC でカードに乗せると出る） */
+.pv-btn{right:48px; padding:0; border:0; cursor:pointer; font:inherit}
+@media (hover:none){ .pv-btn{display:none} }
 
 /* 複数選択：左上のチェック・選んだカード・下のバー */
 .sel-box{
@@ -752,6 +761,11 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
     <p>カードを押すと画像が大きく開き、右上の水滴ボタンで Raindrop の編集画面が開きます。左上の「絞り込み」でフォルダやタグを選べます。</p>
   </div>
 </main>
+
+<div class="menu press-menu" id="pressMenu" role="menu" hidden>
+  <button type="button" class="menu-item" id="pressPeek" role="menuitem">プレビュー</button>
+  <button type="button" class="menu-item" id="pressPick" role="menuitem">選択</button>
+</div>
 
 <div class="selbar" id="selBar" hidden>
   <div class="sel-pop" id="selPop" hidden></div>
@@ -1565,6 +1579,12 @@ function render(){
   cardEls = [];
   placeGen++; placeQueue = Promise.resolve(); placing = 0;
   layout(true);
+  const oldTop = grid.querySelector(':scope > .sim-top'); if(oldTop) oldTop.remove();
+  if(sim){
+    // 押した画像を一覧の上に（一覧の中には出さない）
+    const row = el('div', 'sim-top'), h = card(sim.center, true);
+    row.append(h); grid.prepend(row); sizeHero(h);
+  }
   window.scrollTo({ top:0, behavior:'instant' });
   empty.hidden = poolSize > 0;
   if(!poolSize){
@@ -1581,7 +1601,8 @@ let placeGen = 0, placeQueue = Promise.resolve(), placing = 0;
 function appendMore(){
   const next = order.slice(shownCount, shownCount + state.count);
   const gen = placeGen;
-  const els = next.map(it => { const c = card(it); cardEls.push(c); return c; });
+  // 似た画像の画面では、押した画像（いちばん上に置いたもの）は一覧に入れない
+  const els = next.filter(it => !(sim && it === sim.center)).map(it => { const c = card(it); cardEls.push(c); return c; });
   shownCount += next.length;
   placing += els.length;
   placeQueue = placeQueue.then(async () => {
@@ -1605,6 +1626,7 @@ function applyView(){
   const v = views[views.length - 1];
   sim = v && v.kind === 'sim' ? v.sim : null;
   ntMode = !!v && v.kind === 'nt';
+  $('pressMenu').hidden = true;   // 長押しの選択肢は、段が変わったら閉じる
   renderDeepBar();
 }
 function slideGrid(cls){
@@ -1671,7 +1693,7 @@ function restoreView(quiet){
   placeGen++;
   grid.innerHTML = ''; grid.append(sn.frag);
   ({ order, shownCount, poolSize, cardEls, cols, colCount } = sn);
-  cardEls.forEach(c => { if(c._item) cardOf.set(c._item, c); });
+  allCards().forEach(c => { if(c._item) cardOf.set(c._item, c); });
   // 入る前にまだ並べ終わっていなかったカードを、続きから並べる
   const pending = cardEls.filter(c => !c._placed), gen = placeGen;
   placing = pending.length;
@@ -1769,7 +1791,7 @@ addEventListener('popstate', e => {
     return;
   }
   const again = () => history.pushState({ rd:layers.length }, '');
-  if(!viewMenu.hidden || !sortMenu.hidden){ setMenu(false); setSortMenu(false); if(layers.length) again(); return; }
+  if(!viewMenu.hidden || !sortMenu.hidden || !pressMenu.hidden){ setMenu(false); setSortMenu(false); closePressMenu(); if(layers.length) again(); return; }
   if(peek.open && editOpen){ setEditOpen(false); again(); return; }
   // 戻る：上から1つずつ閉じる（ブラウザで何段もまとめて戻ったときは、その分だけ）
   while(layers.length > to){
@@ -1810,9 +1832,12 @@ function layout(force){
   const w = grid.clientWidth || document.documentElement.clientWidth;
   grid.style.setProperty('--gap', gapFor(state.col) + 'px');
   grid.style.setProperty('--colw', Math.min(state.col, w) + 'px');
-  if(!force && n === colCount) return;
+  const top = grid.querySelector(':scope > .sim-top');
+  if(!force && n === colCount){ sizeHero(heroOf()); return; }
   colCount = n;
   grid.innerHTML = '';
+  if(top) grid.append(top);   // 上に置いた画像は列を作り直しても残す
+  sizeHero(heroOf());
   cols = [];
   for(let i = 0; i < n; i++){
     const c = document.createElement('div');
@@ -1821,6 +1846,20 @@ function layout(force){
     cols.push(c);
   }
   cardEls.filter(c => c._placed).forEach(placeCard);
+}
+
+// 似た画像の画面の、上に置いた画像
+const heroOf = () => grid.querySelector(':scope > .sim-top > .sim-hero');
+const allCards = () => { const h = heroOf(); return h ? [h, ...cardEls] : cardEls; };
+// 上に置く画像の大きさ：列が2本以上なら2列ぶん（列の幅×2＋すき間）、1本ならその列の幅。
+// 縦横の比はそのままで、高さは画面の高さの 60% まで
+function sizeHero(c){
+  if(!c) return;
+  const w = grid.clientWidth || document.documentElement.clientWidth;
+  const colw = Math.min(state.col, w), W = colCount >= 2 ? colw * 2 + gapFor(state.col) : colw;
+  const m = c.querySelector('.card-link > .thumb');
+  const nw = m ? (m.naturalWidth || m.videoWidth || 0) : 0, nh = m ? (m.naturalHeight || m.videoHeight || 0) : 0;
+  c.style.width = Math.floor(nw && nh ? Math.min(W, innerHeight * 0.6 * nw / nh) : W) + 'px';
 }
 
 function placeCard(el){
@@ -1922,6 +1961,7 @@ function smallUrl(u, w){
 function sizedUrl(u, size){
   if(size === 'full') return bigUrl(u);
   if(size === 'low') return state.saver ? smallUrl(u, 1000) : u;   // 普段は一覧と同じ（読み込み済みなのですぐ出る）
+  if(size === 'hero') return state.saver ? smallUrl(u, 1000) : u;  // 似た画像の画面の上の画像（プレビューの最初と同じ画像）
   return state.saver ? smallUrl(u, Math.min(800, Math.round(state.col * Math.min(2, devicePixelRatio || 1)))) : u;
 }
 // プレビューで次（と前）に見そうな画像を先に読み込んでおく。送ったときにすぐ出るように
@@ -2051,12 +2091,14 @@ const ICONS = {
   up:'<path d="M4.5 12.5l5.5-5.5 5.5 5.5"/>',
   down:'<path d="M4.5 7.5l5.5 5.5 5.5-5.5"/>',
   plus:'<path d="M10 4.5v11M4.5 10h11"/>',
+  expand:'<path d="M3.5 8V3.5H8M12 3.5h4.5V8M16.5 12v4.5H12M8 16.5H3.5V12"/>',
   heart:'<path d="M10 16.5C4.6 12.9 2.5 10.1 2.5 7.4c0-2.2 1.7-3.9 3.8-3.9 1.5 0 2.8.8 3.7 2.1.9-1.3 2.2-2.1 3.7-2.1 2.1 0 3.8 1.7 3.8 3.9 0 2.7-2.1 5.5-7.5 9.1z"/>',
 };
 const icon = (name, cls = '') => `<svg class="ico${cls ? ' ' + cls : ''}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 const CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-function card(it){
-  const wrap = el('div', 'card' + (sim && it === sim.center ? ' is-base' : ''));
+// top：似た画像の画面のいちばん上に置く、押した画像（sim.center）
+function card(it, top = false){
+  const wrap = el('div', 'card' + (top ? ' sim-hero is-base' : ''));
   const a = el('a', 'card-link');
   a.href = it.l;
   a.target = '_blank';
@@ -2070,10 +2112,13 @@ function card(it){
     // 普通のクリックはプレビュー。⌘クリックや中ボタンはサイトを開く
     if(e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
+    // 似た画像の画面では、押した画像の似た画像へ一段下がる（上に置いた画像はプレビュー）
+    if(sim && !top){ showSimilar(it); return; }
     openPeek(it);
   });
   const list = thumbs(it);
-  wrap._ready = new Promise(res => a.append(mediaEl(it, list, 0, res, true)));
+  // 上に置く画像は大きく出すので、プレビューと同じ画像を使う（読み込めたら縦横の比に合わせて大きさを決める）
+  wrap._ready = new Promise(res => a.append(top ? mediaEl(it, list, 0, () => { sizeHero(wrap); res(); }, true, 'hero') : mediaEl(it, list, 0, res, true)));
   a.append(captionEl(it));
   wrap.append(a);
   wrap._item = it;
@@ -2095,7 +2140,15 @@ function card(it){
   box.title = '選択（Shift で範囲）'; box.setAttribute('aria-label', '選択');
   box.innerHTML = CHECK_SVG;
   box.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); pickCard(it, e.shiftKey); });
-  wrap.append(rd, box);
+  if(top){ wrap._hero = true; wrap.append(rd); }
+  else if(sim){
+    // 似た画像の画面では、押すと一段下がるので、そのままプレビューするボタンを水滴の隣に
+    const pv = el('button', 'rd-btn pv-btn'); pv.type = 'button';
+    pv.title = 'プレビュー'; pv.setAttribute('aria-label', 'プレビュー');
+    pv.innerHTML = icon('expand');
+    pv.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); openPeek(it); });
+    wrap.append(rd, pv, box);
+  }else wrap.append(rd, box);
   if(selected.has(it)) wrap.classList.add('picked');
   cardOf.set(it, wrap);
   return wrap;
@@ -2313,7 +2366,9 @@ function recountTags(){
 // カードの画像だけを作り直す（サムネを変えたとき）
 function refreshCardMedia(c, it){
   const a = c.querySelector('.card-link');
-  if(a && a.firstChild) a.firstChild.replaceWith(mediaEl(it, thumbs(it), 0, undefined, true));
+  if(!a || !a.firstChild) return;
+  if(c._hero) a.firstChild.replaceWith(mediaEl(it, thumbs(it), 0, () => sizeHero(c), true, 'hero'));
+  else a.firstChild.replaceWith(mediaEl(it, thumbs(it), 0, undefined, true));
 }
 // 絞り込みから外れたカードの印。text が空なら外す
 const snapOf = it => ({ k:it.k, g:(it.g || []).join('\n') });
@@ -3345,7 +3400,7 @@ function setSaver(v){
   state.saver = v; saverBtn.checked = v;
   store.set('saver', state.saver);
   paintStIcons();
-  cardEls.forEach(c => refreshCardMedia(c, c._item));
+  allCards().forEach(c => refreshCardMedia(c, c._item));
 }
 saverBtn.addEventListener('change', () => setSaver(saverBtn.checked));
 
@@ -3434,7 +3489,7 @@ function setSize(px){
   store.set('col', state.col);
   applySize();
   clearTimeout(recapTimer);
-  recapTimer = setTimeout(() => cardEls.forEach(c => { const old = c.querySelector('.cap'); if(old && c._item) old.replaceWith(captionEl(c._item)); }), 200);
+  recapTimer = setTimeout(() => allCards().forEach(c => { const old = c.querySelector('.cap'); if(old && c._item) old.replaceWith(captionEl(c._item)); }), 200);
 }
 sizeInput.addEventListener('input', () => setSize(Number(sizeInput.value)));
 // 一度に読み込む数：20・40・80
@@ -3544,22 +3599,48 @@ function renderSelPop(){
 }
 $('selMove').addEventListener('click', () => { popKind = popKind === 'move' ? '' : 'move'; renderSelPop(); });
 $('selTag').addEventListener('click', () => { popKind = popKind === 'tag' ? '' : 'tag'; renderSelPop(); });
-$('selAll').addEventListener('click', () => { cardEls.forEach(c => setPicked(c._item, true)); syncSelection(); });
+$('selAll').addEventListener('click', () => { allCards().forEach(c => setPicked(c._item, true)); syncSelection(); });
 $('selClose').addEventListener('click', clearSelection);
 
 // スマホ：カードを長押しで選択を始める
+// 似た画像の画面では、長押しでカードの近くに［プレビュー］［選択］を出す（PC のマウスでも）。選んでいる最中は、今どおり選択の切り替え
 let press = null;
 grid.addEventListener('pointerdown', e => {
-  if(e.pointerType !== 'touch') return;
   const c = e.target.closest('.card');
-  if(!c || e.target.closest('.rd-btn, .sel-box')) return;
+  if(!c || c._hero || e.target.closest('.rd-btn, .sel-box')) return;
+  if(e.pointerType !== 'touch' && !(sim && e.pointerType === 'mouse' && e.button === 0)) return;
   c._long = false;
-  press = { c, x:e.clientX, y:e.clientY, t:setTimeout(() => {
+  const x = e.clientX, y = e.clientY;
+  press = { c, x, y, t:setTimeout(() => {
+    if(sim && !selected.size){ c._long = true; openPressMenu(c, x, y); return; }
+    if(e.pointerType !== 'touch') return;
     c._long = true;
     pickCard(c._item, false);
     if(navigator.vibrate) navigator.vibrate(10);
   }, 450) };
 });
+const pressMenu = $('pressMenu');
+function openPressMenu(c, x, y){
+  pressMenu._card = c;
+  pressMenu.hidden = false;
+  const w = pressMenu.offsetWidth, h = pressMenu.offsetHeight;
+  const left = Math.max(12, Math.min(x - w / 2, innerWidth - w - 12));
+  // 指の下に出す。入りきらなければ上に
+  const top = y + 16 + h <= innerHeight - 12 ? y + 16 : Math.max(12, y - 16 - h);
+  pressMenu.style.left = (left + scrollX) + 'px';
+  pressMenu.style.top = (top + scrollY) + 'px';
+  if(navigator.vibrate) navigator.vibrate(10);
+}
+function closePressMenu(){ pressMenu.hidden = true; pressMenu._card = null; }
+$('pressPeek').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) openPeek(c._item); });
+$('pressPick').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) pickCard(c._item, false); });
+// 外を押したら閉じるだけ（後ろのカードは開かない）。長押しを離したときのクリックは、カードの方で無視する
+document.addEventListener('click', e => {
+  if(pressMenu.hidden || e.target.closest('#pressMenu')) return;
+  const c = e.target.closest('.card');
+  if(c && c === pressMenu._card && c._long) return;
+  e.preventDefault(); e.stopPropagation(); closePressMenu();
+}, true);
 const endPress = () => { if(press){ clearTimeout(press.t); press = null; } };
 grid.addEventListener('pointermove', e => { if(press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) endPress(); });
 grid.addEventListener('pointerup', endPress);
@@ -3579,6 +3660,7 @@ document.addEventListener('paste', e => {
 
 // キー操作（プレビュー中と一覧とで分ける）
 document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && !pressMenu.hidden){ closePressMenu(); return; }
   if(e.key === 'Escape' && !viewMenu.hidden){ setMenu(false); return; }
   if(e.key === 'Escape' && !sortMenu.hidden){ setSortMenu(false); return; }
   if(e.metaKey || e.ctrlKey || e.altKey) return;
