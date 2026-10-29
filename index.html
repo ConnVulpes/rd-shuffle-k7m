@@ -359,7 +359,11 @@ header.deep{background:color-mix(in srgb, var(--accent) 14%, var(--bar))}
 header.deep > h1, header.deep > .filter-btn, header.deep > .spacer, header.deep > .st-icons, header.deep > .sort-wrap{display:none}
 header.deep > .deep-bar{display:grid; grid-template-columns:1fr minmax(0, auto) 1fr}
 #ntCheck{white-space:nowrap}
-.deep-back{justify-self:start; display:inline-flex; align-items:center; gap:2px; height:36px; padding:0 12px 0 4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer; white-space:nowrap}
+.back-wrap{position:relative; justify-self:start}
+.back-menu{left:0; right:auto; width:260px}
+.back-menu .menu-item{flex-direction:column; align-items:flex-start; justify-content:center; gap:0; line-height:1.3}
+.back-menu .menu-item small{font-size:var(--fs-xs); color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.deep-back{-webkit-touch-callout:none; user-select:none; -webkit-user-select:none; display:inline-flex; align-items:center; gap:2px; height:36px; padding:0 12px 0 4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer; white-space:nowrap}
 .deep-back:hover{background:var(--field)}
 .deep-title{display:flex; flex-direction:column; align-items:center; min-width:0; line-height:1.3; text-align:center}
 #deepName{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
@@ -702,7 +706,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
     </div>
   </div>
   <div class="deep-bar" id="deepBar">
-    <button type="button" class="deep-back" id="backBtn" title="戻る（Esc）"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4l-6 6 6 6"/></svg><span>戻る</span></button>
+    <span class="back-wrap"><div class="menu back-menu" id="backMenu" hidden role="menu"></div><button type="button" class="deep-back" id="backBtn" title="戻る（Esc）・長押しで戻り先を選ぶ"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4l-6 6 6 6"/></svg><span>戻る</span></button></span>
     <div class="deep-title"><span id="deepName"></span><span class="deep-sub" id="deepSub"></span></div>
     <span class="deep-right"><button type="button" class="icon-btn" id="ntCheck" hidden>確かめる</button></span>
   </div>
@@ -1606,7 +1610,7 @@ function enterView(v){
   slideGrid('view-in');
 }
 // 一段戻る（履歴の出し入れは呼ぶ側で）
-function restoreView(){
+function restoreView(quiet){
   const v = views.pop(); if(!v) return;
   if(v.kind === 'nt') ntStop = true;
   clearSelection();
@@ -1623,12 +1627,44 @@ function restoreView(){
   layout(false);
   empty.hidden = poolSize > 0;
   updateStatus();
+  if(quiet) return;   // 途中の段は、元に戻すだけ
   window.scrollTo({ top:sn.y, behavior:'instant' });
   slideGrid('view-back');
+  // 一度に戻ったときは、いちばん最初に来た画像を光らせる
   if(v.from) revealCard(v.from);
 }
 function backUI(){ if(!views.length) return; popLayer('deep'); restoreView(); }
-$('backBtn').addEventListener('click', backUI);
+// 一度に戻る：keep 段だけ残して、あとは閉じる（0 なら元の一覧）
+function backTo(keep){
+  if(keep >= views.length) return;
+  const deepAt = layers.map((x, i) => x === 'deep' ? i : -1).filter(i => i >= 0);
+  if(deepAt[keep] != null) popLayer('deep', deepAt[keep]);
+  while(views.length > keep + 1) restoreView(true);
+  restoreView();
+}
+const backBtn = $('backBtn'), backMenu = $('backMenu');
+function viewLabel(v){ return v.kind === 'sim' ? '似た画像' : 'サムネイルが出ないもの'; }
+function setBackMenu(open){
+  backMenu.hidden = !open;
+  if(!open) return;
+  backMenu.innerHTML = '';
+  for(let k = views.length - 1; k >= 0; k--){
+    const b = el('button', 'menu-item'); b.type = 'button'; b.setAttribute('role', 'menuitem');
+    if(k === 0){ b.append(el('span', '', '元の一覧')); }
+    else{
+      const v = views[k - 1];
+      b.append(el('span', '', `${viewLabel(v)}（${k}段目）`));
+      if(v.sim) b.append(el('small', '', ((v.sim.center.t || '').trim() || v.sim.center.d || '').slice(0, 40)));
+    }
+    b.addEventListener('click', () => { setBackMenu(false); backTo(k); });
+    backMenu.append(b);
+  }
+}
+let backHold = 0, backHeld = false;
+backBtn.addEventListener('pointerdown', () => { backHeld = false; clearTimeout(backHold); if(views.length > 1) backHold = setTimeout(() => { backHeld = true; setBackMenu(true); }, 450); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => backBtn.addEventListener(t, () => clearTimeout(backHold)));
+backBtn.addEventListener('contextmenu', e => { e.preventDefault(); if(views.length > 1) setBackMenu(true); });
+backBtn.addEventListener('click', () => { if(backHeld){ backHeld = false; return; } setBackMenu(false); backUI(); });
 function renderDeepBar(){
   const v = views[views.length - 1];
   document.querySelector('header').classList.toggle('deep', !!v);
@@ -1667,7 +1703,7 @@ function popLayer(name, at){
 addEventListener('popstate', () => {
   if(ignorePop){ ignorePop--; if(!ignorePop) while(pushWait){ pushWait--; history.pushState({ rd:layers.length }, ''); } return; }
   const again = () => history.pushState({ rd:layers.length }, '');
-  if(!viewMenu.hidden || !sortMenu.hidden){ setMenu(false); setSortMenu(false); if(layers.length) again(); return; }
+  if(!viewMenu.hidden || !sortMenu.hidden || !backMenu.hidden){ setMenu(false); setSortMenu(false); setBackMenu(false); if(layers.length) again(); return; }
   if(peek.open && editOpen){ setEditOpen(false); again(); return; }
   const top = layers.pop();
   if(top === 'peek') closePeek();
@@ -2948,7 +2984,7 @@ function closePeek(){
   if(peek.open){ peek.close(); onPeekClosed(); }
 }
 
-let peekCleaned = true;
+let peekCleaned = true, peekSilent = false;
 peek.addEventListener('close', onPeekClosed);
 function onPeekClosed(){
   if(peekCleaned) return;
@@ -2961,7 +2997,7 @@ function onPeekClosed(){
   // 一覧にまだ出ていないところまで送っていたら、そこまでカードを足してから合わせる
   const at = last ? order.indexOf(last) : -1;
   while(at >= shownCount && shownCount < poolSize) appendMore();
-  revealCard(last);
+  if(peekSilent) peekSilent = false; else revealCard(last);
 }
 // プレビューを閉じたら、最後に見ていたカードが画面に入るところまでスクロールして、軽く光らせる
 // （前後に送っているうちに追加で読み込んだカードは、並び終わるのを少し待つ）
@@ -3349,6 +3385,7 @@ viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.h
 document.addEventListener('click', e => {
   if(!viewMenu.hidden && !e.target.closest('#viewMenu, #viewBtn')){ e.preventDefault(); e.stopPropagation(); setMenu(false); }
   if(!sortMenu.hidden && !e.target.closest('#sortMenu, #sortBtn')){ e.preventDefault(); e.stopPropagation(); setSortMenu(false); }
+  if(!backMenu.hidden && !e.target.closest('#backMenu, #backBtn')){ e.preventDefault(); e.stopPropagation(); setBackMenu(false); }
 }, true);
 refreshBtn.addEventListener('click', () => { setDlg.close(); refreshAll(true); });
 $('updDiff').addEventListener('click', () => { setMenu(false); syncChanged(); });
@@ -3471,6 +3508,7 @@ document.addEventListener('paste', e => {
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape' && !viewMenu.hidden){ setMenu(false); return; }
   if(e.key === 'Escape' && !sortMenu.hidden){ setSortMenu(false); return; }
+  if(e.key === 'Escape' && !backMenu.hidden){ setBackMenu(false); return; }
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
   const typing = ['input', 'select', 'textarea'].includes(tag);
@@ -4388,9 +4426,9 @@ async function showSimilarNow(it){
   }
   const near = nearestSim(it, SIM_K) || [];
   edToast.hidden = true;
-  // プレビューから入ったときは、プレビューを開いたまま後ろの一覧を似た画像に入れ替え、そのまま送ってたどれる
+  // プレビューは閉じて、似た画像の一覧を見せる。そこからプレビューを開いて「似た画像」を押すと、さらに一段奥へ
+  if(peek.open){ peekSilent = true; closePeek(); }
   enterView({ kind:'sim', sim:{ center:it, list:[it, ...near.filter(x => x !== it)] }, from:it });
-  if(peek.open) openPeek(it, true);
 }
 // 一段奥の画面をすべて閉じる（戻る位置は覚えない。絞り込みや並び順を変えたとき）
 function exitSimilar(){
