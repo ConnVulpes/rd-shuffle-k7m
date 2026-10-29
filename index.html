@@ -354,22 +354,30 @@ label.set-row{cursor:pointer}
 }
 #peek.zoomed .lb-sim{pointer-events:none}
 /* 一段奥の画面（似た画像・サムネイルが出ないもの）：上のバーを「‹ 戻る」・名前・メニューに入れ替え、薄い青の面にする */
-.deep-bar{display:none; flex:1; min-width:0; align-items:center; gap:8px}
+.deep-bar{display:none; flex:1; min-width:0; align-items:center; gap:4px}
 header.deep{background:color-mix(in srgb, var(--accent) 14%, var(--bar))}
 header.deep > h1, header.deep > .filter-btn, header.deep > .spacer, header.deep > .st-icons, header.deep > .sort-wrap{display:none}
-header.deep > .deep-bar{display:grid; grid-template-columns:1fr minmax(0, auto) 1fr}
+header.deep > .deep-bar{display:flex}
 #ntCheck{white-space:nowrap}
-.back-wrap{position:relative; justify-self:start}
-.back-menu{left:0; right:auto; width:260px}
-.back-menu .menu-item{flex-direction:column; align-items:flex-start; justify-content:center; gap:0; line-height:1.3}
-.back-menu .menu-item small{font-size:var(--fs-xs); color:var(--muted); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.deep-back{-webkit-touch-callout:none; user-select:none; -webkit-user-select:none; display:inline-flex; align-items:center; gap:2px; height:36px; padding:0 12px 0 4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer; white-space:nowrap}
+.deep-back{flex:none; display:inline-flex; align-items:center; gap:2px; height:36px; padding:0 12px 0 4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer; white-space:nowrap}
 .deep-back:hover{background:var(--field)}
-.deep-title{display:flex; flex-direction:column; align-items:center; min-width:0; line-height:1.3; text-align:center}
+/* 道すじ：たどってきた画像を左から順に。押すとその段へ戻る。横は止まらずにスクロール */
+.deep-path{flex:0 1 auto; min-width:0; display:flex; align-items:center; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch}
+.deep-path::-webkit-scrollbar{display:none}
+/* 左にまだあるときは、左端を薄く消す */
+.deep-path.more-left{-webkit-mask-image:linear-gradient(to right, transparent, #000 24px); mask-image:linear-gradient(to right, transparent, #000 24px)}
+.path-sep{flex:none; width:12px; height:12px; color:var(--muted)}
+.path-item{flex:none; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; padding:0; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
+.path-item:hover{background:var(--field)}
+.path-thumb{width:30px; height:30px; border-radius:var(--r-s); object-fit:cover; background:var(--ph); display:flex; align-items:center; justify-content:center; color:var(--muted)}
+.path-thumb .ico{width:18px; height:18px}
+.path-item[aria-current="true"] .path-thumb{box-shadow:0 0 0 2px var(--accent)}
+.deep-title{flex:1; display:flex; flex-direction:column; min-width:0; padding-left:8px; line-height:1.3}
+.deep-title:empty, #deepName:empty{display:none}
 #deepName{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
 .deep-sub{font-size:var(--fs-xs); color:var(--muted); white-space:nowrap}
 .deep-sub:empty{display:none}
-.deep-right{justify-self:end; display:flex; align-items:center}
+.deep-right{margin-left:auto; flex:none; display:flex; align-items:center}
 #ntCheck[hidden]{display:none}
 /* 来た画像（似た画像の元）を枠で示す */
 .card.is-base{box-shadow:0 0 0 2px var(--accent)}
@@ -670,9 +678,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   header .spacer{display:none}
   /* 上のバーのボタンは高さ 44 */
   .filter-btn, .sort-ctl, .deep-back{height:44px}
-  .deep-back span{display:none}
-  .deep-back{padding:0 8px}
-  header.deep > .deep-bar{grid-template-columns:auto minmax(0, 1fr) auto}
+  .path-item{width:44px; height:44px}
   #ntCheck{height:44px; padding:0 12px}
   .tool-btn{width:44px; height:44px}
   .menu{position:fixed; top:68px; right:12px; left:12px; width:auto; max-height:calc(100dvh - 80px - env(safe-area-inset-bottom)); overflow:auto; overscroll-behavior:contain}
@@ -706,7 +712,8 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
     </div>
   </div>
   <div class="deep-bar" id="deepBar">
-    <span class="back-wrap"><div class="menu back-menu" id="backMenu" hidden role="menu"></div><button type="button" class="deep-back" id="backBtn" title="戻る（Esc）・長押しで戻り先を選ぶ"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4l-6 6 6 6"/></svg><span>戻る</span></button></span>
+    <button type="button" class="deep-back" id="backBtn" title="元の一覧に戻る" aria-label="元の一覧に戻る"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4l-6 6 6 6"/></svg><span>一覧</span></button>
+    <div class="deep-path" id="deepPath" role="navigation" aria-label="たどった道すじ"></div>
     <div class="deep-title"><span id="deepName"></span><span class="deep-sub" id="deepSub"></span></div>
     <span class="deep-right"><button type="button" class="icon-btn" id="ntCheck" hidden>確かめる</button></span>
   </div>
@@ -1593,7 +1600,14 @@ function slideGrid(cls){
   grid.classList.remove('view-in', 'view-back'); void grid.offsetWidth; grid.classList.add(cls);
   setTimeout(() => grid.classList.remove(cls), 250);
 }
+function pathThumbOf(it){
+  const c = cardOf.get(it), im = c && c.querySelector('img');
+  if(im && im.currentSrc) return im.currentSrc;
+  const t = thumbs(it)[0];
+  return t && !t.video ? tinyUrl(t.url) : '';
+}
 function enterView(v){
+  if(v.kind === 'sim') v.thumb = pathThumbOf(v.sim.center);
   // カードを外す前に覚える（外すとページが短くなって 0 になる）。プレビュー中は本体を固定しているので、固定前の位置
   const y = peek.open ? lockedY : window.scrollY;
   setMenu(false); setSortMenu(false); clearSelection();
@@ -1642,35 +1656,38 @@ function backTo(keep){
   while(views.length > keep + 1) restoreView(true);
   restoreView();
 }
-const backBtn = $('backBtn'), backMenu = $('backMenu');
-function viewLabel(v){ return v.kind === 'sim' ? '似た画像' : 'サムネイルが出ないもの'; }
-function setBackMenu(open){
-  backMenu.hidden = !open;
-  if(!open) return;
-  backMenu.innerHTML = '';
-  for(let k = views.length - 1; k >= 0; k--){
-    const b = el('button', 'menu-item'); b.type = 'button'; b.setAttribute('role', 'menuitem');
-    if(k === 0){ b.append(el('span', '', '元の一覧')); }
-    else{
-      const v = views[k - 1];
-      b.append(el('span', '', `${viewLabel(v)}（${k}段目）`));
-      if(v.sim) b.append(el('small', '', ((v.sim.center.t || '').trim() || v.sim.center.d || '').slice(0, 40)));
-    }
-    b.addEventListener('click', () => { setBackMenu(false); backTo(k); });
-    backMenu.append(b);
-  }
+// 「‹ 一覧」：元の一覧まで一度に戻る。道すじの画像を押すと、その段へ戻る（一段だけなら1つ左を押す。Esc・ブラウザの戻るも一段ずつ）
+$('backBtn').addEventListener('click', () => backTo(0));
+const IMG_OFF = '<svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 3l14 14"/></svg>';
+const PATH_SEP = '<svg class="path-sep" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5l3.5 3.5-3.5 3.5"/></svg>';
+function renderPath(){
+  const box = $('deepPath');
+  box.innerHTML = '';
+  views.forEach((v, i) => {
+    if(i) box.insertAdjacentHTML('beforeend', PATH_SEP);
+    const b = el('button', 'path-item'); b.type = 'button';
+    const cur = i === views.length - 1;
+    b.setAttribute('aria-current', String(cur));
+    const name = v.kind === 'sim' ? ((v.sim.center.t || '').trim() || v.sim.center.d || '似た画像') : 'サムネイルが出ないもの';
+    b.title = cur ? name : `${name}（${i + 1}段目）に戻る`;
+    b.setAttribute('aria-label', b.title);
+    if(v.kind === 'sim' && v.thumb){ const im = el('img', 'path-thumb'); im.src = v.thumb; im.alt = ''; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.replaceWith(Object.assign(el('span', 'path-thumb'), { innerHTML:IMG_OFF })); b.append(im); }
+    else{ const t = el('span', 'path-thumb'); t.innerHTML = IMG_OFF; b.append(t); }
+    // 今の段を押すと、一覧のいちばん上へ
+    b.addEventListener('click', () => { if(cur) window.scrollTo({ top:0, behavior:'smooth' }); else backTo(i + 1); });
+    box.append(b);
+  });
+  box.scrollLeft = box.scrollWidth;   // 今の段が見えるように
+  box.classList.toggle('more-left', box.scrollLeft > 0);
 }
-let backHold = 0, backHeld = false;
-backBtn.addEventListener('pointerdown', () => { backHeld = false; clearTimeout(backHold); if(views.length > 1) backHold = setTimeout(() => { backHeld = true; setBackMenu(true); }, 450); });
-['pointerup', 'pointercancel', 'pointerleave'].forEach(t => backBtn.addEventListener(t, () => clearTimeout(backHold)));
-backBtn.addEventListener('contextmenu', e => { e.preventDefault(); if(views.length > 1) setBackMenu(true); });
-backBtn.addEventListener('click', () => { if(backHeld){ backHeld = false; return; } setBackMenu(false); backUI(); });
+$('deepPath').addEventListener('scroll', e => e.target.classList.toggle('more-left', e.target.scrollLeft > 2), { passive:true });
 function renderDeepBar(){
   const v = views[views.length - 1];
   document.querySelector('header').classList.toggle('deep', !!v);
   $('ntCheck').hidden = !ntMode;
   if(!v) return;
-  if(v.kind === 'sim'){ $('deepName').textContent = '似た画像'; $('deepSub').textContent = views.length > 1 ? `${views.length} 段目` : ''; return; }
+  renderPath();
+  if(v.kind === 'sim'){ $('deepName').textContent = ''; $('deepSub').textContent = ''; return; }
   $('deepName').textContent = 'サムネイルが出ないもの';
   if(ntChecking){ $('ntCheck').textContent = '止める'; return; }
   const pool = cache ? cache.items.filter(makeFilter(state.filter)) : [];
@@ -1703,7 +1720,7 @@ function popLayer(name, at){
 addEventListener('popstate', () => {
   if(ignorePop){ ignorePop--; if(!ignorePop) while(pushWait){ pushWait--; history.pushState({ rd:layers.length }, ''); } return; }
   const again = () => history.pushState({ rd:layers.length }, '');
-  if(!viewMenu.hidden || !sortMenu.hidden || !backMenu.hidden){ setMenu(false); setSortMenu(false); setBackMenu(false); if(layers.length) again(); return; }
+  if(!viewMenu.hidden || !sortMenu.hidden){ setMenu(false); setSortMenu(false); if(layers.length) again(); return; }
   if(peek.open && editOpen){ setEditOpen(false); again(); return; }
   const top = layers.pop();
   if(top === 'peek') closePeek();
@@ -3385,7 +3402,6 @@ viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.h
 document.addEventListener('click', e => {
   if(!viewMenu.hidden && !e.target.closest('#viewMenu, #viewBtn')){ e.preventDefault(); e.stopPropagation(); setMenu(false); }
   if(!sortMenu.hidden && !e.target.closest('#sortMenu, #sortBtn')){ e.preventDefault(); e.stopPropagation(); setSortMenu(false); }
-  if(!backMenu.hidden && !e.target.closest('#backMenu, #backBtn')){ e.preventDefault(); e.stopPropagation(); setBackMenu(false); }
 }, true);
 refreshBtn.addEventListener('click', () => { setDlg.close(); refreshAll(true); });
 $('updDiff').addEventListener('click', () => { setMenu(false); syncChanged(); });
@@ -3508,7 +3524,6 @@ document.addEventListener('paste', e => {
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape' && !viewMenu.hidden){ setMenu(false); return; }
   if(e.key === 'Escape' && !sortMenu.hidden){ setSortMenu(false); return; }
-  if(e.key === 'Escape' && !backMenu.hidden){ setBackMenu(false); return; }
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
   const typing = ['input', 'select', 'textarea'].includes(tag);
