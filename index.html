@@ -353,9 +353,28 @@ label.set-row{cursor:pointer}
   padding:4px 12px; border-radius:var(--r-full); border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.35);
 }
 #peek.zoomed .lb-sim{pointer-events:none}
-.sim-bar{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 10px; padding:8px 12px; border-radius:var(--r-m); background:color-mix(in srgb, var(--accent) 16%, transparent); font-size:var(--fs-s)}
-.sim-bar[hidden]{display:none}
-.sim-bar span{flex:1; min-width:0; overflow-wrap:anywhere}
+/* 一段奥の画面（似た画像・サムネイルが出ないもの）：上のバーを「‹ 戻る」・名前・メニューに入れ替え、薄い青の面にする */
+.deep-bar{display:none; flex:1; min-width:0; align-items:center; gap:8px}
+header.deep{background:color-mix(in srgb, var(--accent) 14%, var(--bar))}
+header.deep > h1, header.deep > .filter-btn, header.deep > .spacer, header.deep > .st-icons, header.deep > .sort-wrap{display:none}
+header.deep > .deep-bar{display:grid; grid-template-columns:1fr minmax(0, auto) 1fr}
+#ntCheck{white-space:nowrap}
+.deep-back{justify-self:start; display:inline-flex; align-items:center; gap:2px; height:36px; padding:0 12px 0 4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer; white-space:nowrap}
+.deep-back:hover{background:var(--field)}
+.deep-title{display:flex; flex-direction:column; align-items:center; min-width:0; line-height:1.3; text-align:center}
+#deepName{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+.deep-sub{font-size:var(--fs-xs); color:var(--muted); white-space:nowrap}
+.deep-sub:empty{display:none}
+.deep-right{justify-self:end; display:flex; align-items:center}
+#ntCheck[hidden]{display:none}
+/* 来た画像（似た画像の元）を枠で示す */
+.card.is-base{box-shadow:0 0 0 2px var(--accent)}
+/* 入るときは右から、戻るときは左へ */
+@keyframes viewIn{ from{ transform:translateX(32px); opacity:.3 } }
+@keyframes viewBack{ from{ transform:translateX(-32px); opacity:.3 } }
+.grid.view-in{animation:viewIn .2s ease-out}
+.grid.view-back{animation:viewBack .2s ease-out}
+@media (prefers-reduced-motion: reduce){ .grid.view-in, .grid.view-back{animation:none} }
 .lb-cap-d{font-size:var(--fs-xs); margin-top:4px; color:rgba(255,255,255,.65); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #peek.zoomed .lb-cap{opacity:0}
 /* 軽量モードの「高画質で見る」：画像の右下に */
@@ -646,7 +665,11 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   .filter-btn{flex:1}
   header .spacer{display:none}
   /* 上のバーのボタンは高さ 44 */
-  .filter-btn, .sort-ctl{height:44px}
+  .filter-btn, .sort-ctl, .deep-back{height:44px}
+  .deep-back span{display:none}
+  .deep-back{padding:0 8px}
+  header.deep > .deep-bar{grid-template-columns:auto minmax(0, 1fr) auto}
+  #ntCheck{height:44px; padding:0 12px}
   .tool-btn{width:44px; height:44px}
   .menu{position:fixed; top:68px; right:12px; left:12px; width:auto; max-height:calc(100dvh - 80px - env(safe-area-inset-bottom)); overflow:auto; overscroll-behavior:contain}
 }
@@ -678,6 +701,11 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
       <button type="button" class="menu-item" data-sort="liked"><span>♥ した順</span></button>
     </div>
   </div>
+  <div class="deep-bar" id="deepBar">
+    <button type="button" class="deep-back" id="backBtn" title="戻る（Esc）"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4l-6 6 6 6"/></svg><span>戻る</span></button>
+    <div class="deep-title"><span id="deepName"></span><span class="deep-sub" id="deepSub"></span></div>
+    <span class="deep-right"><button type="button" class="icon-btn" id="ntCheck" hidden>確かめる</button></span>
+  </div>
   <div class="menu-wrap">
     <button type="button" class="tool-btn" id="viewBtn" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu" title="表示の設定">
       <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M12 4h2M2 8h2M7 8h7M2 12h8M13 12h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="8" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="11.5" cy="12" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -693,8 +721,6 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 </header>
 
 <main>
-  <div class="sim-bar" id="ntBar" hidden><span id="ntBarT"></span><button type="button" class="icon-btn" id="ntCheck">確かめる</button><button type="button" class="icon-btn" id="ntExit">元の一覧に戻る</button></div>
-  <div class="sim-bar" id="simBar" hidden><span id="simBarT"></span><button type="button" class="icon-btn" id="simExit">元の一覧に戻る</button></div>
   <div class="status" id="status" aria-live="polite"></div>
   <div class="grid" id="grid"></div>
   <div class="more" id="more" hidden></div>
@@ -1511,14 +1537,13 @@ function render(){
   // サムネが出ないものだけのときは、今の絞り込みの中から
   const pool = sim ? sim.list : cache.items.filter(makeFilter(state.filter)).filter(x => !ntMode || isNoThumb(x));
   order = sim ? pool.slice() : sortPool(pool);
-  renderSimBar();
   poolSize = order.length;
-  renderNtBar();
+  renderDeepBar();
   shownCount = 0;
   cardEls = [];
   placeGen++; placeQueue = Promise.resolve(); placing = 0;
   layout(true);
-  window.scrollTo({ top:0 });
+  window.scrollTo({ top:0, behavior:'instant' });
   empty.hidden = poolSize > 0;
   if(!poolSize){
     moreEl.hidden = true;
@@ -1550,11 +1575,106 @@ function appendMore(){
   updateStatus();
 }
 
-function renderSimBar(){
-  const bar = $('simBar');
-  bar.hidden = !sim;
-  if(sim) $('simBarT').textContent = `「${((sim.center.t || '').trim() || sim.center.d || 'この画像').slice(0, 40)}」に似た画像（${Math.max(0, sim.list.length - 1)}件）`;
+// ---- 一段奥の画面（似た画像・サムネイルが出ないもの）----
+// 入るときに今の一覧（並び・カード・スクロール位置）をそのまま取っておき、戻ったら元に戻す。
+// 似た画像の中でさらに似た画像を開くと、もう一段奥へ。戻るは一段ずつ
+var views = [];
+function applyView(){
+  const v = views[views.length - 1];
+  sim = v && v.kind === 'sim' ? v.sim : null;
+  ntMode = !!v && v.kind === 'nt';
+  renderDeepBar();
 }
+function slideGrid(cls){
+  grid.classList.remove('view-in', 'view-back'); void grid.offsetWidth; grid.classList.add(cls);
+  setTimeout(() => grid.classList.remove(cls), 250);
+}
+function enterView(v, reuseHistory){
+  const y = window.scrollY;   // カードを外す前に覚える（外すとページが短くなって 0 になる）
+  setMenu(false); setSortMenu(false); clearSelection();
+  const frag = document.createDocumentFragment();
+  while(grid.firstChild) frag.append(grid.firstChild);
+  v.snap = { order, shownCount, poolSize, cardEls, cols, colCount, frag, y };
+  placeGen++; placeQueue = Promise.resolve(); placing = 0;
+  views.push(v);
+  if(!reuseHistory) pushLayer('deep');
+  applyView();
+  colCount = 0;
+  render();
+  slideGrid('view-in');
+}
+// 一段戻る（履歴の出し入れは呼ぶ側で）
+function restoreView(){
+  const v = views.pop(); if(!v) return;
+  if(v.kind === 'nt') ntStop = true;
+  clearSelection();
+  const sn = v.snap;
+  placeGen++;
+  grid.innerHTML = ''; grid.append(sn.frag);
+  ({ order, shownCount, poolSize, cardEls, cols, colCount } = sn);
+  cardEls.forEach(c => { if(c._item) cardOf.set(c._item, c); });
+  // 入る前にまだ並べ終わっていなかったカードを、続きから並べる
+  const pending = cardEls.filter(c => !c._placed), gen = placeGen;
+  placing = pending.length;
+  placeQueue = (async () => { for(const c of pending){ await Promise.race([c._ready, sleep(3000)]); if(gen !== placeGen) return; c._placed = true; placeCard(c); placing--; } })();
+  applyView();
+  layout(false);
+  empty.hidden = poolSize > 0;
+  updateStatus();
+  window.scrollTo({ top:sn.y, behavior:'instant' });
+  slideGrid('view-back');
+  if(v.from) revealCard(v.from);
+}
+function backUI(){ if(!views.length) return; popLayer('deep'); restoreView(); }
+$('backBtn').addEventListener('click', backUI);
+function renderDeepBar(){
+  const v = views[views.length - 1];
+  document.querySelector('header').classList.toggle('deep', !!v);
+  $('ntCheck').hidden = !ntMode;
+  if(!v) return;
+  if(v.kind === 'sim'){ $('deepName').textContent = '似た画像'; $('deepSub').textContent = views.length > 1 ? `${views.length} 段目` : ''; return; }
+  $('deepName').textContent = 'サムネイルが出ないもの';
+  if(ntChecking){ $('ntCheck').textContent = '止める'; return; }
+  const pool = cache ? cache.items.filter(makeFilter(state.filter)) : [];
+  const unknown = pool.filter(isThumbUnknown).length;
+  $('deepSub').textContent = `${poolSize.toLocaleString()}件` + (unknown ? `・未確認 ${unknown.toLocaleString()}件` : '');
+  $('ntCheck').textContent = unknown ? '確かめる' : '確かめ直す';
+  $('ntCheck').title = unknown ? 'まだ一度も画像を出していないものを、小さいサイズで読んで確かめます' : '今並んでいるものを、もう一度読んで確かめます（直したものは外れます）';
+}
+
+// ---- 戻る：「‹ 戻る」・Esc・ブラウザの戻る・マウスの戻るボタンは同じ動き ----
+// 上に重なっているものから1つずつ閉じる：メニュー → 編集 → プレビュー → 一段奥の画面
+// 履歴にはプレビューと一段奥の画面を積む（メニューと編集は、戻るで閉じたら履歴を積み直す）
+const layers = [];
+let ignorePop = 0, pushWait = 0;
+function pushLayer(name){
+  layers.push(name);
+  if(ignorePop){ pushWait++; return; }   // 戻る途中なら、終わってから積む
+  history.pushState({ rd:layers.length }, '');
+}
+// アプリの中で閉じたとき：その層（と上の層）の履歴を消す
+function popLayer(name, at){
+  const i = at != null ? at : layers.lastIndexOf(name);
+  if(i < 0) return;
+  const n = layers.length - i;
+  layers.splice(i);
+  if(pushWait >= n){ pushWait -= n; return; }
+  const go = n - pushWait; pushWait = 0;
+  ignorePop++; history.go(-go);
+}
+addEventListener('popstate', () => {
+  if(ignorePop){ ignorePop--; if(!ignorePop) while(pushWait){ pushWait--; history.pushState({ rd:layers.length }, ''); } return; }
+  const again = () => history.pushState({ rd:layers.length }, '');
+  if(!viewMenu.hidden || !sortMenu.hidden){ setMenu(false); setSortMenu(false); if(layers.length) again(); return; }
+  if(peek.open && editOpen){ setEditOpen(false); again(); return; }
+  const top = layers.pop();
+  if(top === 'peek') closePeek();
+  else if(top === 'deep') restoreView();
+});
+// スクロール位置は自分で戻す（ブラウザに任せると、戻るときに一段奥の画面の位置へ動かされる）
+if('scrollRestoration' in history) history.scrollRestoration = 'manual';
+history.replaceState({ rd:0 }, '');
+
 // 件数の行は出さない（件数は絞り込みの画面で見られる）。読み込み中・失敗のときだけ文字が入る
 function updateStatus(){
   if(poolSize) statusEl.textContent = '';
@@ -1828,7 +1948,7 @@ const ICONS = {
 const icon = (name, cls = '') => `<svg class="ico${cls ? ' ' + cls : ''}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 const CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 function card(it){
-  const wrap = el('div', 'card');
+  const wrap = el('div', 'card' + (sim && it === sim.center ? ' is-base' : ''));
   const a = el('a', 'card-link');
   a.href = it.l;
   a.target = '_blank';
@@ -2062,7 +2182,7 @@ function openPeek(it, stepping){
   showPeekMedia(it);
   resetOrient();
   edView = '';
-  if(!peek.open){ lockScroll(); peek.showModal(); }
+  if(!peek.open){ lockScroll(); peek.showModal(); peekCleaned = false; pushLayer('peek'); }
   applyEditOpen(stepping);
 }
 
@@ -2816,14 +2936,24 @@ peek.addEventListener('cancel', e => {
     e.preventDefault();
     if(edView){ edView = ''; renderEdit(); }
     else document.activeElement.blur();
+    return;
   }
+  if(editOpen){ e.preventDefault(); setEditOpen(false); }
 });
 
+// 閉じたあとの片付けは、close の知らせ（少し遅れて届く）を待たずにその場で行う
 function closePeek(){
-  if(peek.open) peek.close();
+  if(peek.open){ peek.close(); onPeekClosed(); }
 }
 
-peek.addEventListener('close', () => {
+let peekReuse = '', peekSilent = false, peekCleaned = true;
+peek.addEventListener('close', onPeekClosed);
+function onPeekClosed(){
+  if(peekCleaned) return;
+  peekCleaned = true;
+  const pi = layers.lastIndexOf('peek');
+  if(peekReuse && pi >= 0) layers[pi] = peekReuse; else popLayer('peek');
+  peekReuse = '';
   viewEnd();
   const last = peekItem;
   peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
@@ -2831,8 +2961,8 @@ peek.addEventListener('close', () => {
   // 一覧にまだ出ていないところまで送っていたら、そこまでカードを足してから合わせる
   const at = last ? order.indexOf(last) : -1;
   while(at >= shownCount && shownCount < poolSize) appendMore();
-  revealCard(last);
-});
+  if(peekSilent) peekSilent = false; else revealCard(last);
+}
 // プレビューを閉じたら、最後に見ていたカードが画面に入るところまでスクロールして、軽く光らせる
 // （前後に送っているうちに追加で読み込んだカードは、並び終わるのを少し待つ）
 function revealCard(it, tries = 0){
@@ -3368,6 +3498,9 @@ document.addEventListener('keydown', e => {
   }
   if(typing || dlg.open || filterDlg.open || setDlg.open) return;
   if(e.key === 'Escape' && selected.size){ e.preventDefault(); if(popKind){ popKind = ''; renderSelPop(); } else clearSelection(); return; }
+  if(e.key === 'Escape' && views.length){ e.preventDefault(); backUI(); return; }
+  // 一段奥の画面では、絞り込みと並び順は使わない
+  if(views.length && /^[fFrR\/]$/.test(e.key)) return;
   if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); openFilter(); return; }
   if(e.key === '/'){ e.preventDefault(); openFilter('other'); return; }
   if(e.key === 'c' || e.key === 'C') toggleCap();
@@ -3591,7 +3724,7 @@ function markThumb(it, ok){
   thumbOk[it.i] = v;
   clearTimeout(thumbOkTimer);
   thumbOkTimer = setTimeout(() => store.set('thumbok', thumbOk), 1500);
-  if(ntMode){ clearTimeout(ntBarTimer); ntBarTimer = setTimeout(renderNtBar, 300); }
+  if(ntMode){ clearTimeout(ntBarTimer); ntBarTimer = setTimeout(renderDeepBar, 300); }
 }
 function thumbState(it){
   const v = thumbOk[it.i]; if(!v) return null;
@@ -3631,33 +3764,22 @@ async function probeThumb(it){
 }
 let ntChecking = false, ntStop = false;
 async function checkThumbs(list){
-  ntChecking = true; ntStop = false; renderNtBar();
+  ntChecking = true; ntStop = false; renderDeepBar();
   let next = 0, done = 0;
   const worker = async () => {
     while(!ntStop && next < list.length){
       const it = list[next++];
       try{ markThumb(it, await probeThumb(it)); }catch(e){}
       done++;
-      $('ntBarT').textContent = `サムネを確かめています… ${done.toLocaleString()} / ${list.length.toLocaleString()}`;
+      if(ntMode) $('deepSub').textContent = `確かめています… ${done.toLocaleString()} / ${list.length.toLocaleString()}`;
     }
   };
   await Promise.all(Array.from({ length:6 }, worker));
   store.set('thumbok', thumbOk);
   ntChecking = false;
-  if(ntMode && cache) render(); else renderNtBar();
+  if(ntMode && cache) render(); else renderDeepBar();
 }
-function renderNtBar(){
-  const bar = $('ntBar');
-  bar.hidden = !ntMode || !!sim;
-  if(bar.hidden || ntChecking){ $('ntCheck').textContent = ntChecking ? '止める' : $('ntCheck').textContent; return; }
-  const pool = cache ? cache.items.filter(makeFilter(state.filter)) : [];
-  const unknown = pool.filter(isThumbUnknown).length;
-  $('ntBarT').textContent = `サムネイルが出ないもの ${poolSize.toLocaleString()}件` + (unknown ? `（ほかに、まだ確かめていないものが ${unknown.toLocaleString()}件）` : '');
-  $('ntCheck').textContent = unknown ? `確かめる（${unknown.toLocaleString()}件）` : '確かめ直す';
-  $('ntCheck').title = unknown ? 'まだ一度も画像を出していないものを、小さいサイズで読んで確かめます' : '今並んでいるものを、もう一度読んで確かめます（直したものは外れます）';
-}
-$('ntBtn').addEventListener('click', () => { setMenu(false); exitSimilar(); ntMode = true; if(cache) render(); });
-$('ntExit').addEventListener('click', () => { ntStop = true; ntMode = false; if(cache) render(); });
+$('ntBtn').addEventListener('click', () => { setMenu(false); if(ntMode || !cache) return; enterView({ kind:'nt' }); });
 $('ntCheck').addEventListener('click', () => {
   if(ntChecking){ ntStop = true; return; }
   const pool = cache.items.filter(makeFilter(state.filter));
@@ -3677,7 +3799,7 @@ const MAP_DIMS = 64, BEND_W = 0.5, SIM_K = 150;
 const TJS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js';
 let mapKnownAt = store.get('mapat', 0);       // いちばん新しい地図の時刻（同期で知る）
 let mapRef = store.get('mapref', null);       // { coll:フォルダID }
-var simMap = null, simFit = null, sim = null; // 読み込んだ地図・曲げた地図・今並べている「似ているもの」（起動中に先に触られるので var）
+var simMap = null, simFit = null, sim = null, simBusy = false; // 読み込んだ地図・曲げた地図・今並べている「似ているもの」（起動中に先に触られるので var）
 
 // ---- 保存（ブラウザの中のデータベース）----
 const idbs = {};
@@ -4250,7 +4372,11 @@ $('mapUpd').addEventListener('click', () => { if(cache) rebuildMap(); });
 
 // ---- 似ているものを並べる ----
 async function showSimilar(it){
-  if(!it || !cache) return;
+  if(!it || !cache || simBusy) return;
+  simBusy = true;
+  try{ await showSimilarNow(it); }finally{ simBusy = false; }
+}
+async function showSimilarNow(it){
   const st = t => showToast(t, null);
   let m;
   try{ m = await ensureMap(st); }catch(e){ m = null; }
@@ -4261,13 +4387,19 @@ async function showSimilar(it){
     if(!ok){ st(it.c ? 'この画像はまだ調べていません。Mac の設定で更新すると入ります' : '画像がないので、似た画像は探せません'); return; }
   }
   const near = nearestSim(it, SIM_K) || [];
-  sim = { center:it, list:[it, ...near.filter(x => x !== it)] };
   edToast.hidden = true;
-  render();
-  if(peek.open) openPeek(it, true);
+  // プレビューから入るときは、プレビューの履歴をそのまま一段奥の画面の履歴に使う
+  const fromPeek = peek.open;
+  if(fromPeek){ peekReuse = 'deep'; peekSilent = true; closePeek(); }
+  enterView({ kind:'sim', sim:{ center:it, list:[it, ...near.filter(x => x !== it)] }, from:it }, fromPeek);
 }
-function exitSimilar(){ if(!sim) return false; sim = null; return true; }
-$('simExit').addEventListener('click', () => { exitSimilar(); if(cache) render(); });
+// 一段奥の画面をすべて閉じる（戻る位置は覚えない。絞り込みや並び順を変えたとき）
+function exitSimilar(){
+  if(!views.length) return false;
+  const i = layers.indexOf('deep'); if(i >= 0) popLayer('deep', i);
+  views.length = 0; applyView();
+  return true;
+}
 $('peekSim').addEventListener('click', () => showSimilar(peekItem));
 updateMapState();
 
