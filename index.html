@@ -1589,18 +1589,20 @@ function slideGrid(cls){
   grid.classList.remove('view-in', 'view-back'); void grid.offsetWidth; grid.classList.add(cls);
   setTimeout(() => grid.classList.remove(cls), 250);
 }
-function enterView(v, reuseHistory){
-  const y = window.scrollY;   // カードを外す前に覚える（外すとページが短くなって 0 になる）
+function enterView(v){
+  // カードを外す前に覚える（外すとページが短くなって 0 になる）。プレビュー中は本体を固定しているので、固定前の位置
+  const y = peek.open ? lockedY : window.scrollY;
   setMenu(false); setSortMenu(false); clearSelection();
   const frag = document.createDocumentFragment();
   while(grid.firstChild) frag.append(grid.firstChild);
   v.snap = { order, shownCount, poolSize, cardEls, cols, colCount, frag, y };
   placeGen++; placeQueue = Promise.resolve(); placing = 0;
   views.push(v);
-  if(!reuseHistory) pushLayer('deep');
+  pushLayer('deep', peek.open);   // プレビューの下に積む（戻るとプレビュー → 一段奥の順に閉じる）
   applyView();
   colCount = 0;
   render();
+  if(peek.open) lockedY = 0;   // プレビューを閉じたら、似た画像の一覧の上から
   slideGrid('view-in');
 }
 // 一段戻る（履歴の出し入れは呼ぶ側で）
@@ -1647,8 +1649,8 @@ function renderDeepBar(){
 // 履歴にはプレビューと一段奥の画面を積む（メニューと編集は、戻るで閉じたら履歴を積み直す）
 const layers = [];
 let ignorePop = 0, pushWait = 0;
-function pushLayer(name){
-  layers.push(name);
+function pushLayer(name, underTop){
+  if(underTop && layers.length) layers.splice(layers.length - 1, 0, name); else layers.push(name);
   if(ignorePop){ pushWait++; return; }   // 戻る途中なら、終わってから積む
   history.pushState({ rd:layers.length }, '');
 }
@@ -2946,14 +2948,12 @@ function closePeek(){
   if(peek.open){ peek.close(); onPeekClosed(); }
 }
 
-let peekReuse = '', peekSilent = false, peekCleaned = true;
+let peekCleaned = true;
 peek.addEventListener('close', onPeekClosed);
 function onPeekClosed(){
   if(peekCleaned) return;
   peekCleaned = true;
-  const pi = layers.lastIndexOf('peek');
-  if(peekReuse && pi >= 0) layers[pi] = peekReuse; else popLayer('peek');
-  peekReuse = '';
+  popLayer('peek');
   viewEnd();
   const last = peekItem;
   peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
@@ -2961,7 +2961,7 @@ function onPeekClosed(){
   // 一覧にまだ出ていないところまで送っていたら、そこまでカードを足してから合わせる
   const at = last ? order.indexOf(last) : -1;
   while(at >= shownCount && shownCount < poolSize) appendMore();
-  if(peekSilent) peekSilent = false; else revealCard(last);
+  revealCard(last);
 }
 // プレビューを閉じたら、最後に見ていたカードが画面に入るところまでスクロールして、軽く光らせる
 // （前後に送っているうちに追加で読み込んだカードは、並び終わるのを少し待つ）
@@ -4388,10 +4388,9 @@ async function showSimilarNow(it){
   }
   const near = nearestSim(it, SIM_K) || [];
   edToast.hidden = true;
-  // プレビューから入るときは、プレビューの履歴をそのまま一段奥の画面の履歴に使う
-  const fromPeek = peek.open;
-  if(fromPeek){ peekReuse = 'deep'; peekSilent = true; closePeek(); }
-  enterView({ kind:'sim', sim:{ center:it, list:[it, ...near.filter(x => x !== it)] }, from:it }, fromPeek);
+  // プレビューから入ったときは、プレビューを開いたまま後ろの一覧を似た画像に入れ替え、そのまま送ってたどれる
+  enterView({ kind:'sim', sim:{ center:it, list:[it, ...near.filter(x => x !== it)] }, from:it });
+  if(peek.open) openPeek(it, true);
 }
 // 一段奥の画面をすべて閉じる（戻る位置は覚えない。絞り込みや並び順を変えたとき）
 function exitSimilar(){
