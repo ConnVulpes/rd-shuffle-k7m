@@ -384,10 +384,11 @@ header.deep > .deep-bar{display:flex}
 #ntCheck[hidden]{display:none}
 /* 来た画像（似た画像の元）を枠で示す */
 .card.is-base{box-shadow:0 0 0 2px var(--accent)}
-/* 似た画像の画面：押した画像を一覧の上（列の外）に、カード2枚分ほどの大きさで真ん中に置く */
-.grid:has(> .sim-top){flex-wrap:wrap}
-.sim-top{flex:0 0 100%; display:flex; justify-content:center; min-width:0}
-.sim-hero{flex:none; max-width:100%}
+/* 似た画像の画面：押した画像を1列目の先頭に置く。列が2本以上なら2列ぶんの幅で右へはみ出させ、
+   2列目の先頭には同じ高さの空きを置く。高さは画面の 70% まで（それより縦長なら、画像は縮めて真ん中に） */
+.sim-hero{flex:none; z-index:1}
+.sim-hero .card-link > .thumb{max-height:70vh; object-fit:contain; background:none}
+.sim-gap{flex:none; pointer-events:none}
 /* 似た画像の画面の長押しで出す選択肢（カードの近くに） */
 .menu.press-menu{position:absolute; top:0; left:0; right:auto; width:160px; max-height:none}
 /* 入るときは右から、戻るときは左へ */
@@ -1578,13 +1579,15 @@ function render(){
   shownCount = 0;
   cardEls = [];
   placeGen++; placeQueue = Promise.resolve(); placing = 0;
+  const oldHero = heroOf(); if(oldHero) oldHero.remove();
   layout(true);
-  const oldTop = grid.querySelector(':scope > .sim-top'); if(oldTop) oldTop.remove();
   if(sim){
-    // 押した画像を一覧の上に（一覧の中には出さない）
-    const row = el('div', 'sim-top'), h = card(sim.center, true);
-    row.append(h); grid.prepend(row); sizeHero(h);
+    // 押した画像を1列目の先頭に（一覧の中には出さない）。画像が読み込まれて高さが決まってから、ほかのカードを並べ始める
+    const h = card(sim.center, true), gen = placeGen;
+    putHero(h);
+    placeQueue = placeQueue.then(() => Promise.race([h._ready, sleep(3000)])).then(() => { if(gen === placeGen) syncHeroGap(); });
   }
+  watchHero();
   window.scrollTo({ top:0, behavior:'instant' });
   empty.hidden = poolSize > 0;
   if(!poolSize){
@@ -1700,6 +1703,7 @@ function restoreView(quiet){
   placeQueue = (async () => { for(const c of pending){ await Promise.race([c._ready, sleep(3000)]); if(gen !== placeGen) return; c._placed = true; placeCard(c); placing--; } })();
   applyView();
   layout(false);
+  watchHero();
   empty.hidden = poolSize > 0;
   updateStatus();
   if(quiet) return;   // 途中の段は、元に戻すだけ
@@ -1832,12 +1836,10 @@ function layout(force){
   const w = grid.clientWidth || document.documentElement.clientWidth;
   grid.style.setProperty('--gap', gapFor(state.col) + 'px');
   grid.style.setProperty('--colw', Math.min(state.col, w) + 'px');
-  const top = grid.querySelector(':scope > .sim-top');
-  if(!force && n === colCount){ sizeHero(heroOf()); return; }
+  const hero = heroOf();
+  if(!force && n === colCount){ sizeHero(hero); return; }
   colCount = n;
   grid.innerHTML = '';
-  if(top) grid.append(top);   // 上に置いた画像は列を作り直しても残す
-  sizeHero(heroOf());
   cols = [];
   for(let i = 0; i < n; i++){
     const c = document.createElement('div');
@@ -1845,22 +1847,37 @@ function layout(force){
     grid.append(c);
     cols.push(c);
   }
+  if(hero) putHero(hero);   // 上の画像は、列を作り直しても同じ形で先頭に
   cardEls.filter(c => c._placed).forEach(placeCard);
 }
 
-// 似た画像の画面の、上に置いた画像
-const heroOf = () => grid.querySelector(':scope > .sim-top > .sim-hero');
+// 似た画像の画面の、上の画像（1列目の先頭）と、2列目の先頭に置く同じ高さの空き
+const heroOf = () => grid.querySelector('.col > .sim-hero');
 const allCards = () => { const h = heroOf(); return h ? [h, ...cardEls] : cardEls; };
-// 上に置く画像の大きさ：列が2本以上なら2列ぶん（列の幅×2＋すき間）、1本ならその列の幅。
-// 縦横の比はそのままで、高さは画面の高さの 60% まで
+function putHero(h){
+  cols[0].prepend(h);
+  if(cols.length >= 2){
+    const g = el('div', 'sim-gap'); g.setAttribute('aria-hidden', 'true');
+    cols[1].prepend(g);
+  }
+  sizeHero(h);
+}
+// 上の画像の幅：列が2本以上なら2列ぶん（列の幅×2＋すき間）、1本ならその列の幅
 function sizeHero(c){
   if(!c) return;
   const w = grid.clientWidth || document.documentElement.clientWidth;
   const colw = Math.min(state.col, w), W = colCount >= 2 ? colw * 2 + gapFor(state.col) : colw;
-  const m = c.querySelector('.card-link > .thumb');
-  const nw = m ? (m.naturalWidth || m.videoWidth || 0) : 0, nh = m ? (m.naturalHeight || m.videoHeight || 0) : 0;
-  c.style.width = Math.floor(nw && nh ? Math.min(W, innerHeight * 0.6 * nw / nh) : W) + 'px';
+  c.style.width = W + 'px';
+  syncHeroGap();
 }
+// 2列目の空きを上の画像と同じ高さに（ほかのカードは、いちばん短い列に足すので右と下へ詰まる）
+function syncHeroGap(){
+  const h = heroOf(), g = grid.querySelector('.col > .sim-gap');
+  if(h && g) g.style.height = h.offsetHeight + 'px';
+}
+// 上の画像の高さが後から変わったとき（説明の行が変わったときなど）も空きを合わせる
+const heroRO = new ResizeObserver(syncHeroGap);
+function watchHero(){ heroRO.disconnect(); const h = heroOf(); if(h) heroRO.observe(h); }
 
 function placeCard(el){
   let best = cols[0];
@@ -2117,7 +2134,7 @@ function card(it, top = false){
     openPeek(it);
   });
   const list = thumbs(it);
-  // 上に置く画像は大きく出すので、プレビューと同じ画像を使う（読み込めたら縦横の比に合わせて大きさを決める）
+  // 上に置く画像は大きく出すので、プレビューと同じ画像を使う（読み込めたら2列目の空きを同じ高さに）
   wrap._ready = new Promise(res => a.append(top ? mediaEl(it, list, 0, () => { sizeHero(wrap); res(); }, true, 'hero') : mediaEl(it, list, 0, res, true)));
   a.append(captionEl(it));
   wrap.append(a);
