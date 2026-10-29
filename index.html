@@ -47,6 +47,7 @@
 }
 *{box-sizing:border-box}
 html{color-scheme:light dark; scrollbar-gutter:stable}
+html.modal-open, html.modal-open body{overflow:hidden; overscroll-behavior:none}
 body{
   margin:0; min-height:100vh;
   background:linear-gradient(180deg,var(--bg-top) 0%,var(--bg-bottom) 100%) fixed;
@@ -589,7 +590,12 @@ dialog input{width:100%; margin-bottom:16px}
 .fd-pre-add:disabled{opacity:.45; cursor:default}
 .fd-pre-ok{border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink)}
 dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font-size:16px /* iOS の拡大を防ぐ */}
-.fd-picked{display:flex; flex-wrap:wrap; gap:8px; padding:0 16px 12px; min-height:32px}
+.fd-picked{display:flex; flex-wrap:nowrap; gap:8px; padding:0 16px 12px; min-height:32px; overflow:hidden}
+.fd-picked.open{flex-wrap:wrap; max-height:40vh; overflow:auto}
+.fd-picked .chip{flex:none; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fd-picked:not(.open) .chip:first-child{flex:0 1 auto; min-width:0}
+.fd-picked .chip[hidden]{display:none}
+.chip-more{flex:none; font:inherit; font-size:var(--fs-s); line-height:1.5; padding:2px 12px; border-radius:var(--r-full); border:0; background:transparent; color:var(--accent); font-weight:700; cursor:pointer; white-space:nowrap}
 .chip{
   display:inline-flex; align-items:center; gap:4px; font:inherit; font-size:var(--fs-s); line-height:1.5;
   padding:2px 8px; border-radius:var(--r-full); cursor:pointer;
@@ -1131,6 +1137,29 @@ function triButtons(isIn, isEx, onIn, onEx){
   });
   return box;
 }
+let fdPickedOpen = false;
+function fitPicked(){
+  const picked = $('fdPicked');
+  picked.querySelectorAll('.chip-more').forEach(x => x.remove());
+  const chips = [...picked.querySelectorAll('.chip')];
+  chips.forEach(c => { c.hidden = false; });
+  picked.classList.toggle('open', fdPickedOpen);
+  if(chips.length < 2 || !picked.clientWidth) return;
+  const more = el('button', 'chip-more'); more.type = 'button';
+  if(fdPickedOpen){
+    more.textContent = '折りたたむ';
+    more.addEventListener('click', () => { fdPickedOpen = false; fitPicked(); });
+    picked.append(more);
+    return;
+  }
+  const right = picked.getBoundingClientRect().right - parseFloat(getComputedStyle(picked).paddingRight);
+  if(chips[chips.length - 1].getBoundingClientRect().right <= right + 0.5) return;   // 全部入っている
+  let n = 0;
+  chips.forEach((c, i) => { if(i && (n || c.getBoundingClientRect().right > right - 64)){ c.hidden = true; n++; } });
+  more.textContent = `＋${n}`; more.title = 'すべて表示';
+  more.addEventListener('click', () => { fdPickedOpen = true; fitPicked(); });
+  picked.append(more);
+}
 function renderFilterDlg(){
   const f = draft;
   // 選んでいる条件（押すと外れる）
@@ -1148,6 +1177,7 @@ function renderFilterDlg(){
   if(f.type) chip(TYPE_LABEL[f.type], false, () => { f.type = ''; });
   if(f.q) chip(`「${f.q}」`, false, () => { f.q = ''; $('fdQ').value = ''; });
   if(!picked.children.length) picked.append(el('span', 'none', '条件なし（すべてを表示）'));
+  fitPicked();
 
   document.querySelectorAll('#fdTabs button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === fdTab)));
   $('fdListPane').hidden = fdTab === 'other';
@@ -1257,12 +1287,12 @@ function renderPresets(){
 }
 function openFilter(tab){
   draft = cloneF(state.filter);
-  presetEdit = false; presetNaming = false;
+  presetEdit = false; presetNaming = false; fdPickedOpen = false;
   if(tab) fdTab = tab;
   fdSearch.value = '';
   $('fdQ').value = draft.q || '';
   renderFilterDlg();
-  lockScroll(); filterDlg.showModal();
+  filterDlg.showModal(); syncModal(); fitPicked();
   if(tab === 'other') $('fdQ').focus();
 }
 $('filterBtn').addEventListener('click', () => openFilter());
@@ -1863,15 +1893,13 @@ function stepPeek(d){
 }
 
 // プレビュー中は後ろの一覧が動かないように固定する（iPhone でも効く方法）
-let lockedY = 0, lockN = 0;
+let lockedY = 0;
 function lockScroll(){
-  if(lockN++) return;
   lockedY = window.scrollY;
   const b = document.body.style;
   b.position = 'fixed'; b.top = `-${lockedY}px`; b.left = '0'; b.right = '0'; b.width = '100%';
 }
 function unlockScroll(){
-  if(!lockN || --lockN) return;
   const b = document.body.style;
   b.position = ''; b.top = ''; b.left = ''; b.right = ''; b.width = '';
   window.scrollTo(0, lockedY);
@@ -3013,9 +3041,11 @@ function setShuffleBusy(b){
 
 // 設定の画面（メニューの「設定…」）
 const setDlg = $('setDlg');
-function openSettings(){ setMenu(false); updateMapState(); lockScroll(); setDlg.style.transform = ''; setDlg.showModal(); }
-// 設定・絞り込み・トークンの窓を開いている間は、後ろの一覧が動かないように固定する
-[setDlg, filterDlg, dlg].forEach(d => d.addEventListener('close', unlockScroll));
+function openSettings(){ setMenu(false); updateMapState(); setDlg.style.transform = ''; setDlg.showModal(); syncModal(); }
+// 設定・絞り込み・トークンの窓を開いている間は、後ろの一覧がスクロールしないようにする
+// （本体を固定する方法はプレビューだけ。窓では、iPhone で中の操作が効かなくなることがあるので使わない）
+function syncModal(){ document.documentElement.classList.toggle('modal-open', setDlg.open || filterDlg.open || dlg.open); }
+[setDlg, filterDlg, dlg].forEach(d => d.addEventListener('close', syncModal));
 // スマホ：上のつまみ（と見出し）を下に引くと閉じる。編集の画面いっぱいのときと同じ
 function startSetDrag(e){
   if(!matchMedia('(max-width:640px)').matches || e.target.closest('button')) return;
@@ -3045,7 +3075,7 @@ $('tokenBtn').addEventListener('click', () => { setDlg.close(); openToken(); });
 // トークンの窓
 function openToken(){
   tokenInput.value = state.token;
-  if(typeof dlg.showModal === 'function'){ lockScroll(); dlg.showModal(); }
+  if(typeof dlg.showModal === 'function'){ dlg.showModal(); syncModal(); }
   tokenInput.focus();
 }
 
