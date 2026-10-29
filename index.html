@@ -31,6 +31,7 @@
   --heart:#ff5c7c; --accent-on-dark:#9ec4e8;
   /* 文字の記号の代わりに使う形（× とピン） */
   --mask-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 5.5l9 9M14.5 5.5l-9 9' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --mask-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4.5 10.5l3.5 3.5 7.5-8' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --mask-pin:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M7.5 2.5h5l-.8 5.2 3.3 3.3H5l3.3-3.3zM10 11v6.5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 @media (prefers-color-scheme: light){
@@ -96,10 +97,28 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
   border:1px solid var(--line); border-radius:var(--r-s); padding:0 12px; cursor:pointer;
 }
 .filter-btn span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.filter-btn.active{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.filter-btn.active{color:var(--accent); font-weight:700}
 .filter-btn .muted{color:var(--muted)}
-header select{height:36px; padding:0 8px}
-header .shuffle{display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 16px}
+/* 並び順とシャッフル：1つの枠に、押せる場所が2つ（⇆ はランダムのときだけ） */
+.sort-ctl{display:inline-flex; align-items:stretch; height:36px; border:1px solid var(--line); border-radius:var(--r-s); overflow:hidden}
+.sort-ctl button{display:inline-flex; align-items:center; gap:4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; cursor:pointer; white-space:nowrap}
+.sort-ctl button:hover{background:var(--field)}
+.sort-ctl button:disabled{opacity:.5; cursor:progress}
+.sort-shuffle{padding:0 12px}
+.sort-shuffle[hidden]{display:none}
+.sort-shuffle:not([hidden]) + .sort-btn{border-left:1px solid var(--line)}
+.sort-btn{padding:0 8px 0 12px}
+.sort-btn .chev{width:16px; height:16px}
+.sort-menu{width:200px}
+.sort-menu .menu-item{justify-content:space-between}
+.sort-menu .menu-item[aria-checked="true"]{font-weight:700}
+.sort-menu .menu-item[aria-checked="true"]::after{content:''; width:16px; height:16px; background:var(--accent); -webkit-mask:var(--mask-check) center/contain no-repeat; mask:var(--mask-check) center/contain no-repeat}
+/* PC だけ：表示の3つのオン・オフ（オンは塗り、オフは枠）。押すと切り替わる */
+.st-icons{display:none; gap:8px}
+@media (hover:hover) and (min-width:641px){ .st-icons{display:flex} }
+.st-ic{display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:var(--r-s); cursor:pointer}
+.st-ic:hover{color:var(--text)}
+.st-ic[aria-pressed="true"]{color:var(--accent); background:color-mix(in srgb, var(--accent) 18%, transparent); border-color:var(--accent)}
 .tool-btn{
   display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; flex:none;
   color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:var(--r-s); cursor:pointer;
@@ -136,7 +155,8 @@ kbd{font:inherit; font-size:var(--fs-xs); color:var(--muted); border:1px solid v
 }
 .switch input:checked{background:var(--accent)}
 .switch input:checked::after{transform:translateX(16px)}
-.status{color:var(--muted); font-size:var(--fs-s); margin:0 0 12px; min-height:1.6em}
+.status{color:var(--muted); font-size:var(--fs-s); margin:0 0 12px}
+.status:empty{display:none}
 
 main{padding:20px}
 .grid{display:flex; align-items:flex-start; justify-content:center; gap:var(--gap,16px)}
@@ -170,11 +190,9 @@ main{padding:20px}
 .ph-text .ph-site{font-size:var(--fs-xs); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .cap{display:flex; flex-direction:column; gap:4px; padding:8px 12px 12px}
 .cap-top{display:flex; align-items:baseline; gap:8px; min-width:0}
-.coll{flex:1; min-width:0; font-size:var(--fs-xs); color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.cap-top .none{flex:1; min-width:0; white-space:nowrap}
-.saved{flex:none; font-size:var(--fs-xs); color:var(--muted); font-variant-numeric:tabular-nums}
-.tags{display:flex; flex-wrap:wrap; gap:4px}
-.tag{font-size:var(--fs-xs); line-height:1.6; padding:0 8px; border-radius:var(--r-full); color:var(--text); background:var(--field); border:1px solid var(--line)}
+.meta{flex:1; min-width:0; font-size:var(--fs-xs); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-variant-numeric:tabular-nums}
+.tags{display:flex; gap:8px; min-width:0; overflow:hidden; white-space:nowrap; font-size:var(--fs-xs); color:var(--muted)}
+.tag, .tag-more{flex:none}
 .none{font-size:var(--fs-xs); color:var(--muted); font-style:italic}
 body.no-cap .cap{display:none}
 .card-link{display:block; color:inherit; text-decoration:none}
@@ -269,7 +287,7 @@ label.set-row{cursor:pointer}
 .lb-like-n{font-size:var(--fs-xs); font-weight:700; align-self:flex-end; margin-bottom:9px}
 #peek.editing .lb-like{bottom:calc(var(--edit-h, 0px) + 12px)}
 @media (min-width:760px){ #peek.editing .lb-like{bottom:14px} }
-.cap-like{color:var(--heart); font-size:var(--fs-xs); letter-spacing:-1px; margin-right:6px; flex:none}
+.cap-like{color:var(--heart); font-size:var(--fs-xs); letter-spacing:-1px; flex:none}
 .lb-btn.lb-bright{pointer-events:auto; height:32px; gap:4px; padding:0 12px; margin-bottom:8px; font-size:var(--fs-s); font-variant-numeric:tabular-nums; background:rgba(0,0,0,.45)}
 .lb-bright svg{width:16px; height:16px; flex:none}
 .lb-bright[hidden]{display:none}
@@ -468,10 +486,11 @@ label.set-row{cursor:pointer}
   position:absolute; top:8px; right:8px;
   display:flex; align-items:center; justify-content:center;
   width:32px; height:32px; border-radius:50%;
-  color:var(--accent-ink); background:var(--accent);
+  color:#fff; background:rgba(0,0,0,.5);
   opacity:.85; box-shadow:0 1px 4px rgba(0,0,0,.35);
 }
 .rd-btn:hover{opacity:1}
+@media (hover:none){ .rd-btn{display:none} }
 @media (hover:hover){
   .rd-btn{opacity:0}
   .card:hover .rd-btn,.rd-btn:focus-visible{opacity:.9}
@@ -485,6 +504,8 @@ label.set-row{cursor:pointer}
   box-shadow:0 1px 4px rgba(0,0,0,.35); opacity:0;
 }
 .sel-box svg{width:100%; height:100%}
+.sel-box::after{content:""; position:absolute; inset:-1px}
+@media (hover:none){ body.selecting .sel-box::after{inset:-9px} }
 @media (hover:hover){ .card:hover .sel-box, .sel-box:focus-visible{opacity:1} }
 body.selecting .sel-box{opacity:1}
 .card.picked .sel-box{color:var(--accent-ink); background:var(--accent); border-color:var(--accent)}
@@ -618,10 +639,10 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   main{padding:12px}
   .filter-btn{flex:1}
   header .spacer{display:none}
-  header select{max-width:118px}
-  header .shuffle{padding:0 11px}
-  header .shuffle .lbl{display:none}
-  .menu{position:fixed; top:58px; right:12px; left:12px; width:auto; max-height:calc(100dvh - 70px - env(safe-area-inset-bottom)); overflow:auto; overscroll-behavior:contain}
+  /* 上のバーのボタンは高さ 44 */
+  .filter-btn, .sort-ctl{height:44px}
+  .tool-btn{width:44px; height:44px}
+  .menu{position:fixed; top:68px; right:12px; left:12px; width:auto; max-height:calc(100dvh - 80px - env(safe-area-inset-bottom)); overflow:auto; overscroll-behavior:contain}
 }
 </style>
 </head>
@@ -632,18 +653,25 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
     <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.6 5.6V13l-2.8-1.4V8.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
     <span id="filterLabel">すべて</span>
   </button>
-  <span class="spacer" style="flex:1"></span>
-  <select id="sortSel" aria-label="並び順">
-    <option value="shuffle">ランダム</option>
-    <option value="new">新しい順</option>
-    <option value="old">古い順</option>
-    <option value="title">タイトル順</option>
-    <option value="liked">♥ した順</option>
-  </select>
-  <button type="button" class="shuffle" id="shuffle" title="シャッフル（R）">
-    <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h2.2c1.4 0 2.4.7 3.2 1.9l1.2 1.8c.8 1.2 1.8 1.9 3.2 1.9H14M2 11.5h2.2c1.4 0 2.4-.7 3.2-1.9M9.2 6.4c.8-1.2 1.8-1.9 3.2-1.9H14M12 2.5l2 2-2 2M12 9.5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    <span class="lbl" id="shuffleLabel">シャッフル</span>
-  </button>
+  <span class="spacer"></span>
+  <div class="st-icons" id="stIcons">
+    <button type="button" class="st-ic" id="stCap" aria-pressed="false" title="キャプション（C）" aria-label="キャプション"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="14" height="9" rx="1.5"/><path d="M4 15.5h12"/></svg></button>
+    <button type="button" class="st-ic" id="stSaver" aria-pressed="false" title="省データモード" aria-label="省データモード"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 15.5C4.5 8.5 9 4.5 16 4.5c0 7-4.5 11-11.5 11zM4.5 15.5l6-6"/></svg></button>
+    <button type="button" class="st-ic" id="stCur" aria-pressed="false" title="カーソルを自動で隠す（H）" aria-label="カーソルを自動で隠す"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3v13l3.6-3.4 2.6 5.4 2-1-2.6-5.2h4.9z"/></svg></button>
+  </div>
+  <div class="menu-wrap sort-wrap">
+    <div class="sort-ctl" id="sortCtl">
+      <button type="button" class="sort-shuffle" id="shuffle" title="シャッフル（R）" aria-label="シャッフル"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h2.2c1.4 0 2.4.7 3.2 1.9l1.2 1.8c.8 1.2 1.8 1.9 3.2 1.9H14M2 11.5h2.2c1.4 0 2.4-.7 3.2-1.9M9.2 6.4c.8-1.2 1.8-1.9 3.2-1.9H14M12 2.5l2 2-2 2M12 9.5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button type="button" class="sort-btn" id="sortBtn" aria-haspopup="true" aria-expanded="false" aria-controls="sortMenu" title="並び順"><span id="sortLabel">ランダム</span><svg class="ico chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 8l4.5 4.5L14.5 8"/></svg></button>
+    </div>
+    <div class="menu sort-menu" id="sortMenu" hidden>
+      <button type="button" class="menu-item" data-sort="shuffle"><span>ランダム</span></button>
+      <button type="button" class="menu-item" data-sort="new"><span>新しい順</span></button>
+      <button type="button" class="menu-item" data-sort="old"><span>古い順</span></button>
+      <button type="button" class="menu-item" data-sort="title"><span>タイトル順</span></button>
+      <button type="button" class="menu-item" data-sort="liked"><span>♥ した順</span></button>
+    </div>
+  </div>
   <div class="menu-wrap">
     <button type="button" class="tool-btn" id="viewBtn" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu" title="表示の設定">
       <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M12 4h2M2 8h2M7 8h7M2 12h8M13 12h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="8" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="11.5" cy="12" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
@@ -839,7 +867,7 @@ let refreshing = false;
 
 const $ = id => document.getElementById(id);
 const grid = $('grid'), empty = $('empty'), statusEl = $('status');
-const shuffleBtn = $('shuffle'), refreshBtn = $('refresh');
+const shuffleBtn = $('shuffle'), sortBtn = $('sortBtn'), refreshBtn = $('refresh');
 const dlg = $('dlg'), tokenInput = $('tokenInput');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // 日本語の並べ替え（毎回 localeCompare を呼ぶより速い）
@@ -911,8 +939,8 @@ async function loadMeta(){
 }
 
 // ブックマークを全部、数ページずつ並行して読み込み、軽くした形でこのブラウザに保存する
-async function refreshAll(){
-  if(!state.token){ openSettings(); return; }
+async function refreshAll(manual = false){
+  if(!state.token){ openToken(); return; }
   if(refreshing) return;
   refreshing = true;
   setUpdateBusy(true);
@@ -945,11 +973,21 @@ async function refreshAll(){
       seen.add(it._id);
       items.push(compact(it));
     }));
+    // 前と比べて、新着・更新・削除の数を知らせる（初めて読み込んだときは知らせない）
+    const before = cache ? new Map(cache.items.map(x => [x.i, JSON.stringify(x)])) : null;
     cache = { v:2, savedAt:Date.now(), syncedAt:Date.now(), items, colls:meta.colls, tags:meta.tags };
     const saved = store.set('cache', cache);
     applyCache();
-    newNote = '';
     render();
+    if(before){
+      let fresh = 0, upd = 0;
+      items.forEach(x => { const b = before.get(x.i); if(b === undefined) fresh++; else if(b !== JSON.stringify(x)) upd++; before.delete(x.i); });
+      const parts = [];
+      if(fresh) parts.push(`新着 ${fresh}件`);
+      if(upd) parts.push(`更新 ${upd}件`);
+      if(before.size) parts.push(`削除 ${before.size}件`);
+      if(parts.length || manual) showToast(parts.length ? parts.join('・') : '変更はありません', null);
+    }
     if(!saved) statusEl.textContent += '（ブラウザに保存できなかったので、次に開いたときにまた読み込みます）';
   }catch(e){
     handleError(e);
@@ -1258,7 +1296,6 @@ function shuffleArray(a){
 
 // 並べ替えはすべてブラウザの中で行う（Raindrop には問い合わせない）。
 // 条件に合う全件を一度に並べ、スクロールに合わせて少しずつカードを足していく
-let newNote = '';
 // ---- 更新は3種類 ----
 // 新着　　　　　　：開いたとき・アプリに戻ったときに自動で（数リクエスト）
 // Raindrop から更新：メニューから。前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込む
@@ -1287,7 +1324,7 @@ async function syncNew(manual = false){
       if(reached || list.length < PER) break;
       if(p === 4){ handoff = true; refreshing = false; refreshAll(); return; }  // 多すぎるときは全部読み直す
     }
-    if(!fresh.length){ if(manual) statusEl.textContent = '新着はありません'; return; }
+    if(!fresh.length){ if(manual) showToast('新着はありません', null); return; }
     if(refreshing && !manual) return;
     const meta = await loadMeta();
     cache.items = fresh.concat(cache.items);
@@ -1302,15 +1339,17 @@ async function syncNew(manual = false){
     if(manual && !handoff){ refreshing = false; setUpdateBusy(false); }
   }
 }
-// 取り込んだ件数を知らせる。新しい順で一番上を見ているときは、その場で並べ直す
+// 取り込んだ件数を下に短く知らせる（「新着 3件・更新 2件」）。新しい順で一番上を見ているときは、その場で並べ直す
 function showNewNote(text, added){
-  if(added && state.sort === 'new' && window.scrollY < 200 && !peek.open){ newNote = ''; render(); statusEl.textContent += `　${text}を取り込みました`; }
-  else{ newNote = `　${text}を取り込みました${added ? '（並べ直すと表示）' : ''}`; updateStatus(); }
+  if(added && state.sort === 'new' && window.scrollY < 200 && !peek.open) render();
+  showToast(text, null);
 }
 
 // 変更分：Raindrop の検索「lastUpdate:日付」で、前回の取り込み以降に変わった日を1日ずつ調べる
-async function syncChanged(){
+function autoSync(){ if(store.get('diffbroken', false)) syncNew(); else syncChanged(true); }
+async function syncChanged(quiet = false){
   if(!cache || refreshing || !state.token) return;
+  lastSync = Date.now();
   const since = cache.syncedAt || cache.savedAt;
   // 間が空きすぎたときは、日ごとに調べるより全部読み込むほうが早い
   if(Date.now() - since > 31 * DAY){
@@ -1337,7 +1376,7 @@ async function syncChanged(){
     };
     const changed = new Map(), trashed = new Set();
     for(const d of dates){
-      statusEl.textContent = `変更を確認中… ${d}`;
+      if(!quiet) statusEl.textContent = `変更を確認中… ${d}`;
       (await search(0, `lastUpdate:${d}`)).forEach(it => { if(!isSettingsRaw(it)) changed.set(it._id, it); });
       (await search(-99, `lastUpdate:${d}`)).forEach(it => trashed.add(it._id));
     }
@@ -1351,29 +1390,39 @@ async function syncChanged(){
     });
     const gone = cache.items.filter(x => trashed.has(x.i));
     cache.items = fresh.concat(cache.items.filter(x => !trashed.has(x.i)));
-    const meta = await loadMeta();
-    cache.colls = meta.colls;
-    cache.tags = meta.tags;
+    // フォルダとタグの一覧は、何か変わったときだけ読み直す（自動の確認を軽く）
+    if(fresh.length || updated.length || gone.length){
+      const meta = await loadMeta();
+      cache.colls = meta.colls;
+      cache.tags = meta.tags;
+    }
     cache.syncedAt = Date.now();
     store.set('cache', cache);
     applyCache();
     if(updated.length) afterLocalChange(updated, { media:true });
     gone.forEach(x => { const c = cardOf.get(x); if(c) setGone(c, 'ゴミ箱へ移動'); });
+    if(!quiet) statusEl.textContent = '';
     const parts = [];
     if(fresh.length) parts.push(`新着 ${fresh.length}件`);
-    if(updated.length) parts.push(`変更 ${updated.length}件`);
-    if(gone.length) parts.push(`ゴミ箱行き ${gone.length}件`);
-    if(!parts.length) statusEl.textContent = '変更はありません';
+    if(updated.length) parts.push(`更新 ${updated.length}件`);
+    if(gone.length) parts.push(`削除 ${gone.length}件`);
+    if(!parts.length){ if(!quiet) showToast('変更はありません', null); }
     else showNewNote(parts.join('・'), fresh.length);
   }catch(e){
-    if(e.message === 'nofilter'){ handoff = true; refreshing = false; statusEl.textContent = '変更分だけを取れなかったので、全部読み込みます'; refreshAll(); return; }
+    if(e.message === 'nofilter'){
+      handoff = true; refreshing = false;
+      // 自動の確認では全部を読み直さず、次からは新着だけを見る
+      if(quiet){ store.set('diffbroken', true); setUpdateBusy(false); syncNew(); return; }
+      statusEl.textContent = '変更分だけを取れなかったので、全部読み込みます'; refreshAll(); return;
+    }
+    if(quiet){ statusEl.textContent = ''; return; }   // 自動の確認は、失敗しても黙って次の機会に
     handleError(e);
   }finally{
     if(!handoff){ refreshing = false; setUpdateBusy(false); }
   }
 }
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'visible' && Date.now() - lastSync > 5 * 60 * 1000) syncNew();
+  if(document.visibilityState === 'visible' && Date.now() - lastSync > 5 * 60 * 1000) autoSync();
   if(document.visibilityState === 'visible' && Date.now() - lastPull > 60 * 1000) pullSettings();
 });
 
@@ -1408,13 +1457,25 @@ function sortPool(pool){
 // シャッフルボタン：並び順をシャッフルにして並べ直す
 function shuffle(){
   exitSimilar();
-  if(state.sort !== 'shuffle'){ state.sort = 'shuffle'; store.set('sort', 'shuffle'); sortSel.value = 'shuffle'; }
+  if(state.sort !== 'shuffle'){ state.sort = 'shuffle'; store.set('sort', 'shuffle'); applySortUI(); }
   render();
+}
+// 並び順：右の「ランダム ▾」から選ぶ。⇆ はランダムのときだけ出す
+const SORT_NAMES = { shuffle:'ランダム', new:'新しい順', old:'古い順', title:'タイトル順', liked:'♥ した順' };
+function applySortUI(){
+  if(!(state.sort in SORT_NAMES)) state.sort = 'shuffle';
+  $('sortLabel').textContent = SORT_NAMES[state.sort];
+  shuffleBtn.hidden = state.sort !== 'shuffle';
+  document.querySelectorAll('#sortMenu .menu-item').forEach(b => { b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', String(b.dataset.sort === state.sort)); });
+}
+function setSort(v){
+  exitSimilar();
+  state.sort = v; store.set('sort', v); applySortUI();
+  if(cache) render();
 }
 // 今の条件（範囲・種類・検索・並び順）で並べ直す
 function render(){
   if(!cache){ refreshAll(); return; }
-  newNote = '';
   clearSelection();
   // 似ているものを並べている間は、絞り込みも並び順も使わず、近い順のまま
   // サムネが出ないものだけのときは、今の絞り込みの中から
@@ -1464,12 +1525,12 @@ function renderSimBar(){
   bar.hidden = !sim;
   if(sim) $('simBarT').textContent = `「${((sim.center.t || '').trim() || sim.center.d || 'この画像').slice(0, 40)}」に似た画像（${Math.max(0, sim.list.length - 1)}件）`;
 }
+// 件数の行は出さない（件数は絞り込みの画面で見られる）。読み込み中・失敗のときだけ文字が入る
 function updateStatus(){
-  statusEl.textContent = `${poolSize.toLocaleString()}件中 ${shownCount.toLocaleString()}件を表示（${ago(Math.max(cache.savedAt, cache.syncedAt || 0))}に更新）`;
+  if(poolSize) statusEl.textContent = '';
   moreEl.hidden = !poolSize;
   moreEl.textContent = shownCount < poolSize ? '続きを読み込み中…'
     : state.sort === 'shuffle' ? 'これで全部です。シャッフルで並べ直せます。' : 'これで全部です。';
-  if(newNote) statusEl.textContent += newNote;
 }
 
 // 石積みのような並べ方：列の数を決めておき、新しいカードはいちばん短い列に足す。
@@ -1691,19 +1752,36 @@ function collName(it){
   return collLabel.get(it.k) || '';
 }
 
-// カードの下の文字：フォルダ名・保存日・タグ
+// カードの下の文字：「フォルダ · 保存日」と ♥ の数を1行、タグを1行
+// タグは最後の区切り（「t3 - Genre - 背景」なら「背景」）だけを出し、入りきらない分は「＋2」
+const shortTag = t => { const p = String(t).split(' - '); return (p[p.length - 1] || '').trim() || t; };
+function shortDate(a){
+  const [y, m, d] = a.split('-').map(Number);
+  return y === new Date().getFullYear() ? `${m}/${d}` : `${y}/${m}/${d}`;
+}
+// 文字の幅のおおよそ（11px：英数字は約6.2、それ以外は約11）
+const textW = t => [...t].reduce((w, ch) => w + (ch.charCodeAt(0) < 0x2e80 ? 6.2 : 11), 0);
 function captionEl(it){
-  const name = collName(it);
-  const c = name ? el('div', 'coll', name) : el('div', 'none', 'コレクションなし');
-  if(name) c.title = name;
+  const name = collName(it) || 'コレクションなし';
   const top = el('div', 'cap-top');
+  const meta = el('span', 'meta', it.a ? `${name} · ${shortDate(it.a)}` : name);
+  meta.title = it.a ? `${name}（${it.a.replace(/-/g, '/')} に保存）` : name;
+  top.append(meta);
   const n = likesOf(it);
   if(n){ const h = el('span', 'cap-like', '♥'.repeat(n)); h.title = `♥ ${n}`; top.append(h); }
-  top.append(c);
-  if(it.a){ const dt = el('span', 'saved', it.a.replace(/-/g, '/')); dt.title = '保存日'; top.append(dt); }
   const tags = el('div', 'tags');
-  if(it.g && it.g.length) it.g.forEach(g => tags.append(el('span', 'tag', '#' + g)));
-  else tags.append(el('span', 'none', 'タグなし'));
+  if(it.g && it.g.length){
+    const room = Math.max(40, state.col - 24);
+    let used = 0, shown = 0;
+    for(const g of it.g){
+      const t = '#' + shortTag(g), w = textW(t) + (shown ? 8 : 0);
+      const restW = shown + 1 < it.g.length ? 32 : 0;   // 「＋2」の分
+      if(shown && used + w + restW > room) break;
+      tags.append(el('span', 'tag', t)); used += w; shown++;
+    }
+    if(shown < it.g.length) tags.append(el('span', 'tag-more', `＋${it.g.length - shown}`));
+    tags.title = it.g.map(g => '#' + g).join('\n');
+  }else tags.append(el('span', 'none', 'タグなし'));
   const cap = el('div', 'cap');
   cap.append(top, tags);
   return cap;
@@ -2926,12 +3004,11 @@ function handleError(e){
     rate:'読み込みの上限に達しました。1分ほど待ってから「更新」を押してください。'
   }[e.message] || '読み込みに失敗しました。「更新」をもう一度押してください。';
   statusEl.textContent = m;
-  if(e.message === 'auth') openSettings();
+  if(e.message === 'auth') openToken();
 }
 
 function setShuffleBusy(b){
-  shuffleBtn.disabled = b;
-  $('shuffleLabel').textContent = b ? '読み込み中…' : 'シャッフル';
+  shuffleBtn.disabled = b; sortBtn.disabled = b;
 }
 
 // 設定の画面（メニューの「設定…」）
@@ -2974,9 +3051,16 @@ function openToken(){
 
 const moreEl = $('more');
 const capBtn = $('capToggle');
+// PC の上のバーのアイコン（キャプション・省データモード・カーソルを自動で隠す）
+function paintStIcons(){
+  $('stCap').setAttribute('aria-pressed', String(!!state.cap));
+  $('stSaver').setAttribute('aria-pressed', String(!!state.saver));
+  $('stCur').setAttribute('aria-pressed', String(!!state.hideCur));
+}
 function applyCap(){
   document.body.classList.toggle('no-cap', !state.cap);
   capBtn.checked = state.cap;
+  paintStIcons();
 }
 function toggleCap(){
   state.cap = !state.cap;
@@ -2987,11 +3071,13 @@ capBtn.addEventListener('change', toggleCap);
 // 軽量モード：切り替えたら一覧の画像も取り直す
 const saverBtn = $('saverToggle');
 saverBtn.checked = state.saver;
-saverBtn.addEventListener('change', () => {
-  state.saver = saverBtn.checked;
+function setSaver(v){
+  state.saver = v; saverBtn.checked = v;
   store.set('saver', state.saver);
+  paintStIcons();
   cardEls.forEach(c => refreshCardMedia(c, c._item));
-});
+}
+saverBtn.addEventListener('change', () => setSaver(saverBtn.checked));
 
 // マウスを止めて少したつとカーソルを隠す。隠れている間はカードに反応しない
 const curBtn = $('curToggle');
@@ -3040,6 +3126,7 @@ wakeInput.addEventListener('input', () => {
 });
 function applyCur(){
   curBtn.checked = state.hideCur;
+  paintStIcons();
   $('curGroup').classList.toggle('off', !state.hideCur);
   if(state.hideCur) armIdle(); else { clearTimeout(idleTimer); setIdle(false); }
 }
@@ -3049,6 +3136,9 @@ function toggleCur(){
   applyCur();
 }
 curBtn.addEventListener('change', toggleCur);
+$('stCap').addEventListener('click', toggleCap);
+$('stSaver').addEventListener('click', () => setSaver(!state.saver));
+$('stCur').addEventListener('click', toggleCur);
 
 new IntersectionObserver(entries => {
   if(entries.some(e => e.isIntersecting) && shownCount < poolSize && !placing) appendMore();
@@ -3068,10 +3158,13 @@ function applySize(){
   sizeInput.value = String(state.col);
   layout(false);
 }
+let recapTimer = 0;
 function setSize(px){
   state.col = px;
   store.set('col', state.col);
   applySize();
+  clearTimeout(recapTimer);
+  recapTimer = setTimeout(() => cardEls.forEach(c => { const old = c.querySelector('.cap'); if(old && c._item) old.replaceWith(captionEl(c._item)); }), 200);
 }
 sizeInput.addEventListener('input', () => setSize(Number(sizeInput.value)));
 // 一度に読み込む数：20・40・80
@@ -3082,19 +3175,22 @@ countSeg.addEventListener('click', e => {
   state.count = Number(b.dataset.n); store.set('count', state.count); applyCount();
 });
 shuffleBtn.addEventListener('click', shuffle);
-const sortSel = $('sortSel');
-sortSel.value = state.sort;
-sortSel.addEventListener('change', () => { exitSimilar(); state.sort = sortSel.value; store.set('sort', state.sort); if(cache) render(); });
+const sortMenu = $('sortMenu');
+function setSortMenu(open){ sortMenu.hidden = !open; sortBtn.setAttribute('aria-expanded', String(open)); if(open) setMenu(false); }
+sortBtn.addEventListener('click', e => { e.stopPropagation(); setSortMenu(sortMenu.hidden); });
+sortMenu.addEventListener('click', e => { const b = e.target.closest('[data-sort]'); if(!b) return; setSortMenu(false); setSort(b.dataset.sort); });
+applySortUI();
 
 // メニュー（カードの大きさ・サムネイルが出ないもの・Raindrop から更新・設定…）
 const viewBtn = $('viewBtn'), viewMenu = $('viewMenu');
-function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); }
+function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); if(open && typeof setSortMenu === 'function') setSortMenu(false); }
 viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.hidden); });
 // メニューの外を押したときは閉じるだけにする（後ろのカードが開かないように）
 document.addEventListener('click', e => {
-  if(!viewMenu.hidden && !e.target.closest('.menu-wrap')){ e.preventDefault(); e.stopPropagation(); setMenu(false); }
+  if(!viewMenu.hidden && !e.target.closest('#viewMenu, #viewBtn')){ e.preventDefault(); e.stopPropagation(); setMenu(false); }
+  if(!sortMenu.hidden && !e.target.closest('#sortMenu, #sortBtn')){ e.preventDefault(); e.stopPropagation(); setSortMenu(false); }
 }, true);
-refreshBtn.addEventListener('click', () => { setDlg.close(); refreshAll(); });
+refreshBtn.addEventListener('click', () => { setDlg.close(); refreshAll(true); });
 $('updDiff').addEventListener('click', () => { setMenu(false); syncChanged(); });
 $('settings').addEventListener('click', openSettings);
 $('cancel').addEventListener('click', () => dlg.close());
@@ -3214,6 +3310,7 @@ document.addEventListener('paste', e => {
 // キー操作（プレビュー中と一覧とで分ける）
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape' && !viewMenu.hidden){ setMenu(false); return; }
+  if(e.key === 'Escape' && !sortMenu.hidden){ setSortMenu(false); return; }
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
   const typing = ['input', 'select', 'textarea'].includes(tag);
@@ -4160,7 +4257,7 @@ if(!state.token){
   setTimeout(pullSettings, 1500);
   // 1日以上たっていたら、表示したまま裏で全部取り直す
   if(Date.now() - cache.savedAt > DAY) refreshAll();
-  else syncNew();
+  else autoSync();
 }else{
   refreshAll();
   setTimeout(pullSettings, 1500);
