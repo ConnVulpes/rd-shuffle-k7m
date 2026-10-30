@@ -354,11 +354,48 @@ label.set-row{cursor:pointer}
 }
 .lb-cap > div{max-width:900px; margin:0 auto}
 .lb-cap-t{font-size:var(--fs-s); line-height:1.45; overflow:hidden; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; text-shadow:0 1px 3px rgba(0,0,0,.6)}
-.lb-sim{
-  display:block; margin:8px auto 0; font:inherit; font-size:var(--fs-s); color:#fff; cursor:pointer; pointer-events:auto;
-  padding:4px 12px; border-radius:var(--r-full); border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.35);
+/* 「似た画像」：左は画像全体で、右（切り抜きのアイコン）は範囲を選んで探す。形と高さは1つのボタンのときと同じ。
+   真ん中は画面の真ん中（下の文字の左右の空きが違うときは、その差の半分だけずらす） */
+.lb-cap > .lb-sim{
+  position:relative; left:calc((var(--cap-r, 16px) - var(--cap-l, 16px)) / 2);
+  display:flex; align-items:stretch; width:max-content; max-width:none; margin:8px auto 0; pointer-events:auto;
+  border-radius:var(--r-full); border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.35);
 }
+.lb-sim > button{
+  position:relative; display:flex; align-items:center; justify-content:center; font:inherit; font-size:var(--fs-s); color:#fff; cursor:pointer;
+  padding:4px 12px; border:0; border-radius:var(--r-full); background:transparent;
+}
+.lb-sim > button:hover{background:rgba(255,255,255,.12)}
+.lb-sim > .lb-sim-crop{padding:0 10px 0 8px; min-width:40px}
+.lb-sim-sep{flex:none; align-self:center; width:1px; height:16px; background:rgba(255,255,255,.35)}
+.lb-sim.no-crop > .lb-sim-sep, .lb-sim.no-crop > .lb-sim-crop{display:none}
 #peek.zoomed .lb-sim{pointer-events:none}
+/* スマホ：見た目の高さはそのまま、押せる範囲だけ上下に広げて 44 に */
+@media (hover:none){
+  .lb-sim > button::after{content:""; position:absolute; left:0; right:0; top:-8px; bottom:-8px}
+  .lb-sim > .lb-sim-crop{min-width:44px}
+}
+/* 範囲を選ぶ画面：今見ている画像を、ズームを外して画面に収まる大きさで。選んだ四角の外は暗く */
+.crop{position:absolute; inset:0; z-index:4; display:flex; flex-direction:column; background:#0a0b0d; touch-action:manipulation;
+  padding-top:env(safe-area-inset-top); -webkit-user-select:none; user-select:none}
+.crop[hidden]{display:none}
+.crop-stage{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:16px; cursor:crosshair; touch-action:none}
+.crop-pic{position:relative; flex:none}
+.crop-pic > img{pointer-events:none; -webkit-user-drag:none}
+.crop-shade{position:absolute; inset:0; overflow:hidden; pointer-events:none}
+.crop-shade[hidden], .crop-box[hidden]{display:none}
+.crop-hole{position:absolute; box-shadow:0 0 0 9999px rgba(0,0,0,.55)}
+.crop-box{position:absolute; border:1.5px solid #fff; cursor:move; pointer-events:none}
+.crop-box i{position:absolute; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.crop-box i[data-c="nw"]{left:0; top:0}
+.crop-box i[data-c="ne"]{left:100%; top:0}
+.crop-box i[data-c="sw"]{left:0; top:100%}
+.crop-box i[data-c="se"]{left:100%; top:100%}
+.crop-bar{flex:none; display:flex; justify-content:center; gap:12px; padding:0 16px calc(16px + env(safe-area-inset-bottom))}
+.crop-btn{height:36px; padding:0 20px; font:inherit; font-size:var(--fs); border-radius:var(--r-s); cursor:pointer}
+.crop-go{border:0; font-weight:700; color:#16181b; background:var(--accent-on-dark)}
+.crop-go:disabled{opacity:.4; cursor:default}
+@media (hover:none){ .crop-btn{height:44px} }
 /* 一段奥の画面（似た画像・サムネイルが出ないもの）：上のバーを「‹ 戻る」・名前・メニューに入れ替え、薄い青の面にする */
 .deep-bar{display:none; flex:1; min-width:0; align-items:center; gap:4px}
 header.deep{background:color-mix(in srgb, var(--accent) 14%, var(--bar))}
@@ -439,7 +476,7 @@ header.deep > .deep-bar{display:flex}
   }
   #peekClose .lbl{display:inline; font-size:var(--fs); letter-spacing:.04em}
   #peek.editing #peekClose{bottom:calc(var(--edit-h, 0px) + 10px)}
-  .lb-cap{padding-left:126px; padding-right:68px}
+  .lb-cap{padding-left:126px; padding-right:68px; --cap-l:126px; --cap-r:68px}
   body #peek .lb-toast{margin-bottom:62px} /* 下の共通の指定より強くする */
 }
 #peek .lb-toast{margin-bottom:46px}
@@ -841,8 +878,12 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   <div class="zoom-ind" id="zoomInd"></div>
   <button type="button" class="lb-like" id="peekLike" aria-pressed="false" data-n="0"><span id="peekLikeV"></span><span class="lb-like-n" id="peekLikeN"></span></button>
   <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
-  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div><button type="button" class="lb-sim" id="peekSim" title="似た画像（S）">似た画像</button></div>
+  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div><div class="lb-sim" id="peekSimBox"><button type="button" id="peekSim" title="似た画像（S）">似た画像</button><span class="lb-sim-sep" aria-hidden="true"></span><button type="button" id="peekCrop" class="lb-sim-crop" title="範囲で探す" aria-label="範囲で探す"></button></div></div>
   <div class="lb-edit" id="edPanel" hidden></div>
+  <div class="crop" id="crop" hidden>
+    <div class="crop-stage" id="cropStage"><div class="crop-pic" id="cropPic"><div class="crop-shade" id="cropShade" hidden><div class="crop-hole" id="cropHole"></div></div><div class="crop-box" id="cropBox" hidden><i data-c="nw"></i><i data-c="ne"></i><i data-c="sw"></i><i data-c="se"></i></div></div></div>
+    <div class="crop-bar"><button type="button" class="lb-btn crop-btn" id="cropCancel">キャンセル</button><button type="button" class="crop-btn crop-go" id="cropGo" disabled>この範囲で探す</button></div>
+  </div>
   <div class="lb-toast" id="edToast" hidden role="status"><span id="edToastMsg"></span><button type="button" id="edUndo">元に戻す</button></div>
 </dialog>
 
@@ -1757,7 +1798,7 @@ function takeSnap(){
 var simF = null;
 const simKey = () => simF ? normF(simF) : '';
 function enterView(v){
-  if(v.kind === 'sim') v.thumb = pathThumbOf(v.sim.center);
+  if(v.kind === 'sim') v.thumb = v.sim.crop || pathThumbOf(v.sim.center);   // 範囲で探したときは切り抜いた部分
   setMenu(false); setSortMenu(false); clearSelection();
   fwd = [];   // 新しくたどり始めたら、先の段は消える（ブラウザの「進む」と同じ）
   v.snap = takeSnap();
@@ -1910,11 +1951,12 @@ addEventListener('popstate', e => {
   }
   const again = () => history.pushState({ rd:layers.length }, '');
   if(!viewMenu.hidden || !sortMenu.hidden || !pressMenu.hidden){ setMenu(false); setSortMenu(false); closePressMenu(); if(layers.length) again(); return; }
-  if(peek.open && editOpen){ setEditOpen(false); again(); return; }
+  if(peek.open && editOpen && layers[layers.length - 1] !== 'crop'){ setEditOpen(false); again(); return; }
   // 戻る：上から1つずつ閉じる（ブラウザで何段もまとめて戻ったときは、その分だけ）
   while(layers.length > to){
     const top = layers.pop();
-    if(top === 'peek') closePeek();
+    if(top === 'crop') hideCrop();
+    else if(top === 'peek') closePeek();
     else if(top === 'deep') restoreView(layers.length > to && layers[layers.length - 1] === 'deep');
   }
 });
@@ -2153,6 +2195,7 @@ function mediaEl(it, list, i, done = () => {}, eager = false, size = 'card'){
     node.alt = '';
     node.referrerPolicy = 'no-referrer';
     node.src = src;
+    node.dataset.orig = cand.url;
     // プレビューで小さい方から出したときは、元の大きさの住所を覚えておく（「高画質で見る」で使う）
     const full = bigUrl(cand.url);
     if(size === 'low' && full !== src) node.dataset.full = full;
@@ -2229,6 +2272,7 @@ const ICONS = {
   bulb:'<path d="M7.5 14.5h5M8 17h4M10 2.5a5 5 0 0 0-3 9c.6.5 1 1.2 1 2v1h4v-1c0-.8.4-1.5 1-2a5 5 0 0 0-3-9z"/>',
   pin:'<path d="M7.5 2.5h5l-.8 5.2 3.3 3.3H5l3.3-3.3zM10 11v6.5"/>',
   expand:'<path d="M3.5 8V3.5H8M12 3.5h4.5V8M16.5 12v4.5H12M8 16.5H3.5V12"/>',
+  crop:'<path d="M5.5 2.5v12h12M2.5 5.5h12v12"/>',
   heart:'<path d="M10 16.5C4.6 12.9 2.5 10.1 2.5 7.4c0-2.2 1.7-3.9 3.8-3.9 1.5 0 2.8.8 3.7 2.1.9-1.3 2.2-2.1 3.7-2.1 2.1 0 3.8 1.7 3.8 3.9 0 2.7-2.1 5.5-7.5 9.1z"/>',
 };
 const icon = (name, cls = '') => `<svg class="ico${cls ? ' ' + cls : ''}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
@@ -2255,7 +2299,9 @@ function card(it, top = false){
   });
   const list = thumbs(it);
   // 上に置く画像は大きく出すので、プレビューと同じ画像を使う（読み込めたら2列目の空きを同じ高さに）
-  wrap._ready = new Promise(res => a.append(top ? mediaEl(it, list, 0, () => { sizeHero(wrap); res(); }, true, 'hero') : mediaEl(it, list, 0, res, true)));
+  const cut = top && sim && sim.crop;
+  wrap._ready = new Promise(res => a.append(cut ? cropImgEl(cut, () => { sizeHero(wrap); res(); }) : top ? mediaEl(it, list, 0, () => { sizeHero(wrap); res(); }, true, 'hero') : mediaEl(it, list, 0, res, true)));
+  if(cut) wrap._crop = true;
   a.append(captionEl(it));
   wrap.append(a);
   wrap._item = it;
@@ -2403,6 +2449,7 @@ function syncHq(){
   const low = state.saver && it && !it._hq && !!zoomer.querySelector('img.thumb[data-full]');
   b.hidden = !(video || low);
   b.textContent = video ? '動画を再生' : '高画質で見る';
+  syncCropBtn();
 }
 $('peekHq').addEventListener('click', e => {
   viewBonus('hq');
@@ -2506,7 +2553,7 @@ function recountTags(){
 // カードの画像だけを作り直す（サムネを変えたとき）
 function refreshCardMedia(c, it){
   const a = c.querySelector('.card-link');
-  if(!a || !a.firstChild) return;
+  if(!a || !a.firstChild || c._crop) return;   // 切り抜いた部分の画像はそのまま
   if(c._hero) a.firstChild.replaceWith(mediaEl(it, thumbs(it), 0, () => sizeHero(c), true, 'hero'));
   else a.firstChild.replaceWith(mediaEl(it, thumbs(it), 0, undefined, true));
 }
@@ -3386,6 +3433,7 @@ function watchEdScroll(body){
 $('peekEdit').addEventListener('click', () => setEditOpen(!editOpen));
 // 入力中の Esc はプレビューを閉じずに、入力や一覧だけを閉じる
 peek.addEventListener('cancel', e => {
+  if(cropOpen){ e.preventDefault(); cancelCrop(); return; }   // 範囲を選ぶ画面だけを閉じる
   if(edPanel.contains(document.activeElement) || edView){
     e.preventDefault();
     if(edView){ edView = ''; renderEdit(); }
@@ -3408,6 +3456,7 @@ function onPeekClosed(){
   popLayer('peek');
   viewEnd();
   const last = peekItem;
+  hideCrop();
   peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
   unlockScroll();
   // 一覧にまだ出ていないところまで送っていたら、そこまでカードを足してから合わせる
@@ -3436,7 +3485,7 @@ peek.addEventListener('click', e => {
   // 押した直後に作り直されて画面から外れた部品（フォルダの選択欄など）は closest で親をたどれないので、
   // 押した時点の経路（composedPath）で判断する
   if(!e.target.isConnected) return;
-  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like, .lb-sim'))) return;
+  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like, .lb-sim, .crop'))) return;
   if(zoomDragged){ zoomDragged = false; return; }   // ドラッグで動かした直後のクリックは無視
   // ズーム中はクリック（タップ）で元の大きさに戻す
   if(zoom.s !== 1){ resetZoom(true); return; }
@@ -3955,6 +4004,7 @@ document.addEventListener('keydown', e => {
   const typing = ['input', 'select', 'textarea'].includes(tag);
   if(peek.open){
     if(typing) return;
+    if(cropOpen){ if(e.key === 'Enter' && cropRect){ e.preventDefault(); cropSearch(); } return; }
     if(e.key === 'ArrowLeft' || e.key === 'ArrowRight'){ e.preventDefault(); stepPeek(e.key === 'ArrowLeft' ? -1 : 1); return; }
     if(e.key === 'e' || e.key === 'E'){ e.preventDefault(); setEditOpen(!editOpen); return; }
     if(e.key === '0'){ e.preventDefault(); resetZoom(true); return; }
@@ -4546,10 +4596,10 @@ async function coverBlob(u){
   catch(e){ return fetchBlob(u); }
 }
 // 全体（余白付き）＋細長いなら長い向きに3か所、そうでなければ真ん中。AI の結果を平均する
-async function embedCover(c){
-  if(window.RD_FAKE_EMBED) return window.RD_FAKE_EMBED(c);
-  const blob = await coverBlob(c);
-  const bmp = await createImageBitmap(blob);
+// src を渡したとき（範囲で探す：切り抜いた部分のキャンバス）は、画像を取らずにそれを使う
+async function embedCover(c, src){
+  if(window.RD_FAKE_EMBED) return window.RD_FAKE_EMBED(c, src);
+  const bmp = src || await createImageBitmap(await coverBlob(c));
   const W = bmp.width, H = bmp.height, S = 256;
   const mk = (sx, sy, sw, sh, pad) => {
     const cv = document.createElement('canvas'); cv.width = S; cv.height = S; const g = cv.getContext('2d');
@@ -4560,7 +4610,7 @@ async function embedCover(c){
   const m = Math.min(W, H), views = [mk(0, 0, W, H, true)];
   if(Math.max(W, H) / m > 1.25) [0, 0.5, 1].forEach(f => { const off = (Math.max(W, H) - m) * f; views.push(W > H ? mk(off, 0, m, m) : mk(0, off, m, m)); });
   else views.push(mk((W - m) / 2, (H - m) / 2, m, m));
-  bmp.close && bmp.close();
+  if(!src && bmp.close) bmp.close();
   const run = dinoBusy.then(async () => {
     let acc = null;
     for(const img of views){
@@ -5073,6 +5123,222 @@ function exitSimilar(){
   return true;
 }
 $('peekSim').addEventListener('click', () => showSimilar(peekItem));
+
+// ---- 範囲で探す：画像の一部分を選んで、それに似た画像を並べる ----
+// プレビューの「似た画像」の右（切り抜きのアイコン）で開く。今見ている向き（回転・反転）のまま、ズームは外して見せる。
+// なぞって四角を描き、四隅で直し、中をドラッグで動かす。外をなぞると描き直し。
+// 選んだ部分を AI に通し、地図と同じ縮め方で 64 個にして、タグで曲げていない地図と比べる（切り抜いた部分にはタグがないので）
+var cropOpen = false, cropRect = null, cropSrc = null, cropBusy = false;   // cropRect：見えている向きの画像の中の割合 {x,y,w,h}
+var cropObs = null;
+const CROP_MIN = 12, CROP_HIT = 22;   // いちばん小さい四角（px）、四隅のつまみの押せる範囲（半径。44 の半分）
+// 右の部分は、画像を見せているときだけ（画像がないもの・動画・YouTube では出さない）
+function syncCropBtn(){
+  const box = $('peekSimBox'); if(!box) return;
+  const img = zoomer.querySelector(':scope > img.thumb');
+  const on = !!img && !zoomer.querySelector('video, iframe');
+  box.classList.toggle('no-crop', !on);
+}
+cropObs = new MutationObserver(syncCropBtn);
+cropObs.observe(zoomer, { childList:true });
+$('peekCrop').innerHTML = icon('crop');
+$('peekCrop').addEventListener('click', openCrop);
+async function openCrop(){
+  if(cropOpen || !peekItem) return;
+  const img = zoomer.querySelector(':scope > img.thumb');
+  if(!img) return;
+  if(!img.naturalWidth){ try{ await img.decode(); }catch(e){} }
+  if(!img.naturalWidth || !peek.open) return;
+  cropSrc = { it:peekItem, url:img.dataset.orig || img.currentSrc || img.src, show:img.currentSrc || img.src, w:img.naturalWidth, h:img.naturalHeight, rot:orient.rot, flip:orient.flip };
+  cropRect = null;
+  const pic = $('cropPic');
+  pic.querySelectorAll('img').forEach(x => x.remove());
+  const im = new Image(); im.alt = ''; im.referrerPolicy = 'no-referrer'; im.draggable = false; im.src = cropSrc.show;
+  im.className = 'crop-img';
+  pic.prepend(im);
+  $('crop').hidden = false;
+  cropOpen = true;
+  pushLayer('crop');
+  layoutCrop();
+  paintCrop();
+}
+// 見えている向きの画像を、画面に収まる大きさで真ん中に
+function layoutCrop(){
+  if(!cropOpen) return;
+  const st = $('cropStage'), pic = $('cropPic'), im = pic.querySelector('img');
+  const side = Math.abs(cropSrc.rot / 90) % 2 === 1;
+  const W = cropSrc.w, H = cropSrc.h, RW = side ? H : W, RH = side ? W : H;
+  const cs = getComputedStyle(st);
+  const aw = st.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const ah = st.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const k = Math.max(0.01, Math.min(aw / RW, ah / RH));
+  pic.style.width = Math.round(RW * k) + 'px'; pic.style.height = Math.round(RH * k) + 'px';
+  Object.assign(im.style, { position:'absolute', left:'50%', top:'50%', width:W * k + 'px', height:H * k + 'px', maxWidth:'none',
+    transform:`translate(-50%, -50%) scaleX(${cropSrc.flip ? -1 : 1}) rotate(${cropSrc.rot}deg)` });
+}
+addEventListener('resize', () => { if(cropOpen){ layoutCrop(); paintCrop(); } });
+function paintCrop(){
+  const pic = $('cropPic'), box = $('cropBox'), hole = $('cropHole'), shade = $('cropShade');
+  const on = !!cropRect;
+  box.hidden = !on; shade.hidden = !on;
+  $('cropGo').disabled = !on || cropBusy;
+  if(!on) return;
+  const W = pic.clientWidth, H = pic.clientHeight;
+  const st = { left:cropRect.x * W + 'px', top:cropRect.y * H + 'px', width:cropRect.w * W + 'px', height:cropRect.h * H + 'px' };
+  Object.assign(box.style, st); Object.assign(hole.style, st);
+}
+// 指・マウスの操作：四隅の近く → その角を動かす／四角の中 → 動かす／それ以外 → 新しく描く（少し動いてから）
+let cropDrag = null;
+$('cropStage').addEventListener('pointerdown', e => {
+  if(!cropOpen || cropBusy || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  if(e.pointerType === 'mouse') e.preventDefault();   // 文字や画像が選ばれないように（指は touch-action で止める）
+  const pic = $('cropPic').getBoundingClientRect();
+  const W = pic.width, H = pic.height, px = e.clientX - pic.left, py = e.clientY - pic.top;
+  const d = { id:e.pointerId, W, H, x0:px, y0:py, mode:'new', moved:false };
+  if(cropRect){
+    const r = { l:cropRect.x * W, t:cropRect.y * H, r:(cropRect.x + cropRect.w) * W, b:(cropRect.y + cropRect.h) * H };
+    // 角：近いものから。反対の角を固定して動かす
+    let best = null;
+    [['nw', r.l, r.t, r.r, r.b], ['ne', r.r, r.t, r.l, r.b], ['sw', r.l, r.b, r.r, r.t], ['se', r.r, r.b, r.l, r.t]].forEach(([c, x, y, ax, ay]) => {
+      const dist = Math.hypot(px - x, py - y);
+      if(dist <= CROP_HIT && (!best || dist < best.dist)) best = { dist, ax, ay };
+    });
+    if(best){ d.mode = 'corner'; d.ax = best.ax; d.ay = best.ay; }
+    else if(px > r.l && px < r.r && py > r.t && py < r.b){ d.mode = 'move'; d.r0 = { ...cropRect }; }
+  }
+  cropDrag = d;
+  if(e.pointerType === 'mouse'){ try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(err){} }
+});
+$('cropStage').addEventListener('pointermove', e => {
+  const d = cropDrag; if(!d || e.pointerId !== d.id) return;
+  const pic = $('cropPic').getBoundingClientRect();
+  const clampX = v => Math.max(0, Math.min(d.W, v)), clampY = v => Math.max(0, Math.min(d.H, v));
+  const px = e.clientX - pic.left, py = e.clientY - pic.top;
+  if(!d.moved && Math.abs(px - d.x0) + Math.abs(py - d.y0) < 4) return;
+  d.moved = true;
+  const toRect = (x1, y1, x2, y2) => ({ x:Math.min(x1, x2) / d.W, y:Math.min(y1, y2) / d.H, w:Math.abs(x2 - x1) / d.W, h:Math.abs(y2 - y1) / d.H });
+  if(d.mode === 'move'){
+    const r = d.r0;
+    const nx = Math.max(0, Math.min(1 - r.w, r.x + (px - d.x0) / d.W)), ny = Math.max(0, Math.min(1 - r.h, r.y + (py - d.y0) / d.H));
+    cropRect = { ...r, x:nx, y:ny };
+  }else if(d.mode === 'corner'){
+    cropRect = toRect(d.ax, d.ay, clampX(px), clampY(py));
+  }else{
+    d.draw = toRect(clampX(d.x0), clampY(d.y0), clampX(px), clampY(py));
+    // 描き直し：小さすぎるうちは前の四角を残す
+    if(d.draw.w * d.W >= CROP_MIN && d.draw.h * d.H >= CROP_MIN){ cropRect = d.draw; d.drew = true; }
+    else if(d.drew) cropRect = d.draw;
+  }
+  paintCrop();
+});
+const endCropDrag = e => {
+  const d = cropDrag; if(!d || e.pointerId !== d.id) return;
+  cropDrag = null;
+  // 小さすぎる四角は残さない（角で縮めすぎたときは、いちばん小さい大きさに）
+  if(cropRect && (cropRect.w * d.W < CROP_MIN || cropRect.h * d.H < CROP_MIN)){
+    if(d.mode === 'new') cropRect = null;
+    else{
+      const mw = CROP_MIN / d.W, mh = CROP_MIN / d.H;
+      cropRect = { x:Math.min(cropRect.x, 1 - mw), y:Math.min(cropRect.y, 1 - mh), w:Math.max(cropRect.w, mw), h:Math.max(cropRect.h, mh) };
+    }
+  }
+  paintCrop();
+};
+$('cropStage').addEventListener('pointerup', endCropDrag);
+$('cropStage').addEventListener('pointercancel', endCropDrag);
+$('cropCancel').addEventListener('click', cancelCrop);
+$('cropGo').addEventListener('click', () => cropSearch());
+// アプリの中で閉じる（キャンセル・Esc）。ブラウザの戻るでは層はもう外れているので hideCrop だけ
+function cancelCrop(){ if(!cropOpen) return; popLayer('crop'); hideCrop(); }
+function hideCrop(){
+  if(!cropOpen) return;
+  cropOpen = false; cropDrag = null; cropBusy = false;
+  $('crop').hidden = true;
+  $('cropPic').querySelectorAll('img').forEach(x => x.remove());
+}
+// 選んだ部分の画素：coverBlob と同じ経路で、切り抜いても粗くならないように大きめに取る
+function largeDirect(u){
+  try{
+    const x = new URL(u);
+    if(x.hostname === 'pbs.twimg.com'){ x.searchParams.set('name', 'medium'); return x.href; }
+    if(x.hostname === 'i.pinimg.com'){ x.pathname = x.pathname.replace(/^\/(originals|\d+x\d*)\//, '/736x/'); return x.href; }
+  }catch(e){}
+  return '';
+}
+async function cropBlob(u){
+  const d = largeDirect(u);
+  if(d){ try{ return await fetchBlob(d); }catch(e){} }
+  try{ return await fetchBlob(`https://wsrv.nl/?url=${encodeURIComponent(u)}&w=1024&h=1024&fit=inside&output=jpg&q=85`); }
+  catch(e){ return fetchBlob(u); }
+}
+// 画像の形式によっては createImageBitmap で読めないので、そのときは <img> で読む
+async function blobImage(blob){
+  try{ return await createImageBitmap(blob); }catch(e){}
+  const url = URL.createObjectURL(blob);
+  try{ const im = new Image(); im.src = url; await im.decode(); return im; }
+  finally{ setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+// 見えている向き（回転・反転）で、選んだ部分だけを描く。長い辺は 768 まで
+async function cropCanvas(){
+  const src = cropSrc, r = cropRect;
+  const bmp = await blobImage(await cropBlob(src.url));
+  const W = bmp.naturalWidth || bmp.width, H = bmp.naturalHeight || bmp.height;
+  if(!W || !H) throw new Error('img');
+  const side = Math.abs(src.rot / 90) % 2 === 1, RW = side ? H : W, RH = side ? W : H;
+  const cw = r.w * RW, ch = r.h * RH, k = Math.min(1, 768 / Math.max(cw, ch));
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(cw * k)); cv.height = Math.max(1, Math.round(ch * k));
+  const g = cv.getContext('2d');
+  g.imageSmoothingQuality = 'high';
+  g.scale(k, k);
+  g.translate(-r.x * RW, -r.y * RH);
+  g.translate(RW / 2, RH / 2);
+  g.scale(src.flip ? -1 : 1, 1);
+  g.rotate(src.rot * Math.PI / 180);
+  g.drawImage(bmp, -W / 2, -H / 2, W, H);
+  if(bmp.close) bmp.close();
+  return cv;
+}
+// 切り抜いた部分の画像（似た画像の画面の、上の大きい画像）
+function cropImgEl(url, done){
+  const im = new Image(); im.className = 'thumb'; im.alt = ''; im.decoding = 'async';
+  im.addEventListener('load', done, { once:true }); im.addEventListener('error', done, { once:true });
+  im.src = url;
+  return im;
+}
+async function cropSearch(){
+  if(!cropOpen || !cropRect || cropBusy || simBusy || !cache) return;
+  const it = cropSrc.it;
+  const st = t => showToast(t, null);
+  cropBusy = true; simBusy = true; paintCrop();
+  try{
+    let m;
+    try{ m = await ensureMap(st); }catch(e){ m = null; }
+    const rec = m && m.rec;
+    if(!m || !rec || !rec.basis || !rec.mean){ st('似た画像はまだ使えません。Mac の設定から準備できます'); return; }
+    let cv;
+    try{ cv = await cropCanvas(); }catch(e){ st('この画像を読み込めませんでした'); return; }
+    if(!cropOpen) return;
+    let v;
+    try{ await loadDino(st); st('選んだ範囲を調べています…'); v = await embedCover(it.c, cv); }
+    catch(e){ st('画像の AI を読み込めませんでした。つながっているか確かめて、もう一度押してください'); return; }
+    if(!cropOpen) return;
+    // 地図と同じ縮め方で 64 個にし、曲げていない地図と内積で比べる。元の画像そのものは入れない
+    const y = unitV(project(v, rec, v.length, m.dims));
+    const n = m.n, d = m.dims, V = m.V, sc = new Float64Array(n), idx = [];
+    for(let r = 0; r < n; r++){ let s = 0; const o = r * d; for(let j = 0; j < d; j++) s += y[j] * V[o + j]; sc[r] = s; idx.push(r); }
+    idx.sort((a, b) => sc[b] - sc[a] || a - b);
+    const byId = new Map(cache.items.map(x => [x.i, x])), near = [];
+    for(const r of idx){ const x = byId.get(m.ids[r]); if(x && x !== it) near.push(x); }
+    const url = cv.toDataURL('image/jpeg', 0.85);
+    edToast.hidden = true;
+    hideCrop();
+    if(peek.open){ peekSilent = true; closePeek(); }
+    enterView({ kind:'sim', sim:{ center:it, list:[it, ...near], crop:url }, from:it });
+  }finally{
+    cropBusy = false; simBusy = false;
+    if(cropOpen) paintCrop();
+  }
+}
 updateMapState();
 
 applyCap();
