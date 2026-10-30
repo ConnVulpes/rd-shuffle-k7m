@@ -271,11 +271,23 @@ label.set-row{cursor:pointer}
 }
 #peek[open]{display:block}
 /* プレビューの大きさ：上のボタン（--btn-h）、下の段（閉じる・♥ は --row-h、似た画像は --sim-h。高さの真ん中をそろえる）。
-   下の段の上にタイトル（2行まで）とサイト名。画像はその上までにして、タイトルを重ねない */
-#peek{--btn-h:36px; --top-h:calc(var(--btn-h) + 16px); --row-h:44px; --sim-h:36px; --row-b:12px;
+   下の段の上に2行（タイトル1行と「サイト · 日付」。高さ --txt-h、上下のすき間 --txt-g）。
+   画像は上のボタンの 2px 下（--img-t）から2行の上までを使い、文字を重ねない */
+#peek{--btn-h:36px; --top-h:calc(var(--btn-h) + 16px); --img-t:calc(var(--btn-h) + 10px); --row-h:44px; --sim-h:36px; --row-b:12px;
   --sim-b:calc(var(--row-b) + (var(--row-h) - var(--sim-h)) / 2);
-  --cap-h:calc(8px + 2 * 1.45 * var(--fs-s) + 4px + 1.6 * var(--fs-xs) + 12px + var(--sim-h) + var(--sim-b))}
-@media (hover:none){ #peek{--btn-h:44px; --row-h:52px; --sim-h:44px} }
+  --txt-h:29px; --txt-g:6px;
+  --cap-h:calc(var(--row-b) + var(--row-h) + var(--txt-g) * 2 + var(--txt-h))}
+@media (hover:none){ #peek{--btn-h:44px; --row-h:52px; --sim-h:44px; --txt-g:2px} }
+/* 情報の画面を開いている間：スマホは2行と似た画像・♥ を隠して、画像をシートの上までいっぱいに。
+   PC は画像の横に出るので、似た画像・♥ は残し、2行だけ隠す */
+@media (max-width:759px){
+  #peek.editing{--cap-h:0px}
+  #peek.editing .lb-info, #peek.editing .lb-sim, #peek.editing .lb-like{display:none}
+}
+@media (min-width:760px){
+  #peek.editing{--cap-h:calc(var(--row-b) + var(--row-h) + var(--txt-g))}
+  #peek.editing .lb-info{display:none}
+}
 /* 素早く2回タップしたときに「ダブルタップ」として飲み込まれないように（1回ずつ確実に送る） */
 #peek, .peek-body{touch-action:manipulation}
 #peek::backdrop{background:transparent}
@@ -303,16 +315,14 @@ label.set-row{cursor:pointer}
 .lb-like .ico{width:24px; height:24px}
 .ico.fill{fill:currentColor}
 .lb-like-n{font-size:var(--fs-xs); font-weight:700; align-self:flex-end; margin-bottom:9px}
-#peek.editing .lb-like{bottom:calc(var(--edit-h, 0px) + var(--row-b))}
-@media (min-width:760px){ #peek.editing .lb-like{bottom:var(--row-b)} }
 .cap-like{color:var(--heart); font-size:var(--fs-xs); letter-spacing:-1px; flex:none}
 .lb-btn.lb-bright{--bright-h:32px; position:absolute; left:50%; bottom:calc(100% + 8px + (var(--btn-h) - var(--bright-h)) / 2); transform:translateX(-50%); pointer-events:auto; height:var(--bright-h); gap:4px; padding:0 12px; font-size:var(--fs-s); font-variant-numeric:tabular-nums; border-radius:var(--r-full)}
 .lb-btn.lb-bright:hover{background:var(--glass-bg)}
 /* スマホ：見た目は 36、押せる範囲だけ上下に広げて 44 */
-@media (hover:none){ .lb-btn.lb-bright{--bright-h:36px} .lb-btn.lb-bright::after{content:""; position:absolute; left:0; right:0; top:-4px; bottom:-4px} }
+@media (hover:none){ .lb-btn.lb-bright{--bright-h:36px} .lb-btn.lb-bright::after{content:""; position:absolute; left:-1px; right:-1px; top:-5px; bottom:-5px} }   /* 縁の 1px の外から数えて上下 4 */
 .lb-bright svg{width:16px; height:16px; flex:none}
 .lb-bright[hidden]{display:none}
-.peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:var(--top-h) 12px calc(var(--cap-h) + env(safe-area-inset-bottom))}
+.peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:var(--img-t) 12px calc(var(--cap-h) + env(safe-area-inset-bottom))}
 .peek-body .thumb, .peek-body img, .peek-body video{
   display:block; max-width:100%; max-height:100%; width:auto; height:auto;
   object-fit:contain; border-radius:var(--r-s); background:transparent;
@@ -359,19 +369,29 @@ label.set-row{cursor:pointer}
 .lb-next{right:10px}
 @media (hover:none){ .lb-nav{display:none} }
 .lb-btn[aria-pressed="true"]{background:rgba(255,255,255,.9); color:#16181b; border-color:transparent}
-.peek-body iframe{width:min(100%, calc((100dvh - var(--top-h) - var(--cap-h)) * 16 / 9)); aspect-ratio:16/9; border:0; border-radius:var(--r-s); background:#000}
-/* プレビュー下のタイトル（画像が遅いときでも何か分かるように） */
+.peek-body iframe{width:min(100%, calc((100dvh - var(--img-t) - var(--cap-h)) * 16 / 9)); aspect-ratio:16/9; border:0; border-radius:var(--r-s); background:#000}
+/* プレビュー下の2行（タイトル1行と「サイト · 日付」）。画像が遅いときでも何か分かるように。
+   2行のまとまりは1つのボタンで、押すと情報の画面を開く */
 .lb-cap{
   position:absolute; left:0; right:0; bottom:0; z-index:2; pointer-events:none; text-align:center;
   display:flex; flex-direction:column; justify-content:flex-end;
-  height:calc(var(--cap-h) + env(safe-area-inset-bottom)); padding:8px 16px calc(var(--sim-b) + env(safe-area-inset-bottom));
+  height:calc(var(--cap-h) + env(safe-area-inset-bottom)); padding:0 16px calc(var(--sim-b) + env(safe-area-inset-bottom));
   color:#fff; transition:opacity .15s;
 }
-.lb-cap > div{max-width:900px; width:100%; margin:0 auto}
-.lb-cap-t{font-size:var(--fs-s); line-height:1.45; overflow:hidden; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; text-shadow:0 1px 3px rgba(0,0,0,.6)}
-/* 「似た画像」：画面の真ん中。高さは --sim-h で、閉じる・♥ と高さの真ん中をそろえる */
+/* 押せる範囲：スマホは上下に広げて高さ 44（見た目の行の高さ 29 は変えない）。PC は 29 のまま */
+.lb-info{--pad-t:0px; --pad-b:0px; flex:none; display:block; width:fit-content; max-width:min(900px, 100%); margin:calc(-1 * var(--pad-t)) auto calc(-1 * var(--pad-b));
+  padding:var(--pad-t) 12px var(--pad-b); font:inherit; color:#fff; text-align:center; background:transparent; border:0; border-radius:var(--r-s);
+  cursor:pointer; pointer-events:auto; -webkit-tap-highlight-color:transparent}
+@media (hover:none){ .lb-info{--pad-t:9px; --pad-b:6px} }   /* 下は似た画像とのすき間 6 まで、残りを上に */
+@media (hover:hover){ .lb-info:hover{background:rgba(255,255,255,.1)} }
+.lb-info > span{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.lb-cap-t{font-size:var(--fs-s); line-height:16px}
+.lb-cap-d{font-size:var(--fs-xs); line-height:13px; color:rgba(255,255,255,.6)}
+#peek.zoomed .lb-info{pointer-events:none}
+/* 「似た画像」：画面の真ん中。高さは --sim-h で、閉じる・♥ と高さの真ん中をそろえる。
+   2行とのすき間は、閉じる・♥ の上の端から --txt-g */
 .lb-cap > .lb-sim{
-  flex:none; display:flex; align-items:stretch; width:max-content; max-width:none; height:var(--sim-h); margin:12px auto 0; pointer-events:auto;
+  flex:none; display:flex; align-items:stretch; width:max-content; max-width:none; height:var(--sim-h); margin:calc((var(--row-h) - var(--sim-h)) / 2 + var(--txt-g)) auto 0; pointer-events:auto;
   border-radius:var(--r-full);
 }
 .lb-sim > button{
@@ -465,7 +485,6 @@ body.cur-idle .hero-crop{opacity:0}
 .grid.view-in{animation:viewIn .2s ease-out}
 .grid.view-back{animation:viewBack .2s ease-out}
 @media (prefers-reduced-motion: reduce){ .grid.view-in, .grid.view-back{animation:none} }
-.lb-cap-d{font-size:var(--fs-xs); margin-top:4px; color:rgba(255,255,255,.65); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 #peek.zoomed .lb-cap{opacity:0}
 /* 軽量モードの「高画質で見る」：画像の右下に */
 .lb-hq{
@@ -517,14 +536,20 @@ body.cur-idle .hero-crop{opacity:0}
 .ed-resize{position:absolute; top:0; bottom:0; right:-5px; width:10px; cursor:ew-resize; touch-action:none; z-index:1}
 .ed-resize:hover, .lb-edit.drag .ed-resize{background:color-mix(in srgb, var(--accent) 35%, transparent)}
 .lb-edit.sheet .ed-resize{display:none}
-/* 見出しの行：「編集」・自動で次へ（文字ごと押せる）・閉じる。押せる範囲はスマホ 44、PC 32 */
-.ed-head{flex:none; display:flex; align-items:center; gap:12px; padding:8px 16px}
+/* 見出しの行：タイトル全文と「作者 · サイト · 日付」・自動で次へ（文字ごと押せる）・閉じる。押せる範囲はスマホ 44、PC 32。
+   タイトルが何行になっても、スイッチと × は1行目の高さにそろえる。下に区切りの線 */
+.ed-head{--ed-hit:32px; flex:none; display:flex; align-items:flex-start; gap:12px; padding:8px 16px; border-bottom:1px solid var(--line); margin-bottom:12px}
 .lb-edit.sheet .ed-head{touch-action:none; padding-top:4px}
-.ed-head strong{font-size:var(--fs); margin-right:auto}
-.ed-head .switch{display:flex; align-items:center; gap:8px; min-height:32px; font-size:var(--fs-s); color:var(--muted); cursor:pointer; user-select:none; -webkit-user-select:none}
+.ed-ttl{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; padding-top:calc((var(--ed-hit) - 21px) / 2)}
+.ed-ttl-t{font-size:var(--fs); line-height:21px; overflow:hidden; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3}
+.ed-ttl-d{font-size:var(--fs-xs); line-height:1.5; color:var(--muted); overflow-wrap:anywhere}
+.ed-head{flex-wrap:wrap; row-gap:0}
+.ed-brk{flex-basis:100%; height:0}
+.ed-head .switch{margin-left:auto; flex:none; display:flex; align-items:center; gap:8px; min-height:32px; white-space:nowrap; font-size:var(--fs-s); color:var(--muted); cursor:pointer; user-select:none; -webkit-user-select:none}
 .ed-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:32px; height:32px; margin-right:-6px; border-radius:var(--r-s); border:0; background:transparent; color:var(--muted); cursor:pointer; flex:none}
 .ed-x:hover{background:var(--field); color:var(--text)}
 @media (hover:none){
+  .ed-head{--ed-hit:44px}
   .ed-head .switch{min-height:44px}
   .ed-x{width:44px; height:44px; margin-right:-12px}
 }
@@ -901,7 +926,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
     <span class="peek-pos" id="peekPos"></span>
     <button type="button" class="lb-btn lb-ic" id="peekRot" title="右に90度回す（R・Shift+R で左）" aria-label="右に90度回す"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.5 7.5A4.5 4.5 0 1 1 8 3h3.5M9.5 1l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button type="button" class="lb-btn lb-ic" id="peekFlip" title="左右反転（F）" aria-label="左右反転" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v13M6 4 2 12h4zM10 4l4 8h-4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
-    <button type="button" class="lb-btn" id="peekEdit" aria-pressed="false" title="タグ・フォルダを編集（E）">編集</button>
+    <button type="button" class="lb-btn" id="peekEdit" aria-pressed="false" title="情報（E）">情報</button>
     <a class="lb-btn" id="peekOpen" target="_blank" rel="noopener noreferrer" title="サイトを開く">サイト</a>
     <a class="lb-btn" id="peekRd" target="_blank" rel="noopener" title="Raindrop で開く"><span class="lb-rd-ic"></span><span class="lb-rd-t">Raindrop</span></a>
     <button type="button" class="lb-btn" id="peekClose" aria-label="閉じる" title="閉じる（Esc）"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg><span class="lbl" aria-hidden="true">閉じる</span></button>
@@ -912,7 +937,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   <div class="zoom-ind" id="zoomInd"></div>
   <button type="button" class="lb-like" id="peekLike" aria-pressed="false" data-n="0"><span id="peekLikeV"></span><span class="lb-like-n" id="peekLikeN"></span></button>
   <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
-  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><div class="lb-cap-t" id="peekCapT"></div><div class="lb-cap-d" id="peekCapD"></div><div class="lb-sim" id="peekSimBox"><button type="button" id="peekSim" title="似た画像（S）">似た画像</button></div></div>
+  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><button type="button" class="lb-info" id="peekInfo" title="情報（E）"><span class="lb-cap-t" id="peekCapT"></span><span class="lb-cap-d" id="peekCapD"></span></button><div class="lb-sim" id="peekSimBox"><button type="button" id="peekSim" title="似た画像（S）">似た画像</button></div></div>
   <div class="lb-edit" id="edPanel" hidden></div>
   <div class="lb-toast" id="edToast" hidden role="status"><span id="edToastMsg"></span><button type="button" id="edUndo">元に戻す</button></div>
 </dialog>
@@ -1015,7 +1040,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
       <p class="set-note">♥・閲覧履歴・プリセット・固定タグは、Raindrop 経由でほかの端末と同期されます。</p>
       <div class="set-pc">
         <h3>キーの一覧</h3>
-        <div class="set-group set-keys"><div class="set-keys-h">一覧</div><kbd>R</kbd><span>シャッフル</span><kbd>F</kbd><span>絞り込み</span><kbd>/</kbd><span>言葉で探す</span><kbd>C</kbd><span>キャプション</span><kbd>H</kbd><span>カーソルを隠す</span><kbd>1 2 3</kbd><span>カードの大きさ</span><div class="set-keys-h">プレビュー</div><kbd>← →</kbd><span>前・次</span><kbd>L</kbd><span>♥</span><kbd>S</kbd><span>似た画像</span><kbd>E</kbd><span>編集</span><kbd>T</kbd><span>タグを入力</span><kbd>1〜9</kbd><span>固定タグ</span><kbd>R</kbd><span>回転</span><kbd>F</kbd><span>反転</span><kbd>+ − 0</kbd><span>拡大・縮小・戻す</span><kbd>↑ ↓</kbd><span>明るさ</span><kbd>B</kbd><span>明るさを戻す</span><kbd>Q</kbd><span>高画質</span><kbd>Esc</kbd><span>閉じる</span></div>
+        <div class="set-group set-keys"><div class="set-keys-h">一覧</div><kbd>R</kbd><span>シャッフル</span><kbd>F</kbd><span>絞り込み</span><kbd>/</kbd><span>言葉で探す</span><kbd>C</kbd><span>キャプション</span><kbd>H</kbd><span>カーソルを隠す</span><kbd>1 2 3</kbd><span>カードの大きさ</span><div class="set-keys-h">プレビュー</div><kbd>← →</kbd><span>前・次</span><kbd>L</kbd><span>♥</span><kbd>S</kbd><span>似た画像</span><kbd>E</kbd><span>情報</span><kbd>T</kbd><span>タグを入力</span><kbd>1〜9</kbd><span>固定タグ</span><kbd>R</kbd><span>回転</span><kbd>F</kbd><span>反転</span><kbd>+ − 0</kbd><span>拡大・縮小・戻す</span><kbd>↑ ↓</kbd><span>明るさ</span><kbd>B</kbd><span>明るさを戻す</span><kbd>Q</kbd><span>高画質</span><kbd>Esc</kbd><span>閉じる</span></div>
       </div>
     </div>
   </div>
@@ -2551,15 +2576,35 @@ function showPeekMedia(it){
   }
 }
 
+// 表示用のタイトル・サイト名・保存した日（今年なら「10月27日」、ほかの年なら「2025年3月4日」）
+const itemTitle = it => (it.t || '').trim() || it.l.replace(/^https?:\/\//, '');
+const siteName = it => (it.d || '').replace(/^www\./, '');
+function saveDate(a){
+  if(!a) return '';
+  const [y, m, d] = a.split('-').map(Number);
+  return y === new Date().getFullYear() ? `${m}月${d}日` : `${y}年${m}月${d}日`;
+}
+// 作者の表示名：おすすめと同じく URL から取れるときだけ（大文字・小文字は URL のまま）。X などは「@アカウント」
+function authorName(url){
+  const k = authorKey(url);
+  if(!k) return '';
+  const u = new URL(url), seg = u.pathname.split('/').filter(Boolean), kind = k.split(':')[0];
+  if(kind === 'x' || kind === 'ig') return '@' + seg[0];
+  if(kind === 'yt') return seg[0];
+  if(kind === 'bsky') return '@' + seg[1];
+  if(kind === 'da') return seg[0];
+  if(kind === 'tb') return u.hostname.replace(/^(www|mobile|m)\./, '').split('.')[0];
+  return '';
+}
+
 function openPeek(it, stepping){
   viewStart(it);
   peekItem = it;
   updatePeekNav(it);
   $('peekOpen').href = it.l;
-  // 下にタイトルとサイト名（タイトルがなければアドレス）
-  const site = (it.d || '').replace(/^www\./, '');
-  $('peekCapT').textContent = (it.t || '').trim() || it.l.replace(/^https?:\/\//, '');
-  $('peekCapD').textContent = site;
+  // 下に2行：タイトル1行（なければアドレス）と「サイト · 保存した日」
+  $('peekCapT').textContent = itemTitle(it);
+  $('peekCapD').textContent = [siteName(it), saveDate(it.a)].filter(Boolean).join(' · ');
   $('peekRd').href = raindropUrl(it);
   paintLike();
   showPeekMedia(it);
@@ -3065,9 +3110,15 @@ function editFrame(){
   const swIn = el('input'); swIn.type = 'checkbox'; swIn.checked = autoNext;
   swIn.addEventListener('change', () => { autoNext = swIn.checked; store.set('autonext', autoNext); });
   sw.append(el('span', '', '自動で次へ'), swIn);
-  const x = el('button', 'ed-x'); x.innerHTML = icon('x'); x.type = 'button'; x.setAttribute('aria-label', '編集を閉じる');
+  const x = el('button', 'ed-x'); x.innerHTML = icon('x'); x.type = 'button'; x.setAttribute('aria-label', '情報を閉じる');
   x.addEventListener('click', () => setEditOpen(false));
-  head.append(el('strong', '', '編集'), sw, x);
+  // 見出し：タイトル全文（長ければ数行で「…」）と「作者 · サイト · 10月27日に保存」
+  const it = peekItem, ttl = el('div', 'ed-ttl');
+  const day = saveDate(it.a);
+  ttl.append(el('strong', 'ed-ttl-t', itemTitle(it)), el('span', 'ed-ttl-d', [authorName(it.l), siteName(it), day && day + 'に保存'].filter(Boolean).join(' · ')));
+  ttl.firstChild.title = itemTitle(it);
+  // 1行目はタイトルと ×（タイトルを幅いっぱいに）。「自動で次へ」は作者・日付の下の行の右に
+  head.append(ttl, x, el('div', 'ed-brk'), sw);
   return [rz, grip, head];
 }
 // 小見出しの付いたひとまとまり。link は小見出しの右に置く文字だけのボタン
@@ -3469,6 +3520,8 @@ function watchEdScroll(body){
   up.addEventListener('click', () => { set(false); body.scrollTop = 0; last = 0; });
 }
 $('peekEdit').addEventListener('click', () => setEditOpen(!editOpen));
+// 画像の下の2行を押すと情報の画面を開く（前へ・次へには使わない）
+$('peekInfo').addEventListener('click', e => { e.stopPropagation(); if(!editOpen) setEditOpen(true); });
 // 入力中の Esc はプレビューを閉じずに、入力や一覧だけを閉じる
 peek.addEventListener('cancel', e => {
   if(edPanel.contains(document.activeElement) || edView){
@@ -3522,7 +3575,7 @@ peek.addEventListener('click', e => {
   // 押した直後に作り直されて画面から外れた部品（フォルダの選択欄など）は closest で親をたどれないので、
   // 押した時点の経路（composedPath）で判断する
   if(!e.target.isConnected) return;
-  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like, .lb-sim, .crop'))) return;
+  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like, .lb-sim, .lb-info, .crop'))) return;
   if(zoomDragged){ zoomDragged = false; return; }   // ドラッグで動かした直後のクリックは無視
   // ズーム中はクリック（タップ）で元の大きさに戻す
   if(zoom.s !== 1){ resetZoom(true); return; }
