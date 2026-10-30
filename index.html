@@ -29,6 +29,8 @@
   --r-s:8px; --r-m:12px; --r-full:999px;
   /* 赤は ♥ だけ。画像の上（いつも暗い）で使う青 */
   --heart:#ff5c7c; --accent-on-dark:#9ec4e8;
+  /* 画像の上に浮かべるガラス（半透明の面＋ぼかし。画像の上なので明るい画面でも同じ） */
+  --glass-bg:rgba(20,22,25,.72); --glass-line:rgba(255,255,255,.18); --glass-blur:blur(10px); --glass-shadow:0 4px 14px rgba(0,0,0,.3);
   /* 文字の記号の代わりに使う形（× とピン） */
   --mask-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 5.5l9 9M14.5 5.5l-9 9' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
   --mask-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4.5 10.5l3.5 3.5 7.5-8' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -270,6 +272,12 @@ label.set-row{cursor:pointer}
   overscroll-behavior:contain;
 }
 #peek[open]{display:block}
+/* プレビューの大きさ：上のボタン（--btn-h）、下の段（閉じる・♥ は --row-h、似た画像は --sim-h。高さの真ん中をそろえる）。
+   下の段の上にタイトル（2行まで）とサイト名。画像はその上までにして、タイトルを重ねない */
+#peek{--btn-h:36px; --top-h:calc(var(--btn-h) + 16px); --row-h:44px; --sim-h:36px; --row-b:12px;
+  --sim-b:calc(var(--row-b) + (var(--row-h) - var(--sim-h)) / 2);
+  --cap-h:calc(8px + 2 * 1.45 * var(--fs-s) + 4px + 1.6 * var(--fs-xs) + 12px + var(--sim-h) + var(--sim-b))}
+@media (hover:none){ #peek{--btn-h:44px; --row-h:52px; --sim-h:44px} }
 /* 素早く2回タップしたときに「ダブルタップ」として飲み込まれないように（1回ずつ確実に送る） */
 #peek, .peek-body{touch-action:manipulation}
 #peek::backdrop{background:transparent}
@@ -279,26 +287,34 @@ label.set-row{cursor:pointer}
 .zoomer.anim{transition:transform .18s ease-out}
 #peek.zoomed .zoomer{cursor:grab}
 #peek.zoomed .zoomer.drag{cursor:grabbing}
-.zoom-ind{position:absolute; left:50%; top:52px; transform:translateX(-50%); z-index:2; padding:4px 12px; border-radius:var(--r-full); font-size:var(--fs-s); color:#fff; background:rgba(0,0,0,.55); pointer-events:none; opacity:0; transition:opacity .2s}
+.zoom-ind{position:absolute; left:50%; top:var(--top-h); transform:translateX(-50%); z-index:2; padding:4px 12px; border-radius:var(--r-full); font-size:var(--fs-s); color:#fff; background:rgba(0,0,0,.55); pointer-events:none; opacity:0; transition:opacity .2s}
 .zoom-ind.show{opacity:1}
 /* 明るさ：画像・動画そのものは filter で暗くし、背景だけ黒い膜で暗くする。
    動画の上には何も重ねない（iPhone で動画の再生ボタンが押せなくなるため） */
 .peek-dim{position:absolute; inset:0; z-index:0; background:#000; pointer-events:none; display:none}
 .peek-dim.on{display:block}
-.lb-like{position:absolute; right:12px; bottom:calc(14px + env(safe-area-inset-bottom)); z-index:3; width:46px; height:46px; border-radius:50%;
+.lb-like{position:absolute; right:12px; bottom:calc(var(--row-b) + env(safe-area-inset-bottom)); z-index:3; width:var(--row-h); height:var(--row-h); border-radius:var(--r-full);
   display:flex; align-items:center; justify-content:center; gap:0; padding:0; cursor:pointer; font:inherit; line-height:1;
-  color:#fff; background:rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.18); -webkit-tap-highlight-color:transparent}
+  color:#fff; -webkit-tap-highlight-color:transparent}
+/* 下の段・明るさ・高画質は同じガラス */
+.lb-like, .lb-sim, .lb-btn.lb-bright, .lb-hq, #peek .lb-top > #peekClose{
+  background:var(--glass-bg); border:1px solid var(--glass-line); box-shadow:var(--glass-shadow);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur)}
+@media (hover:hover){ #peek .lb-top > #peekClose{background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.18); box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none} #peek .lb-top > #peekClose:hover{background:rgba(255,255,255,.22)} }
 .lb-like:not([data-n="0"]){color:var(--heart)}
 .lb-like .ico{width:24px; height:24px}
 .ico.fill{fill:currentColor}
 .lb-like-n{font-size:var(--fs-xs); font-weight:700; align-self:flex-end; margin-bottom:9px}
-#peek.editing .lb-like{bottom:calc(var(--edit-h, 0px) + 12px)}
-@media (min-width:760px){ #peek.editing .lb-like{bottom:14px} }
+#peek.editing .lb-like{bottom:calc(var(--edit-h, 0px) + var(--row-b))}
+@media (min-width:760px){ #peek.editing .lb-like{bottom:var(--row-b)} }
 .cap-like{color:var(--heart); font-size:var(--fs-xs); letter-spacing:-1px; flex:none}
-.lb-btn.lb-bright{pointer-events:auto; height:32px; gap:4px; padding:0 12px; margin-bottom:8px; font-size:var(--fs-s); font-variant-numeric:tabular-nums; background:rgba(0,0,0,.45)}
+.lb-btn.lb-bright{--bright-h:32px; position:absolute; left:50%; bottom:calc(100% + 8px + (var(--btn-h) - var(--bright-h)) / 2); transform:translateX(-50%); pointer-events:auto; height:var(--bright-h); gap:4px; padding:0 12px; font-size:var(--fs-s); font-variant-numeric:tabular-nums; border-radius:var(--r-full)}
+.lb-btn.lb-bright:hover{background:var(--glass-bg)}
+/* スマホ：見た目は 36、押せる範囲だけ上下に広げて 44 */
+@media (hover:none){ .lb-btn.lb-bright{--bright-h:36px} .lb-btn.lb-bright::after{content:""; position:absolute; left:0; right:0; top:-4px; bottom:-4px} }
 .lb-bright svg{width:16px; height:16px; flex:none}
 .lb-bright[hidden]{display:none}
-.peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:52px 12px 64px}
+.peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:var(--top-h) 12px calc(var(--cap-h) + env(safe-area-inset-bottom))}
 .peek-body .thumb, .peek-body img, .peek-body video{
   display:block; max-width:100%; max-height:100%; width:auto; height:auto;
   object-fit:contain; border-radius:var(--r-s); background:transparent;
@@ -311,16 +327,16 @@ label.set-row{cursor:pointer}
   display:flex; align-items:center; gap:8px; padding:8px 12px;
   background:linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0));
 }
-.peek-pos{margin-right:auto; color:rgba(255,255,255,.7); font-size:var(--fs-s); font-variant-numeric:tabular-nums; padding-left:4px}
+.peek-pos{margin-right:auto; color:rgba(255,255,255,.6); font-size:var(--fs-s); font-variant-numeric:tabular-nums; padding-left:4px}
 .lb-btn{
-  display:inline-flex; align-items:center; justify-content:center; height:34px; padding:0 12px;
+  display:inline-flex; align-items:center; justify-content:center; height:var(--btn-h, 34px); padding:0 12px;
   font:inherit; font-size:var(--fs-s); color:#fff; text-decoration:none; cursor:pointer;
   background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:var(--r-s);
 }
 .lb-btn:hover{background:rgba(255,255,255,.22)}
-#peekClose{width:34px; padding:0; gap:8px}
+#peekClose{width:var(--btn-h); padding:0; gap:8px}
 #peekClose .lbl{display:none}
-.lb-ic{width:34px; padding:0}
+.lb-ic{width:var(--btn-h); padding:0}
 .lb-ic svg{width:20px; height:20px}
 .lb-rd-ic{display:none}
 .lb-rd-ic svg{display:block}
@@ -329,8 +345,8 @@ label.set-row{cursor:pointer}
 .zoomer.turning > *{transition:transform .2s ease-out}
 .zoomer.sideways > img, .zoomer.sideways > video, .zoomer.sideways > .thumb{max-width:var(--zh); max-height:var(--zw)}
 @media (max-width:640px){
-  .lb-top{gap:6px; padding:8px}
-  #peekRd{width:34px; padding:0}
+  .lb-top{padding:8px}
+  #peekRd{width:var(--btn-h); padding:0}
   .lb-rd-ic{display:block}
   .lb-rd-t{display:none}
 }
@@ -345,34 +361,34 @@ label.set-row{cursor:pointer}
 .lb-next{right:10px}
 @media (hover:none){ .lb-nav{display:none} }
 .lb-btn[aria-pressed="true"]{background:rgba(255,255,255,.9); color:#16181b; border-color:transparent}
-.peek-body iframe{width:min(100%, calc((100dvh - 140px) * 16 / 9)); aspect-ratio:16/9; border:0; border-radius:var(--r-s); background:#000}
+.peek-body iframe{width:min(100%, calc((100dvh - var(--top-h) - var(--cap-h)) * 16 / 9)); aspect-ratio:16/9; border:0; border-radius:var(--r-s); background:#000}
 /* プレビュー下のタイトル（画像が遅いときでも何か分かるように） */
 .lb-cap{
   position:absolute; left:0; right:0; bottom:0; z-index:2; pointer-events:none; text-align:center;
-  padding:20px 16px calc(12px + env(safe-area-inset-bottom));
-  background:linear-gradient(rgba(0,0,0,0), rgba(0,0,0,.55)); color:#fff; transition:opacity .15s;
+  display:flex; flex-direction:column; justify-content:flex-end;
+  height:calc(var(--cap-h) + env(safe-area-inset-bottom)); padding:8px 16px calc(var(--sim-b) + env(safe-area-inset-bottom));
+  color:#fff; transition:opacity .15s;
 }
-.lb-cap > div{max-width:900px; margin:0 auto}
+.lb-cap > div{max-width:900px; width:100%; margin:0 auto}
 .lb-cap-t{font-size:var(--fs-s); line-height:1.45; overflow:hidden; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; text-shadow:0 1px 3px rgba(0,0,0,.6)}
-/* 「似た画像」：左は画像全体で、右（切り抜きのアイコン）は範囲を選んで探す。形と高さは1つのボタンのときと同じ。
-   真ん中は画面の真ん中（下の文字の左右の空きが違うときは、その差の半分だけずらす） */
+/* 「似た画像」：左は画像全体で、右（切り抜きのアイコン）は範囲を選んで探す。2つ合わせた全体の真ん中が画面の真ん中。
+   高さは --sim-h で、閉じる・♥ と高さの真ん中をそろえる */
 .lb-cap > .lb-sim{
-  position:relative; left:calc((var(--cap-r, 16px) - var(--cap-l, 16px)) / 2);
-  display:flex; align-items:stretch; width:max-content; max-width:none; margin:8px auto 0; pointer-events:auto;
-  border-radius:var(--r-full); border:1px solid rgba(255,255,255,.4); background:rgba(0,0,0,.35);
+  flex:none; display:flex; align-items:stretch; width:max-content; max-width:none; height:var(--sim-h); margin:12px auto 0; pointer-events:auto;
+  border-radius:var(--r-full);
 }
 .lb-sim > button{
   position:relative; display:flex; align-items:center; justify-content:center; font:inherit; font-size:var(--fs-s); color:#fff; cursor:pointer;
-  padding:4px 12px; border:0; border-radius:var(--r-full); background:transparent;
+  padding:0 16px; border:0; border-radius:var(--r-full); background:transparent;
 }
 .lb-sim > button:hover{background:rgba(255,255,255,.12)}
-.lb-sim > .lb-sim-crop{padding:0 10px 0 8px; min-width:40px}
+.lb-sim > .lb-sim-crop{padding:0 12px 0 8px; min-width:40px}
 .lb-sim-sep{flex:none; align-self:center; width:1px; height:16px; background:rgba(255,255,255,.35)}
 .lb-sim.no-crop > .lb-sim-sep, .lb-sim.no-crop > .lb-sim-crop{display:none}
 #peek.zoomed .lb-sim{pointer-events:none}
-/* スマホ：見た目の高さはそのまま、押せる範囲だけ上下に広げて 44 に */
+/* スマホ：見た目も押せる範囲も高さ 44（縁の 1px も押せる）、右の部分は幅も 44 以上 */
 @media (hover:none){
-  .lb-sim > button::after{content:""; position:absolute; left:0; right:0; top:-8px; bottom:-8px}
+  .lb-sim > button::after{content:""; position:absolute; left:0; right:0; top:-1px; bottom:-1px}
   .lb-sim > .lb-sim-crop{min-width:44px}
 }
 /* 範囲を選ぶ画面：今見ている画像を、ズームを外して画面に収まる大きさで。選んだ四角の外は暗く */
@@ -452,31 +468,31 @@ header.deep > .deep-bar{display:flex}
 #peek.zoomed .lb-cap{opacity:0}
 /* 軽量モードの「高画質で見る」：画像の右下に */
 .lb-hq{
-  position:absolute; right:14px; bottom:calc(var(--edit-h, 0px) + 70px); z-index:3;
-  font:inherit; font-size:var(--fs-s); color:#fff; cursor:pointer;
-  padding:8px 16px; border-radius:var(--r-full); border:1px solid rgba(255,255,255,.35); background:rgba(0,0,0,.55);
-  -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+  position:absolute; right:12px; bottom:calc(var(--edit-h, 0px) + var(--cap-h) + env(safe-area-inset-bottom) + 8px); z-index:3;
+  display:inline-flex; align-items:center; height:var(--btn-h); font:inherit; font-size:var(--fs-s); color:#fff; cursor:pointer;
+  padding:0 16px; border-radius:var(--r-full);
 }
+/* 狭い画面では、明るさの表示（真ん中）と並ばないように1段上に */
+@media (max-width:359px){ .lb-hq{bottom:calc(var(--edit-h, 0px) + var(--cap-h) + env(safe-area-inset-bottom) + 52px)} }
 .lb-hq[hidden]{display:none}
 #peek.hq-loading .lb-hq{opacity:.6; pointer-events:none}
-#peek.editing .lb-hq{right:14px}
-@media (min-width:760px){ #peek.editing .lb-hq{right:14px; bottom:70px} }
+@media (min-width:760px){ #peek.editing .lb-hq{bottom:calc(var(--cap-h) + 8px)} }
 /* 高画質を読み込み中の小さな印 */
-#peek.hq-loading::after{content:""; position:absolute; right:18px; top:58px; width:16px; height:16px; border-radius:50%;
+#peek.hq-loading::after{content:""; position:absolute; right:18px; top:calc(var(--top-h) + 6px); width:16px; height:16px; border-radius:50%;
   border:2px solid rgba(255,255,255,.3); border-top-color:#fff; animation:hqspin .8s linear infinite; z-index:3}
 @keyframes hqspin{ to{ transform:rotate(360deg) } }
-#peek.editing .lb-cap{left:var(--edit-l, 0px); bottom:var(--edit-h, 0px); padding-bottom:10px}
+#peek.editing .lb-cap{left:var(--edit-l, 0px); bottom:var(--edit-h, 0px); height:var(--cap-h); padding-bottom:var(--sim-b)}
+#peek.editing .peek-body{padding-bottom:var(--cap-h)}
 /* スマホ：閉じるボタンは親指の届く左下に（編集シートを開いているときはその上） */
 @media (hover:none){
   /* 横長で大きめにして押しやすく（親指で左下をざっくり押しても当たる） */
   #peekClose{
-    position:fixed; left:12px; bottom:calc(12px + env(safe-area-inset-bottom)); z-index:3;
+    position:fixed; left:12px; bottom:calc(var(--row-b) + env(safe-area-inset-bottom)); z-index:3;
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    width:104px; height:52px; border-radius:var(--r-full); background:rgba(0,0,0,.55);
+    width:104px; height:var(--row-h); border-radius:var(--r-full);
   }
   #peekClose .lbl{display:inline; font-size:var(--fs); letter-spacing:.04em}
-  #peek.editing #peekClose{bottom:calc(var(--edit-h, 0px) + 10px)}
-  .lb-cap{padding-left:126px; padding-right:68px; --cap-l:126px; --cap-r:68px}
+  #peek.editing #peekClose{bottom:calc(var(--edit-h, 0px) + var(--row-b))}
   body #peek .lb-toast{margin-bottom:62px} /* 下の共通の指定より強くする */
 }
 #peek .lb-toast{margin-bottom:46px}
@@ -532,8 +548,8 @@ header.deep > .deep-bar{display:flex}
 /* いちばん上へ：貼りついた見出しのすぐ下、左右の真ん中に浮かべるガラスの丸 */
 .ed-up{position:absolute; left:50%; top:calc(100% + 8px); transform:translateX(-50%);
   display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0;
-  border-radius:var(--r-full); border:1px solid rgba(255,255,255,.18); background:rgba(20,22,25,.72); color:#fff; cursor:pointer;
-  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); box-shadow:0 4px 14px rgba(0,0,0,.3);
+  border-radius:var(--r-full); border:1px solid var(--glass-line); background:var(--glass-bg); color:#fff; cursor:pointer;
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); box-shadow:var(--glass-shadow);
   opacity:0; visibility:hidden; transition:opacity .15s, visibility 0s .15s}
 .ed-up.show{opacity:1; visibility:visible; transition:opacity .15s}
 @media (hover:none){ .ed-up{width:44px; height:44px} }
@@ -665,13 +681,13 @@ body.selecting .badge{left:42px}
 }
 .selbar[hidden]{display:none}
 .sel-row{
-  display:flex; align-items:center; gap:8px; padding:8px 12px; border-radius:var(--r-m);
+  display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:var(--r-m);
   background:var(--card); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4);
 }
 .sel-count{font-size:var(--fs); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
-.sel-btn{font:inherit; font-size:var(--fs-s); white-space:nowrap; height:34px; padding:0 12px; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer}
+.sel-btn{font:inherit; font-size:var(--fs-s); white-space:nowrap; height:36px; padding:0 12px; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer}
 .sel-btn.main[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
-.sel-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:34px; height:34px; flex:none; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
+.sel-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:36px; height:36px; flex:none; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
 .sel-pop{
   max-height:min(60vh, 520px); overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:12px; padding:16px;
   background:var(--card); border:1px solid var(--line); border-radius:var(--r-m); box-shadow:0 10px 30px rgba(0,0,0,.4); font-size:var(--fs);
@@ -685,11 +701,13 @@ body.selecting .badge{left:42px}
 /* お知らせをページの下に出すとき（プレビューの外） */
 .lb-toast.page{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:6}
 body.selecting .lb-toast.page{bottom:calc(84px + env(safe-area-inset-bottom))}
+@media (hover:none){ body.selecting .lb-toast.page{bottom:calc(92px + env(safe-area-inset-bottom))} }
 @media (max-width:640px){
-  .sel-row{gap:8px; padding:8px}
-  .sel-btn{padding:0 8px}
+  .sel-row{padding:8px}
+  .sel-btn{padding:0 12px}
   #selAll{display:none}
 }
+@media (hover:none){ .sel-btn{height:44px} .sel-x{width:44px; height:44px} }
 
 .empty{max-width:520px; margin:12vh auto; text-align:center; color:var(--muted)}
 .empty p{margin:0 0 8px}
@@ -751,7 +769,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 .fd-row.in{background:color-mix(in srgb, var(--accent) 14%, transparent)}
 .fd-row.ex .nm{color:var(--muted); text-decoration:line-through}
 .tri{display:inline-flex; border:1px solid var(--line); border-radius:var(--r-s); overflow:hidden; flex:none}
-.tri button{font:inherit; font-size:var(--fs-s); padding:4px 12px; border:0; background:transparent; color:var(--muted); cursor:pointer}
+.tri button{font:inherit; font-size:var(--fs-s); height:28px; padding:0 12px; border:0; background:transparent; color:var(--muted); cursor:pointer}
 .tri button+button{border-left:1px solid var(--line)}
 .tri button[aria-pressed="true"].inc{background:var(--accent); color:var(--accent-ink)}
 .tri button[aria-pressed="true"].exc{background:var(--muted); color:var(--card)}
@@ -761,14 +779,23 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 .fd-types button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
 .fd-note{font-size:var(--fs-s); color:var(--muted); margin:0; line-height:1.7}
 .fd-foot{display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid var(--line)}
+.fd-foot button{min-height:36px}
 .fd-foot .spacer{flex:1}
 .fd-foot button{white-space:nowrap}
 @media (max-width:640px){
   #filterDlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
   .fd-tabs{align-self:stretch}
   .fd-tabs button{flex:1}
-  .fd-foot{gap:8px; padding:12px}
-  .fd-foot button{padding:8px 12px}
+  .fd-foot{padding:12px}
+  .fd-foot button{padding:0 12px}
+}
+/* スマホ：タブと下のボタンは 44、含む／除く・プリセットの「今の条件を保存」は 36（行は 48） */
+@media (hover:none){
+  .fd-tabs button{height:44px; padding:0 16px}
+  .tri button{height:36px}
+  .fd-row{min-height:48px; padding:4px 8px 4px 12px}
+  .fd-pre, .fd-pre-add, .fd-pre-edit, .fd-pre-ok, .fd-pre-cancel{min-height:36px}
+  .fd-foot button{height:44px}
 }
 
 @media (max-width:640px){
