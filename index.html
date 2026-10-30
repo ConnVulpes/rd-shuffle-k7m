@@ -471,9 +471,6 @@ header.deep > .deep-bar{display:flex}
 /* おすすめ：見出しに電球。似た画像からの候補は、面の中で小見出しを付けて分ける */
 .ed-h .ico{width:14px; height:14px}
 .ed-h > span:first-child{display:inline-flex; align-items:center; gap:4px}
-.ed-subh{flex-basis:100%; display:flex; align-items:center; gap:4px; margin-top:4px; padding:0 4px; font-size:var(--fs-xs); color:var(--muted)}
-.ed-subh .ico{width:12px; height:12px}
-.ed-subh:first-child{margin-top:0}
 /* すべてのタグ：一段暗い帯。見出しと検索欄・並べ替えは上に貼りつく */
 .ed-all{flex:1 0 auto; display:flex; flex-direction:column; gap:8px; padding:0 16px 16px; background:var(--ed-band); border-top:1px solid var(--line)}
 .ed-all-head{position:sticky; top:0; z-index:2; display:flex; flex-direction:column; gap:8px; margin:0 -16px; padding:12px 16px 8px; background:var(--ed-band)}
@@ -3111,15 +3108,12 @@ function editPinSec(it){
 // reuse = AI の候補を足すだけのとき（規則のおすすめは数え直さない）
 function editSugSec(it, force, reuse){
   if(aiShown.item !== it){ aiShown = { item:it, list:[], ready:false, at:0 }; clearTimeout(aiTimer); aiTimer = 0; }
-  const sec = edSec('sug', '候補');
+  const sec = edSec('sug', 'おすすめ');
+  sec.querySelector('.ed-h > span').insertAdjacentHTML('afterbegin', icon('bulb'));
   const box = el('div', 'ed-face');
   const rule = editSugBtns(it, force, reuse);
   const ai = aiShown.ready ? aiShown.list.filter(t => !pins.includes(t)).map(t => candBtn(it, t, 'ai')) : [];
-  // 小見出し「おすすめ」の下に、規則のおすすめ（作者・サイト・一緒に付けるタグ）→ 似た画像からの候補の順
-  if(rule.length || ai.length){
-    const h = el('div', 'ed-subh'); h.insertAdjacentHTML('beforeend', icon('bulb')); h.append(el('span', '', 'おすすめ'));
-    box.append(h);
-  }
+  // 規則のおすすめ（作者・サイト・一緒に付けるタグ）→ 似た画像からの候補の順
   rule.forEach(x => box.append(x.b));
   ai.forEach(b => box.append(b));
   if(!box.children.length) box.append(el('span', 'ed-note', 'なし'));
