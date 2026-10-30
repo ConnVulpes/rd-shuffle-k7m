@@ -227,6 +227,12 @@ label.set-row{cursor:pointer}
 .set-act{color:var(--accent); cursor:pointer}
 .set-act:hover{background:var(--field)}
 .set-act:disabled{opacity:.5; cursor:progress}
+/* バックアップ：名前や日時は右に寄せ、ボタンのすぐ左に。長いフォルダ名は「…」で切る */
+.bk-val{flex:1; min-width:0; text-align:right; font-size:var(--fs-s); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-variant-numeric:tabular-nums}
+#bkGroup .icon-btn{flex:none}
+#bkGroup .set-row[hidden]{display:none}
+#bkGroup > [hidden] + .set-row{border-top:0}   /* iPhone：上の行を隠したときに区切り線が残らないように */
+#bkGroup .icon-btn:disabled{opacity:.5; cursor:default}
 .map-state{flex:1; min-width:0; font-size:var(--fs-s); color:var(--muted); line-height:1.5}
 .set-note{margin:8px 16px 0; font-size:var(--fs-s); color:var(--muted); line-height:1.6}
 .set-grip{display:none}
@@ -906,6 +912,12 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
       <div class="set-group">
         <div class="set-row"><span class="map-state" id="mapState"></span><button type="button" class="icon-btn" id="mapUpd">更新</button></div>
       </div>
+      <h3>バックアップ</h3>
+      <div class="set-group" id="bkGroup">
+        <div class="set-row bk-fs"><span>保存先</span><span class="bk-val" id="bkDir"></span><button type="button" class="icon-btn" id="bkPick">選ぶ</button></div>
+        <div class="set-row"><span>前回</span><span class="bk-val" id="bkAt"></span><button type="button" class="icon-btn" id="bkNow">今すぐ保存</button></div>
+        <div class="set-row bk-fs"><span>残す数</span><div class="seg set-seg" id="bkKeepSeg" role="group" aria-label="残す数"><button type="button" data-n="5">5</button><button type="button" data-n="10">10</button><button type="button" data-n="20">20</button><button type="button" data-n="30">30</button></div></div>
+      </div>
       <h3>Raindrop</h3>
       <div class="set-group">
         <button type="button" class="set-row set-act" id="refresh">すべて読み直す</button>
@@ -994,6 +1006,15 @@ async function api(path, { method = 'GET', body } = {}, tries = 0){
   }
   if(!res.ok) throw new Error('http');
   return res.json();
+}
+// 文字で受け取る問い合わせ（Raindrop の書き出し。CSV・HTML なので api() とは別に）。やり直しはしない
+async function apiText(path){
+  let res;
+  try{ res = await fetch(API + path, { headers:{ Authorization:'Bearer ' + state.token } }); }
+  catch(e){ throw new Error('network'); }
+  if(res.status === 401) throw new Error('auth');
+  if(!res.ok) throw new Error('http');
+  return res.text();
 }
 
 function compact(it){
@@ -1085,6 +1106,7 @@ async function refreshAll(manual = false){
       if(upd) parts.push(`更新 ${upd}件`);
       if(before.size) parts.push(`削除 ${before.size}件`);
       if(parts.length || manual) showToast(parts.length ? parts.join('・') : '変更はありません', null);
+      bkAdd(fresh + upd);
     }
     if(!saved) statusEl.textContent += '（ブラウザに保存できなかったので、次に開いたときにまた読み込みます）';
   }catch(e){
@@ -1455,6 +1477,7 @@ async function syncNew(manual = false){
     store.set('cache', cache);
     applyCache();
     showNewNote(`新着 ${fresh.length}件`, fresh.length);
+    bkAdd(fresh.length);
   }catch(e){
     if(manual) handleError(e);   // 自動の確認は、失敗しても黙って次の機会に
   }finally{
@@ -1530,6 +1553,7 @@ async function syncChanged(quiet = false){
     if(gone.length) parts.push(`削除 ${gone.length}件`);
     if(!parts.length){ if(!quiet) showToast('変更はありません', null); }
     else showNewNote(parts.join('・'), fresh.length);
+    bkAdd(fresh.length + updated.length);
   }catch(e){
     if(e.message === 'nofilter'){
       handoff = true; refreshing = false;
@@ -2465,12 +2489,15 @@ function afterLocalChange(items, { media = false } = {}){
 }
 const whyText = e => ({ auth:'トークンが無効です', network:'ネットにつながっていません', rate:'少し待ってからもう一度' })[e && e.message] || 'もう一度試してください';
 // 下に出るお知らせ（「元に戻す」付き）。プレビュー中はプレビューの中に、そうでなければページの下に出す
-function showToast(msg, undo){
-  const host = peek.open ? peek : document.body;
+// label を渡すと、ボタンの文字を「元に戻す」から変える（バックアップの「バックアップを続ける」など）
+function showToast(msg, undo, label){
+  // 設定の画面が開いているときは、その中に出す（画面の後ろに隠れないように）
+  const sd = document.getElementById('setDlg'), host = peek.open ? peek : sd.open ? sd : document.body;
   if(edToast.parentNode !== host) host.append(edToast);
   edToast.classList.toggle('page', !peek.open);
   $('edToastMsg').textContent = msg;
   $('edUndo').hidden = !undo;
+  $('edUndo').textContent = label || '元に戻す';
   $('edUndo').onclick = () => { edToast.hidden = true; if(undo) undo(); };
   edToast.hidden = false;
   clearTimeout(toastTimer);
@@ -2492,6 +2519,7 @@ function updateItem(it, patch, label, isUndo){
   const run = () => api(`/raindrop/${it.i}`, { method:'PUT', body }).then(r => {
     if(r && r.item){ it.g = r.item.tags || it.g; if(media) it.c = r.item.cover || it.c; afterLocalChange(it); }
     showToast(label, isUndo ? null : () => updateItem(it, before, '元に戻しました', true));
+    bkAdd(1);
   }).catch(e => {
     Object.assign(it, before);
     afterLocalChange(it, { media });
@@ -2604,6 +2632,7 @@ async function moveMany(items, to){
   revertFailed(failed, x => { x.k = from.get(x); });
   const ok = list.filter(x => !failed.includes(x));
   if(!ok.length){ showToast(`移せませんでした（${whyText(failed.err)}）`, null); return; }
+  bkAdd(ok.length);
   showToast(`${ok.length}件を「${folderShort(to)}」に移しました` + resultNote(failed, redone), async () => {
     // 元のフォルダごとに戻す
     ok.forEach(x => { x.k = from.get(x); });
@@ -2632,6 +2661,7 @@ async function addTagsMany(items, tags){
   const ok = list.filter(x => !failed.includes(x));
   const label = tags.map(t => '#' + t).join(' ');
   if(!ok.length){ showToast(`付けられませんでした（${whyText(failed.err)}）`, null); return; }
+  bkAdd(ok.length);
   showToast(`${ok.length}件に ${label} を付けました` + resultNote(failed, redone), () => restoreTags(ok, before));
 }
 // タグをまとめて外す（まとめて特定のタグだけ外す方法がないので、1件ずつ送る）
@@ -2646,6 +2676,7 @@ async function removeTagsMany(items, tags){
   const ok = list.filter(x => !failed.includes(x));
   const label = tags.map(t => '#' + t).join(' ');
   if(!ok.length){ showToast(`外せませんでした（${whyText(failed.err)}）`, null); return; }
+  bkAdd(ok.length);
   showToast(`${ok.length}件から ${label} を外しました` + resultNote(failed, 0), () => restoreTags(ok, before));
 }
 // 元に戻す：1件ずつ前のタグに戻す
@@ -3529,7 +3560,7 @@ function setShuffleBusy(b){
 
 // 設定の画面（メニューの「設定…」）
 const setDlg = $('setDlg');
-function openSettings(){ setMenu(false); updateMapState(); setDlg.style.transform = ''; setDlg.showModal(); syncModal(); }
+function openSettings(){ setMenu(false); updateMapState(); bkPaint(); setDlg.style.transform = ''; setDlg.showModal(); syncModal(); }
 // 設定・絞り込み・トークンの窓を開いている間は、後ろの一覧がスクロールしないようにする
 // （本体を固定する方法はプレビューだけ。窓では、iPhone で中の操作が効かなくなることがあるので使わない）
 function syncModal(){ document.documentElement.classList.toggle('modal-open', setDlg.open || filterDlg.open || dlg.open); }
@@ -4172,6 +4203,196 @@ $('ntCheck').addEventListener('click', () => {
   checkThumbs(unknown.length ? unknown : pool.filter(isNoThumb).filter(it => !surelyNone(it)));
 });
 
+// ---- バックアップ（Raindrop がなくなっても中身が手元に残るように、定期的に写しを取る）----
+// Mac の Chrome：選んだフォルダに、1回ごとに日付のフォルダを作って3つのファイルを書く。
+//   前回から「新着＋更新＋アプリ内の編集」が 50 件たまったら、裏で自動に取る。手動はいつでも。
+// iPhone：フォルダを選べないので、手動で「保存…」を押したときに共有（またはダウンロード）するだけ。
+const BK_EVERY = 50;
+const BK_DIR_RE = /^\d{4}-\d{2}-\d{2} \d{4}(-\d+)? (自動|手動)$/;   // このアプリが作るフォルダの名前の形（これ以外には触らない）。同じ分に2回目なら「2015-2」
+const bkCanPick = typeof window.showDirectoryPicker === 'function';
+let bkDirH = null;        // 選んだフォルダの持ち手（IndexedDB rdbackup に覚える）
+let bkBusy = false, bkTimer = 0, bkAskedAt = 0;
+const bkGet = () => idbDo('rdbackup', 'kv', 'readonly', s => s.get('dir')).catch(() => null);
+const bkPut = h => idbDo('rdbackup', 'kv', 'readwrite', s => h ? s.put(h, 'dir') : s.delete('dir')).catch(() => null);
+const pad2 = n => String(n).padStart(2, '0');
+function bkStamp(t, kind){ const d = new Date(t); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}${pad2(d.getMinutes())} ${kind}`; }
+function bkWhen(t){ const d = new Date(t); return `${d.getMonth() + 1}月${d.getDate()}日 ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+
+// 設定の画面の表示を今の状態に合わせる
+function bkPaint(){
+  document.querySelectorAll('#bkGroup .bk-fs').forEach(r => { r.hidden = !bkCanPick; });
+  $('bkDir').textContent = bkDirH ? bkDirH.name : '';
+  $('bkPick').textContent = bkDirH ? '変更' : '選ぶ';
+  const at = store.get('bkat', 0);
+  $('bkAt').textContent = bkBusy ? '保存中…' : at ? bkWhen(at) : 'まだありません';
+  const now = $('bkNow');
+  now.textContent = bkCanPick ? '今すぐ保存' : '保存…';
+  now.disabled = bkBusy;
+  const keep = store.get('bkkeep', 10);
+  $('bkKeepSeg').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.n) === keep)));
+}
+$('bkKeepSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if(!b) return;
+  store.set('bkkeep', Number(b.dataset.n)); bkPaint();
+});
+async function bkInit(){
+  if(bkCanPick){ const h = await bkGet(); if(h && h.kind === 'directory') bkDirH = h; }
+  bkPaint();
+  bkSoon(8000);   // 前の起動でたまった分。起動直後の自動の更新が終わってから見る
+}
+// 選び直す（新しいフォルダを選んだら、それからは そこに書く）
+async function bkPick(){
+  let h;
+  try{ h = await window.showDirectoryPicker({ id:'rdbackup', mode:'readwrite' }); }
+  catch(e){ return null; }   // キャンセル
+  bkDirH = h; await bkPut(h); bkPaint();
+  return h;
+}
+$('bkPick').addEventListener('click', () => { if(!bkBusy) bkPick(); });
+
+// 取り込み・編集のあとに数を足す。たまったら少し置いて裏で確かめる
+function bkAdd(n){
+  if(!n) return;
+  store.set('bkcount', store.get('bkcount', 0) + n);
+  bkSoon(3000);
+}
+function bkSoon(ms){
+  if(!bkCanPick) return;   // iPhone は自動で取らない
+  clearTimeout(bkTimer);
+  bkTimer = setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(bkAuto, { timeout:5000 }), ms);
+}
+async function bkAuto(){
+  if(!bkDirH || bkBusy || !cache || store.get('bkcount', 0) < BK_EVERY) return;
+  // 更新の最中や、ほかの知らせ（「元に戻す」など）が出ている間は待つ
+  if(refreshing || Date.now() - lastSync < 3000 || !edToast.hidden) return bkSoon(3000);
+  let p = 'granted';
+  try{ if(bkDirH.queryPermission) p = await bkDirH.queryPermission({ mode:'readwrite' }); }catch(e){ p = 'prompt'; }
+  if(p === 'granted') return bkRun('自動');
+  // 許可がないときは勝手に聞かず、知らせのボタンで1回押してもらう（同じ起動中は10分に1回まで）
+  if(Date.now() - bkAskedAt < 10 * 60 * 1000) return;
+  bkAskedAt = Date.now();
+  showToast('バックアップの許可が切れています', bkResume, 'バックアップを続ける');
+}
+// 押されたときだけ許可を求めて、そのまま保存する（押した直後に呼ぶ必要があるので、待たずに求める）
+function bkResume(){
+  const h = bkDirH; if(!h) return;
+  const ask = h.requestPermission ? h.requestPermission({ mode:'readwrite' }) : Promise.resolve('granted');
+  ask.then(p => { if(p === 'granted') bkRun('自動'); else showToast('バックアップできませんでした', null); }, () => showToast('バックアップできませんでした', null));
+}
+$('bkNow').addEventListener('click', () => {
+  if(bkBusy) return;
+  if(!bkCanPick) return bkShare();
+  if(!bkDirH){ bkPick().then(h => { if(h) bkRun('手動'); }); return; }   // 保存先がまだなら、選んでからそのまま保存
+  const h = bkDirH;
+  const ask = h.requestPermission ? h.requestPermission({ mode:'readwrite' }) : Promise.resolve('granted');
+  ask.then(p => { if(p === 'granted') bkRun('手動'); else showToast('バックアップできませんでした', null); }, () => showToast('バックアップできませんでした', null));
+});
+
+// 型付き配列（地図の数字）は、読み戻せるように { $t:型の名前, b64:中身 } の文字にする
+function bkPlain(v){
+  if(ArrayBuffer.isView(v)) return { $t:v.constructor.name, b64:b64of(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)) };
+  if(Array.isArray(v)) return v.map(bkPlain);
+  if(v && typeof v === 'object'){ const o = {}; for(const k of Object.keys(v)) o[k] = bkPlain(v[k]); return o; }
+  return v;
+}
+// アプリのデータ（トークンは入れない）。items はそのまま cache に戻せる形
+async function bkAppJson(){
+  const map = await mapLocalGet();
+  const settings = {};
+  ['heatpct', 'heatimp', 'count', 'cap', 'saver', 'hidecur', 'wakepx', 'col', 'sort', 'filter', 'autonext', 'tagsort', 'sidew', 'bkkeep']
+    .forEach(k => { const v = store.get(k, undefined); if(v !== undefined) settings[k] = v; });
+  settings.heatPct = state.heatPct;
+  const data = { v:1, at:Date.now(), presets, pins, heat:heatPacked(), settings,
+    items:cache.items, colls:cache.colls, tags:cache.tags, map:map ? bkPlain(map) : null };
+  // 大きな文字に変えるのは手が空いているときに（一覧やプレビューの反応を遅らせない）
+  await new Promise(r => (window.requestIdleCallback || (f => setTimeout(f, 0)))(r, { timeout:2000 }));
+  return JSON.stringify(data);
+}
+// 3つのファイルを作る。書き出しが取れなかったものは入れない
+async function bkFiles(){
+  const [html, csv] = await Promise.all([
+    apiText('/raindrops/0/export.html').catch(() => null),
+    apiText('/raindrops/0/export.csv').catch(() => null)
+  ]);
+  const files = [];
+  if(html != null) files.push({ name:'raindrop.html', type:'text/html', body:html });
+  if(csv != null) files.push({ name:'raindrop.csv', type:'text/csv', body:csv });
+  files.push({ name:'rd-shuffle.json', type:'application/json', body:await bkAppJson() });
+  return { files, partial:html == null || csv == null };
+}
+function bkDone(partial){
+  store.set('bkcount', 0); store.set('bkat', Date.now());
+  showToast(partial ? 'バックアップしました。Raindrop の書き出しは取れませんでした' : 'バックアップしました', null);
+}
+async function bkRun(kind){
+  if(bkBusy || !bkDirH || !cache) return;
+  bkBusy = true; bkPaint();
+  const root = bkDirH;
+  try{
+    const { files, partial } = await bkFiles();
+    // 同じ分にもう取ってあれば、名前の後ろに -2, -3… を付けて別のフォルダに（前の中身と混ぜない）
+    const base = bkStamp(Date.now(), kind), [day, hm, kd] = base.split(' ');
+    let name = base;
+    for(let k = 2; k < 100; k++){
+      try{ await root.getDirectoryHandle(name); }catch(e){ if(e && e.name === 'NotFoundError') break; throw e; }
+      name = `${day} ${hm}-${k} ${kd}`;
+    }
+    const dir = await root.getDirectoryHandle(name, { create:true });
+    if(await dir.isSameEntry(root)) throw new Error('dir');   // 念のため：日付のフォルダが作れず元のフォルダが返ってきたら書かない
+    for(const f of files){
+      const w = await (await dir.getFileHandle(f.name, { create:true })).createWritable();
+      await w.write(new Blob([f.body], { type:f.type }));
+      await w.close();
+    }
+    await bkPrune(root);
+    bkDone(partial);
+  }catch(e){
+    // 保存先のフォルダが消えた・動かされた：選んでいない状態に戻す
+    if(e && (e.name === 'NotFoundError' || e.name === 'NotReadableError')){ bkDirH = null; await bkPut(null); }
+    showToast('バックアップできませんでした', null);
+  }finally{
+    bkBusy = false; bkPaint();
+  }
+}
+// 自動のフォルダが「残す数」を超えたら古いものから消す。手動のフォルダ・ほかのものには触らない
+async function bkPrune(root){
+  const keep = store.get('bkkeep', 10), autos = [];
+  for await (const [name, h] of root.entries()){
+    if(h.kind === 'directory' && BK_DIR_RE.test(name) && name.endsWith(' 自動')) autos.push(name);
+  }
+  autos.sort();
+  for(const name of autos.slice(0, Math.max(0, autos.length - keep))){
+    try{ await root.removeEntry(name, { recursive:true }); }catch(e){}
+  }
+}
+// iPhone：共有シート（保存先は「ファイル」など）。共有できないブラウザではダウンロード
+async function bkShare(){
+  if(bkBusy || !cache) return;
+  bkBusy = true; bkPaint();
+  let made;
+  try{
+    const { files, partial } = await bkFiles();
+    const pre = bkStamp(Date.now(), '手動') + ' ';
+    made = { partial, list:files.map(f => new File([f.body], pre + f.name, { type:f.type })) };
+  }catch(e){ showToast('バックアップできませんでした', null); }
+  bkBusy = false; bkPaint();
+  if(made) bkHand(made, true);
+}
+function bkHand(made, first){
+  const { list, partial } = made;
+  if(navigator.share && navigator.canShare && navigator.canShare({ files:list })){
+    navigator.share({ files:list }).then(() => { bkDone(partial); bkPaint(); }, e => {
+      if(e && e.name === 'AbortError') return;   // キャンセル
+      // 準備に時間がかかって「押した直後」でなくなったとき：知らせのボタンからもう一度
+      if(first && e && e.name === 'NotAllowedError') showToast('バックアップの準備ができました', () => bkHand(made, false), '共有');
+      else showToast('バックアップできませんでした', null);
+    });
+    return;
+  }
+  list.forEach(f => { const a = el('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000); });
+  bkDone(partial); bkPaint();
+}
+
 // ===== 似ているもの（印象の地図） =====
 // 本人が試しページで選んだ組み合わせ：DINOv2 small・全体＋何か所か・あなたのタグで曲げた地図（強さ「中」）。
 // 地図は Mac で作り、64個の数字に縮めて Raindrop の「rd-shuffle 地図」フォルダに置く。iPhone はそれを読むだけ。
@@ -4794,6 +5015,7 @@ applySize();
 state.count = Number(state.count);
 if(![20, 40, 80].includes(state.count)) state.count = 40;
 applyCount();
+bkInit();
 if(cache && !(cache.v === 2 && cache.items && cache.colls && cache.tags)) cache = null;
 if(cache) applyCache(); else syncFilter();
 if(!state.token){
