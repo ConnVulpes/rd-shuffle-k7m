@@ -468,8 +468,11 @@ header.deep > .deep-bar{display:flex}
 @media (hover:none){ .ed-face{min-height:52px} }   /* タグ1行と同じ高さ（「なし」からタグが付いても高さが変わらない） */
 .ed-face > .ed-note{padding:0 4px}
 /* AI の候補の印：青い細い枠の小さな文字 */
-.ai-mark{flex:none; font-size:var(--fs-xs); line-height:1.3; padding:0 4px; border:1px solid var(--accent); border-radius:var(--r-s); color:var(--accent)}
-.ed-tag.on .ai-mark{border-color:currentColor; color:inherit}
+/* おすすめ：見出しに電球。似た画像からの候補は、面の中で小見出しを付けて分ける */
+.ed-h .ico{width:14px; height:14px}
+.ed-h > span:first-child{display:inline-flex; align-items:center; gap:4px}
+.ed-subh{flex-basis:100%; display:flex; align-items:center; gap:4px; margin-top:4px; padding:0 4px; font-size:var(--fs-xs); color:var(--muted)}
+.ed-subh .ico{width:12px; height:12px}
 /* すべてのタグ：一段暗い帯。見出しと検索欄・並べ替えは上に貼りつく */
 .ed-all{flex:1 0 auto; display:flex; flex-direction:column; gap:8px; padding:0 16px 16px; background:var(--ed-band); border-top:1px solid var(--line)}
 .ed-all-head{position:sticky; top:0; z-index:2; display:flex; flex-direction:column; gap:8px; margin:0 -16px; padding:12px 16px 8px; background:var(--ed-band)}
@@ -2138,6 +2141,8 @@ const ICONS = {
   tag:'<path d="M3.5 4.5v5l7 7 6-6-7-7h-5z"/><circle cx="7" cy="7.5" r="1"/>',
   down:'<path d="M4.5 7.5l5.5 5.5 5.5-5.5"/>',
   plus:'<path d="M10 4.5v11M4.5 10h11"/>',
+  bulb:'<path d="M7.5 14.5h5M8 17h4M10 2.5a5 5 0 0 0-3 9c.6.5 1 1.2 1 2v1h4v-1c0-.8.4-1.5 1-2a5 5 0 0 0-3-9z"/>',
+  similar:'<rect x="6.5" y="6.5" width="10" height="10" rx="2"/><path d="M13.5 6.5V5a1.5 1.5 0 0 0-1.5-1.5H5A1.5 1.5 0 0 0 3.5 5v7A1.5 1.5 0 0 0 5 13.5h1.5"/>',
   expand:'<path d="M3.5 8V3.5H8M12 3.5h4.5V8M16.5 12v4.5H12M8 16.5H3.5V12"/>',
   heart:'<path d="M10 16.5C4.6 12.9 2.5 10.1 2.5 7.4c0-2.2 1.7-3.9 3.8-3.9 1.5 0 2.8.8 3.7 2.1.9-1.3 2.2-2.1 3.7-2.1 2.1 0 3.8 1.7 3.8 3.9 0 2.7-2.1 5.5-7.5 9.1z"/>',
 };
@@ -3084,8 +3089,7 @@ function candBtn(it, t, kind, key){
   const on = (it.g || []).includes(t);
   const b = el('button', `ed-tag ${kind}${on ? ' on' : ''}`); b.type = 'button';
   b.setAttribute('aria-pressed', String(on));
-  // AI の候補は名前の前に小さな「AI」の印
-  if(kind === 'ai') b.append(el('small', 'ai-mark', 'AI'));
+  if(kind === 'ai') b.title = '似た画像に付いているタグ';
   b.append(el('span', '', '#' + t));
   if(key && canHover) b.append(el('kbd', '', String(key)));
   b.addEventListener('click', () => toggleTag(it, t));
@@ -3106,12 +3110,17 @@ function editPinSec(it){
 function editSugSec(it, force, reuse){
   if(aiShown.item !== it){ aiShown = { item:it, list:[], ready:false, at:0 }; clearTimeout(aiTimer); aiTimer = 0; }
   const sec = edSec('sug', 'おすすめ');
+  sec.querySelector('.ed-h > span').insertAdjacentHTML('afterbegin', icon('bulb'));
   const box = el('div', 'ed-face');
   const rule = editSugBtns(it, force, reuse);
   const ai = aiShown.ready ? aiShown.list.filter(t => !pins.includes(t)).map(t => candBtn(it, t, 'ai')) : [];
-  rule.filter(x => x.at < aiShown.at || !aiShown.ready).forEach(x => box.append(x.b));
-  ai.forEach(b => box.append(b));
-  if(aiShown.ready) rule.filter(x => x.at >= aiShown.at).forEach(x => box.append(x.b));
+  // 規則のおすすめ（あとから増えた分も、似た画像の候補より前の段に足す）
+  rule.forEach(x => box.append(x.b));
+  // 似た画像からの候補：小見出しを付けて2段目に
+  if(ai.length){
+    const h = el('div', 'ed-subh'); h.insertAdjacentHTML('beforeend', icon('similar')); h.append(el('span', '', '似た画像から'));
+    box.append(h); ai.forEach(b => box.append(b));
+  }
   if(!box.children.length) box.append(el('span', 'ed-note', 'なし'));
   // AI の候補を数えるのは、開いた・押した反応を返したあと
   if(!aiShown.ready && !aiTimer) aiTimer = setTimeout(() => { aiTimer = 0; fillAi(it); }, 150);
