@@ -387,7 +387,15 @@ header.deep > .deep-bar{display:flex}
 .deep-sub{font-size:var(--fs-xs); color:var(--muted); white-space:nowrap}
 .deep-sub:empty{display:none}
 .deep-right{margin-left:auto; flex:none; display:flex; align-items:center}
-#ntCheck[hidden]{display:none}
+#ntCheck[hidden], #simFilterBtn[hidden]{display:none}
+.deep-right{gap:8px}
+/* 似た画像の絞り込み：かけている間は一覧の絞り込み中と同じ青 */
+#simFilterBtn.active{color:var(--accent); border-color:var(--accent)}
+/* 似た画像を絞り込んで 0 件のとき。列が3本以上なら上の画像の右の空きの真ん中、それより少なければ上の画像の下 */
+.sim-none{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:32px 16px; text-align:center; color:var(--muted); box-sizing:border-box}
+.sim-none.beside{position:absolute; padding:16px}
+.sim-none[hidden]{display:none}
+.sim-none p{margin:0}
 /* 来た画像（似た画像の元）を枠で示す */
 .card.is-base{box-shadow:0 0 0 2px var(--accent)}
 /* 似た画像の画面：押した画像を1列目の先頭に置く。列が2本以上なら2列ぶんの幅で右へはみ出させ、
@@ -736,6 +744,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   .filter-btn, .sort-ctl, .deep-back{height:44px}
   .path-item{width:44px; height:44px}
   #ntCheck{height:44px; padding:0 12px}
+  #simNoneBtn{min-height:44px}
   .tool-btn{width:44px; height:44px}
   .menu{position:fixed; top:68px; right:12px; left:12px; width:auto; max-height:calc(100dvh - 80px - env(safe-area-inset-bottom)); overflow:auto; overscroll-behavior:contain}
 }
@@ -771,7 +780,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
     <button type="button" class="deep-back" id="backBtn" title="元の一覧に戻る" aria-label="元の一覧に戻る"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.5 4l-6 6 6 6"/></svg><span>一覧</span></button>
     <div class="deep-path" id="deepPath" role="navigation" aria-label="たどった道すじ"></div>
     <div class="deep-title"><span id="deepName"></span><span class="deep-sub" id="deepSub"></span></div>
-    <span class="deep-right"><button type="button" class="icon-btn" id="ntCheck" hidden>確かめる</button></span>
+    <span class="deep-right"><button type="button" class="icon-btn" id="ntCheck" hidden>確かめる</button><button type="button" class="tool-btn" id="simFilterBtn" title="絞り込み（F）" aria-label="絞り込み" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.6 5.6V13l-2.8-1.4V8.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button></span>
   </div>
   <div class="menu-wrap">
     <button type="button" class="tool-btn" id="viewBtn" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu" title="表示の設定">
@@ -791,6 +800,7 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
   <div class="status" id="status" aria-live="polite"></div>
   <div class="grid" id="grid"></div>
   <div class="more" id="more" hidden></div>
+  <div class="sim-none" id="simNone" hidden><p>合うものがありません</p><button type="button" class="icon-btn" id="simNoneBtn">絞り込みを変える</button></div>
   <div class="sel-spacer" id="selSpacer" hidden></div>
   <div class="empty" id="empty">
     <p>シャッフルを押すと、ブックマークがランダムに並びます。</p>
@@ -1232,6 +1242,8 @@ function syncFilter(){
 // ---- 絞り込み画面 ----
 const filterDlg = $('filterDlg'), fdList = $('fdList'), fdSearch = $('fdSearch');
 let draft = emptyFilter(), fdTab = 'folder';
+// fdFor：今開いている絞り込みの画面が、元の一覧の条件（'list'）と似た画像の条件（'sim'）のどちらを変えるか
+let fdFor = 'list';
 const cloneF = f => JSON.parse(JSON.stringify(f));
 
 function toggleIn(listIn, listEx, v, which){
@@ -1331,7 +1343,8 @@ function renderFilterDlg(){
     if(!fdList.children.length){ const n = el('div', 'none', '見つかりません'); n.style.padding = '10px 12px'; fdList.append(n); }
     fdList.scrollTop = y;
   }
-  const hit = cache ? cache.items.filter(makeFilter(f)).length : 0;
+  // 似た画像の条件のときは、今の似た画像の並び（押した画像を除く）の中で数える
+  const hit = !cache ? 0 : fdFor === 'sim' && sim ? sim.list.filter(x => x !== sim.center).filter(makeFilter(f)).length : cache.items.filter(makeFilter(f)).length;
   $('fdHit').textContent = `該当 ${hit.toLocaleString()}件`;
   if(!presetNaming) renderPresets();   // 名前を入れている途中は作り直さない（入力が消えないように）
 }
@@ -1400,7 +1413,9 @@ function renderPresets(){
   }
 }
 function openFilter(tab){
-  draft = cloneF(state.filter);
+  // 似た画像の画面では、似た画像の条件を編集する（元の一覧の条件は変えない）
+  fdFor = sim ? 'sim' : 'list';
+  draft = fdFor === 'sim' ? Object.assign(emptyFilter(), simF ? cloneF(simF) : {}) : cloneF(state.filter);
   presetEdit = false; presetNaming = false; fdPickedOpen = false;
   if(tab) fdTab = tab;
   fdSearch.value = '';
@@ -1416,10 +1431,18 @@ document.querySelectorAll('#fdTypes button').forEach(b => b.addEventListener('cl
 fdSearch.addEventListener('input', renderFilterDlg);
 let fdQTimer = 0;
 $('fdQ').addEventListener('input', () => { clearTimeout(fdQTimer); fdQTimer = setTimeout(() => { draft.q = $('fdQ').value.trim(); renderFilterDlg(); }, 200); });
-$('fdQ').addEventListener('keydown', e => { if(e.key === 'Enter'){ draft.q = $('fdQ').value.trim(); applyFilterDlg(); } });
+// Enter：閉じたあとに戻った先のボタン（開いたボタン）が Enter で押されて、また開かないように止める
+$('fdQ').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); draft.q = $('fdQ').value.trim(); applyFilterDlg(); } });
 $('fdClear').addEventListener('click', () => { draft = emptyFilter(); $('fdQ').value = ''; renderFilterDlg(); });
 $('fdCancel').addEventListener('click', () => filterDlg.close());
 function applyFilterDlg(){
+  if(fdFor === 'sim'){
+    // 似た画像の条件：今の段の並びだけ変える（段は増やさない。元の一覧の条件はそのまま）
+    simF = filterSummary(draft) ? cloneF(draft) : null;
+    filterDlg.close();
+    if(sim && cache) render();
+    return;
+  }
   exitSimilar();
   state.filter = cloneF(draft);
   store.set('filter', state.filter);
@@ -1623,9 +1646,9 @@ function setSort(v){
 function render(){
   if(!cache){ refreshAll(); return; }
   clearSelection();
-  // 似ているものを並べている間は、絞り込みも並び順も使わず、近い順のまま
+  // 似ているものを並べている間は、元の一覧の絞り込みも並び順も使わず、近い順のまま（似た画像の条件があれば、合うものだけ）
   // サムネが出ないものだけのときは、今の絞り込みの中から
-  const pool = sim ? sim.list : cache.items.filter(makeFilter(state.filter)).filter(x => !ntMode || isNoThumb(x));
+  const pool = sim ? simPool() : cache.items.filter(makeFilter(state.filter)).filter(x => !ntMode || isNoThumb(x));
   order = sim ? pool.slice() : sortPool(pool);
   poolSize = order.length;
   renderDeepBar();
@@ -1649,7 +1672,32 @@ function render(){
     return;
   }
   appendMore();
+  paintSimNone();
 }
+// 似た画像の並び：押した画像を先頭に、条件に合うものだけを似ている順に（押した画像は条件に関係なく出す）
+function simPool(){
+  if(!simF) return sim.list;
+  const f = makeFilter(simF);
+  return [sim.center, ...sim.list.filter(x => x !== sim.center && f(x))];
+}
+// 似た画像を絞り込んで合うものがないとき：「合うものがありません」［絞り込みを変える］
+function paintSimNone(){
+  const box = $('simNone');
+  const on = !!(sim && simF && poolSize <= 1);
+  box.hidden = !on;
+  if(!on) return;
+  const h = heroOf();
+  if(colCount >= 3 && h && cols[2]){
+    // 列が3本以上：上の画像の右の空き（3列目から右端まで、上の画像と同じ高さ）の真ん中
+    const a = cols[2].getBoundingClientRect(), z = cols[cols.length - 1].getBoundingClientRect(), hr = h.getBoundingClientRect();
+    box.classList.add('beside');
+    Object.assign(box.style, { left:(a.left + scrollX) + 'px', width:(z.right - a.left) + 'px', top:(hr.top + scrollY) + 'px', height:Math.max(hr.height, 160) + 'px' });
+  }else{
+    box.classList.remove('beside');
+    box.removeAttribute('style');
+  }
+}
+$('simNoneBtn').addEventListener('click', () => openFilter());
 
 // 画像の大きさが分かってから列に入れる。先に入れると高さ0として数えてしまい、
 // 縦長の画像が同じ列に偏って、下の方が1列だけになる。
@@ -1680,6 +1728,7 @@ function appendMore(){
 var views = [], fwd = [];   // fwd：戻ったあとの先の段（道すじに薄く残し、押すとまた進める）
 function applyView(){
   const v = views[views.length - 1];
+  if(!v) simF = null;   // 元の一覧に戻ったら、似た画像の条件は外れる
   sim = v && v.kind === 'sim' ? v.sim : null;
   ntMode = !!v && v.kind === 'nt';
   $('pressMenu').hidden = true;   // 長押しの選択肢は、段が変わったら閉じる
@@ -1702,8 +1751,11 @@ function takeSnap(){
   const frag = document.createDocumentFragment();
   while(grid.firstChild) frag.append(grid.firstChild);
   placeGen++; placeQueue = Promise.resolve(); placing = 0;
-  return { order, shownCount, poolSize, cardEls, cols, colCount, frag, y };
+  return { order, shownCount, poolSize, cardEls, cols, colCount, frag, y, fk:simKey() };
 }
+// 似た画像の条件（元の一覧に戻るまで、段をまたいで続く。保存はしない）
+var simF = null;
+const simKey = () => simF ? normF(simF) : '';
 function enterView(v){
   if(v.kind === 'sim') v.thumb = pathThumbOf(v.sim.center);
   setMenu(false); setSortMenu(false); clearSelection();
@@ -1738,7 +1790,9 @@ function restoreView(quiet){
   clearSelection();
   const sn = v.snap; delete v.snap;
   fwd.unshift(v);
-  if(sn.lazy){
+  // 戻る先が似た画像で、取っておいたときと条件が変わっていたら、今の条件で並べ直す
+  const to = views[views.length - 1];
+  if(sn.lazy || (to && to.kind === 'sim' && sn.fk !== simKey())){
     // まだ並べていない段へ戻るとき：その場で並べる
     applyView();
     if(quiet) return;
@@ -1759,6 +1813,7 @@ function restoreView(quiet){
   watchHero();
   empty.hidden = poolSize > 0;
   updateStatus();
+  paintSimNone();
   if(quiet) return;   // 途中の段は、元に戻すだけ
   window.scrollTo({ top:sn.y, behavior:'instant' });
   slideGrid('view-back');
@@ -1776,6 +1831,7 @@ function backTo(keep){
 }
 // 「‹ 一覧」：元の一覧まで一度に戻る。道すじの画像を押すと、その段へ戻る（一段だけなら1つ左を押す。Esc・ブラウザの戻るも一段ずつ）
 $('backBtn').addEventListener('click', () => backTo(0));
+$('simFilterBtn').addEventListener('click', () => openFilter());
 const IMG_OFF = '<svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M3 3l14 14"/></svg>';
 const PATH_SEP = '<svg class="path-sep" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5l3.5 3.5-3.5 3.5"/></svg>';
 function renderPath(){
@@ -1805,7 +1861,12 @@ function renderDeepBar(){
   const v = views[views.length - 1];
   document.querySelector('header').classList.toggle('deep', !!v);
   $('ntCheck').hidden = !ntMode;
-  if(!v) return;
+  // 似た画像の絞り込み：似た画像の画面だけ。かけている間は青
+  const fb = $('simFilterBtn'), sum = simF ? filterSummary(simF) : '';
+  fb.hidden = !(v && v.kind === 'sim');
+  fb.classList.toggle('active', !!sum);
+  fb.title = (sum ? '絞り込み中：' + sum : '絞り込み') + '（F）';
+  if(!v){ $('simNone').hidden = true; return; }
   renderPath();
   if(v.kind === 'sim'){ $('deepName').textContent = ''; $('deepSub').textContent = ''; return; }
   $('deepName').textContent = 'サムネイルが出ないもの';
@@ -1864,7 +1925,7 @@ history.replaceState({ rd:0 }, '');
 // 件数の行は出さない（件数は絞り込みの画面で見られる）。読み込み中・失敗のときだけ文字が入る
 function updateStatus(){
   if(poolSize) statusEl.textContent = '';
-  moreEl.hidden = !poolSize;
+  moreEl.hidden = !poolSize || !!(sim && simF && poolSize <= 1);
   moreEl.textContent = shownCount < poolSize ? '続きを読み込み中…'
     : state.sort === 'shuffle' ? 'これで全部です。シャッフルで並べ直せます。' : 'これで全部です。';
 }
@@ -1902,6 +1963,7 @@ function layout(force){
   }
   if(hero) putHero(hero);   // 上の画像は、列を作り直しても同じ形で先頭に
   cardEls.filter(c => c._placed).forEach(placeCard);
+  paintSimNone();
 }
 
 // 似た画像の画面の、上の画像（1列目の先頭）と、2列目の先頭に置く同じ高さの空き
@@ -1927,6 +1989,7 @@ function sizeHero(c){
 function syncHeroGap(){
   const h = heroOf(), g = grid.querySelector('.col > .sim-gap');
   if(h && g) g.style.height = h.offsetHeight + 'px';
+  if(sim && simF && poolSize <= 1) paintSimNone();
 }
 // 上の画像の高さが後から変わったとき（説明の行が変わったときなど）も空きを合わせる
 const heroRO = new ResizeObserver(syncHeroGap);
@@ -3915,8 +3978,8 @@ document.addEventListener('keydown', e => {
   if(typing || dlg.open || filterDlg.open || setDlg.open) return;
   if(e.key === 'Escape' && selected.size){ e.preventDefault(); if(popKind){ popKind = ''; renderSelPop(); } else clearSelection(); return; }
   if(e.key === 'Escape' && views.length){ e.preventDefault(); backUI(); return; }
-  // 一段奥の画面では、絞り込みと並び順は使わない
-  if(views.length && /^[fFrR\/]$/.test(e.key)) return;
+  // 一段奥の画面では並び順は使わない。絞り込みは似た画像の画面だけ（似た画像の条件を編集する）
+  if(views.length && (/^[rR]$/.test(e.key) || (!sim && /^[fF\/]$/.test(e.key)))) return;
   if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); openFilter(); return; }
   if(e.key === '/'){ e.preventDefault(); openFilter('other'); return; }
   if(e.key === 'c' || e.key === 'C') toggleCap();
@@ -4401,7 +4464,7 @@ const MAP_TITLE = 'rd-shuffle 地図';
 const MAP_LINK = 'https://connvulpes.github.io/rd-shuffle-k7m/#map';
 const MAP_MODEL = 'onnx-community/dinov2-small';
 const MAP_LAB_PREFIX = MAP_MODEL + '#mc:';   // 試しページで作った地図と同じ保存名（作ってあった分はそのまま使う）
-const MAP_DIMS = 64, BEND_W = 0.5, SIM_K = 150;
+const MAP_DIMS = 64, BEND_W = 0.5;
 const TJS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.min.js';
 let mapKnownAt = store.get('mapat', 0);       // いちばん新しい地図の時刻（同期で知る）
 let mapRef = store.get('mapref', null);       // { coll:フォルダID }
@@ -4819,16 +4882,20 @@ function bentMap(){
   simFit = { map:m, F, D, used };
   return simFit;
 }
-function nearestSim(it, k){
+// 地図にある全部を、似ている順に（押した画像は除く。近さが同じなら地図の順）
+function nearestSim(it){
   const m = simMap, r0 = m.pos.get(it.i); if(r0 == null) return null;
-  const { F, D } = bentMap(), out = [], o0 = r0 * D;
-  for(let r = 0; r < m.n; r++){
+  const { F, D } = bentMap(), o0 = r0 * D, n = m.n;
+  const sc = new Float64Array(n), idx = new Uint32Array(n - 1);
+  for(let r = 0, k = 0; r < n; r++){
     if(r === r0) continue;
     let s = 0; const o = r * D; for(let j = 0; j < D; j++) s += F[o0 + j] * F[o + j];
-    if(out.length < k || s > out[out.length - 1][0]){ out.push([s, r]); out.sort((a, b) => b[0] - a[0]); if(out.length > k) out.pop(); }
+    sc[r] = s; idx[k++] = r;
   }
-  const byId = new Map(cache.items.map(x => [x.i, x]));
-  return out.map(([, r]) => byId.get(m.ids[r])).filter(Boolean);
+  idx.sort((a, b) => sc[b] - sc[a] || a - b);
+  const byId = new Map(cache.items.map(x => [x.i, x])), out = [];
+  for(const r of idx){ const x = byId.get(m.ids[r]); if(x) out.push(x); }
+  return out;
 }
 
 // ---- 地図にない画像を足す（縮め方が手元にあれば、どの端末でも。足したら少し待って Raindrop にも書く）----
@@ -4992,7 +5059,7 @@ async function showSimilarNow(it){
     try{ ok = await addToMap(it, st); }catch(e){ ok = false; }
     if(!ok){ st(it.c ? 'この画像はまだ調べていません。Mac の設定で更新すると入ります' : '画像がないので、似た画像は探せません'); return; }
   }
-  const near = nearestSim(it, SIM_K) || [];
+  const near = nearestSim(it) || [];
   edToast.hidden = true;
   // プレビューは閉じて、似た画像の一覧を見せる。そこからプレビューを開いて「似た画像」を押すと、さらに一段奥へ
   if(peek.open){ peekSilent = true; closePeek(); }
