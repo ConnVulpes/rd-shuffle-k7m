@@ -460,8 +460,32 @@ header.deep > .deep-bar{display:flex}
   .ed-head .switch{min-height:44px}
   .ed-x{width:44px; height:44px; margin-right:-12px}
 }
-/* 中身は1列：小見出しを上に置き、左の端をそろえる */
-.ed-scroll{flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:16px; padding:4px 16px 16px}
+/* 中身は1列：上が「いつもの場所」（地の上に角の丸い面を並べ、面の上に小さく薄い見出し）、下が「すべてのタグ」の帯。左の端をそろえる */
+.lb-edit{--ed-face:color-mix(in srgb, var(--text) 6%, var(--card)); --ed-band:color-mix(in srgb, var(--bg-bottom) 85%, #000)}
+.ed-scroll{position:relative; flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column}
+.ed-home{display:flex; flex-direction:column; gap:16px; padding:4px 16px 20px}
+.ed-face{display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:44px; padding:8px; border-radius:var(--r-m); background:var(--ed-face)}
+@media (hover:none){ .ed-face{min-height:52px} }   /* タグ1行と同じ高さ（「なし」からタグが付いても高さが変わらない） */
+.ed-face > .ed-note{padding:0 4px}
+/* AI の候補の印：青い細い枠の小さな文字 */
+.ai-mark{flex:none; font-size:var(--fs-xs); line-height:1.3; padding:0 4px; border:1px solid var(--accent); border-radius:var(--r-s); color:var(--accent)}
+.ed-tag.on .ai-mark{border-color:currentColor; color:inherit}
+/* すべてのタグ：一段暗い帯。見出しと検索欄・並べ替えは上に貼りつく */
+.ed-all{flex:1 0 auto; display:flex; flex-direction:column; gap:8px; padding:0 16px 16px; background:var(--ed-band); border-top:1px solid var(--line)}
+.ed-all-head{position:sticky; top:0; z-index:2; display:flex; flex-direction:column; gap:8px; margin:0 -16px; padding:12px 16px 8px; background:var(--ed-band)}
+.ed-all-h{display:flex; align-items:center; gap:8px; font-size:var(--fs); font-weight:700}
+.ed-all-h .ico{color:var(--muted)}
+.ed-all-h .cnt{font-size:var(--fs-s); font-weight:400; color:var(--muted); font-variant-numeric:tabular-nums}
+.ed-all .ed-tools{position:static; margin:0; padding:0; background:transparent}
+/* いちばん上へ：貼りついた見出しのすぐ下、左右の真ん中に浮かべるガラスの丸 */
+.ed-up{position:absolute; left:50%; top:calc(100% + 8px); transform:translateX(-50%);
+  display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0;
+  border-radius:var(--r-full); border:1px solid rgba(255,255,255,.18); background:rgba(20,22,25,.72); color:#fff; cursor:pointer;
+  -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); box-shadow:0 4px 14px rgba(0,0,0,.3);
+  opacity:0; visibility:hidden; transition:opacity .15s, visibility 0s .15s}
+.ed-up.show{opacity:1; visibility:visible; transition:opacity .15s}
+@media (hover:none){ .ed-up{width:44px; height:44px} }
+@media (prefers-reduced-motion: reduce){ .ed-up, .ed-up.show{transition:none} }
 .ed-sec{display:flex; flex-direction:column; gap:8px}
 .ed-h{display:flex; align-items:center; gap:8px; font-size:var(--fs-s); color:var(--muted)}
 /* 小見出しの右の文字だけのボタンは、文字の右端をパネルの端にそろえる。
@@ -469,19 +493,23 @@ header.deep > .deep-bar{display:flex}
 .ed-h .ed-link{margin:-4px -8px -4px auto}
 .ed-wrap{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
 .ed-folder{
-  display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:36px; font:inherit; font-size:var(--fs-s); text-align:left;
-  padding:8px 12px; border-radius:var(--r-s); border:1px solid var(--line); background:var(--field); color:var(--text); cursor:pointer;
+  display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:40px; font:inherit; font-size:var(--fs-s); text-align:left;
+  padding:4px 12px; border-radius:var(--r-m); border:0; background:var(--ed-face); color:var(--text); cursor:pointer;
 }
 @media (hover:none){ .ed-folder{min-height:44px} }
+@media (hover:hover){ .ed-folder:hover{background:color-mix(in srgb, var(--text) 10%, var(--card))} }
 .ed-folder span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.ed-folder .ico{color:var(--muted)}
+.ed-folder .ico{flex:none; color:var(--muted)}
+/* サムネイルの行：左に小さな画像、その右に取り元（薄く）、右端に矢印 */
+.ed-cover-row{justify-content:flex-start; padding-left:8px}
+.ed-cover-row .ico{margin-left:auto}
+.ed-cover-th{flex:none; width:32px; height:32px; border-radius:var(--r-s); overflow:hidden; background:var(--ph)}
+.ed-cover-th img{display:block; width:100%; height:100%; object-fit:cover}
+.ed-cover-src{color:var(--muted)}
 /* 文字だけのボタン（青い文字・下線なし）。押せる範囲は高さ 36 */
 .ed-link{display:inline-flex; align-items:center; min-height:36px; font:inherit; font-size:var(--fs-s); border:0; background:transparent; color:var(--accent); cursor:pointer; padding:0 8px; border-radius:var(--r-s); white-space:nowrap}
 .ed-link:hover{background:var(--field)}
-/* 候補：固定したタグとおすすめを、薄い青の面でまとめる */
-.ed-cand{display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:8px; border-radius:var(--r-m);
-  background:color-mix(in srgb, var(--accent) 10%, transparent); border:1px solid color-mix(in srgb, var(--accent) 40%, transparent)}
-.ed-cand .ed-note{padding:0 4px}
+@media (hover:none){ .ed-link{min-height:44px} .ed-h .ed-link{margin:-12px -8px -12px auto} }
 .ed-list{width:100%; max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:var(--r-s)}
 .lb-edit.side .ed-list, .lb-edit.full .ed-list{max-height:42vh}
 .ed-list button{display:flex; align-items:center; gap:8px; width:100%; font:inherit; font-size:var(--fs-s); text-align:left; padding:8px 12px; border:0; border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent); background:transparent; color:var(--text); cursor:pointer}
@@ -2106,6 +2134,8 @@ const cardOf = new WeakMap();   // ブックマーク → 表示しているカ�
 const ICONS = {
   x:'<path d="M5 5l10 10M15 5L5 15"/>',
   up:'<path d="M4.5 12.5l5.5-5.5 5.5 5.5"/>',
+  right:'<path d="M7.5 4.5l5.5 5.5-5.5 5.5"/>',
+  tag:'<path d="M3.5 4.5v5l7 7 6-6-7-7h-5z"/><circle cx="7" cy="7.5" r="1"/>',
   down:'<path d="M4.5 7.5l5.5 5.5 5.5-5.5"/>',
   plus:'<path d="M10 4.5v11M4.5 10h11"/>',
   expand:'<path d="M3.5 8V3.5H8M12 3.5h4.5V8M16.5 12v4.5H12M8 16.5H3.5V12"/>',
@@ -2366,6 +2396,9 @@ function openPeek(it, stepping){
 
 // ---- プレビューから タグ・フォルダ を変える ----
 const edPanel = $('edPanel'), edToast = $('edToast');
+// 最後に押した面（renderEdit で位置を保つのに使う）
+const edPress = { sec:'', at:0 };
+edPanel.addEventListener('pointerdown', e => { const s = e.target.closest && e.target.closest('.ed-scroll [data-sec]'); edPress.sec = s ? s.dataset.sec : ''; edPress.at = s ? Date.now() : 0; }, true);
 let editOpen = store.get('editing', false);
 let pins = store.get('pins', []);
 let autoNext = store.get('autonext', true);
@@ -2804,7 +2837,8 @@ function tagChooser({ isOn, isPartial = () => false, onPick, onNew = null, isDis
 }
 
 // ---- 編集パネルの中身 ----
-// 上から フォルダ → サムネイル → 候補（固定・おすすめ）→ 付いているタグ → すべてのタグ の1列
+// 上の「いつもの場所」に フォルダ → 付いているタグ → ピン留め → おすすめ → サムネイル の面を並べ、
+// その下の一段暗い帯が「すべてのタグ」（見出しと検索欄はスクロールしても上に貼りつく）
 function renderEdit(){
   const it = peekItem;
   edPanel.classList.remove('stale');
@@ -2813,14 +2847,26 @@ function renderEdit(){
   const oldScroll = edPanel.querySelector('.ed-scroll');
   const scrollY = oldScroll ? oldScroll.scrollTop : 0;
   const focusTag = document.activeElement && document.activeElement.id === 'edTagInput';
+  // 押したところ（面）の位置を覚えておき、作り直したあとも同じ位置に置く
+  // （上の「付いているタグ」が増えて行が増えても、押していたおすすめなどが下にずれないように）
+  const anchor = Date.now() - edPress.at < 1500 && edPanel.querySelector(`.ed-scroll [data-sec="${edPress.sec}"]`);
+  const anchorTop = anchor ? anchor.getBoundingClientRect().top : 0;
   edPanel.innerHTML = '';
   const body = el('div', 'ed-scroll');
   edPanel.append(...editFrame(), body);
-  body.append(editFolderSec(it), editCoverSec(it), editCandSec(it));
-  if(edView !== 'pins') body.append(editHaveSec(it));
-  body.append(editTagSec(it));
+  // ピン留めを編集している間は、付いているタグとおすすめは出さない（今までどおり）
+  const pinMode = edView === 'pins', home = el('div', 'ed-home');
+  home.append(editFolderSec(it));
+  if(!pinMode) home.append(editHaveSec(it));
+  home.append(editPinSec(it));
+  if(!pinMode) home.append(editSugSec(it));
+  home.append(editCoverSec(it));
+  body.append(home, editTagSec(it));
   layoutEdit();
   body.scrollTop = scrollY;
+  const again = anchor && body.querySelector(`[data-sec="${edPress.sec}"]`);
+  if(again) body.scrollTop += again.getBoundingClientRect().top - anchorTop;
+  watchEdScroll(body);
   if(focusTag){ const i = $('edTagInput'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
 }
 // 枠：幅を変えるつまみ（PC）・高さを変えるつまみ（スマホ）・見出し
@@ -2870,13 +2916,25 @@ function editFolderSec(it){
   return sec;
 }
 // サムネイル：画像の貼り付け（⌘V）・ドロップ・ファイル選択・画像のアドレスで変える
+// 1行の面：小さなサムネイル・取り元（サイト名）・右端の矢印。行のどこを押しても変える画面が開く（もう一度押すと閉じる）
 function editCoverSec(it){
   const open = edView === 'cover';
-  const sec = edSec('cover', 'サムネイル', edLink(open ? '閉じる' : (it.c ? '変える' : '設定する'), () => { edView = open ? '' : 'cover'; renderEdit(); }));
-  if(!open){
-    if(!it.c) sec.append(el('span', 'ed-note', 'なし'));
-    return sec;
+  const sec = edSec('cover', 'サムネイル');
+  const row = el('button', 'ed-folder ed-cover-row'); row.type = 'button';
+  row.setAttribute('aria-expanded', String(open));
+  const th = el('span', 'ed-cover-th');
+  const t0 = thumbs(it)[0], src = it.c && (directSmall(it.c) || (t0 && !t0.video ? t0.url : ''));
+  if(src){
+    const im = el('img'); im.alt = ''; im.decoding = 'async'; im.referrerPolicy = 'no-referrer';
+    im.addEventListener('error', () => im.remove());
+    im.src = src; th.append(im);
   }
+  const site = (it.d || siteKey(it.l) || '').replace(/^www\./, '');
+  row.append(th, el('span', 'ed-cover-src', it.c ? (site ? `${site} の画像` : '') : 'なし'));
+  row.insertAdjacentHTML('beforeend', icon(open ? 'down' : 'right'));
+  row.addEventListener('click', () => { edView = open ? '' : 'cover'; renderEdit(); });
+  sec.append(row);
+  if(!open) return sec;
   const drop = el('div', 'ed-drop');
   drop.append(el('div', '', canHover ? '画像をコピーして ⌘V で貼り付け、またはここにドロップ' : '画像を選ぶか、画像のアドレスを貼り付け'));
   const file = el('input'); file.type = 'file'; file.accept = 'image/*'; file.hidden = true;
@@ -2963,7 +3021,8 @@ function buildSugIndex(){
     let top = '', max = 0; c.forEach((v, a) => { if(v > max){ max = v; top = a; } });
     if(max / authors.length >= 0.8 && max / byAuthor.get(top).n >= 0.5) authorTags.add(t);
   });
-  sugIndex = { items:cache.items, len:cache.items.length, byAuthor, bySite, tagItems, authorTags, co:new Map() };
+  const tagged = cache.items.reduce((n, it) => n + ((it.g || []).length ? 1 : 0), 0);   // タグが付いているものの数
+  sugIndex = { items:cache.items, len:cache.items.length, byAuthor, bySite, tagItems, authorTags, tagged, co:new Map() };
 }
 // あるタグと一緒に付いているタグの数（必要になったタグだけ数える）
 function coCounts(t){
@@ -3017,7 +3076,7 @@ function suggestTags(it){
   });
   return [...cand.values()].sort((x, y) => y.score - x.score || jaCmp(x.t, y.t));
 }
-// 編集パネルの「候補」：固定したタグ（先）とおすすめ（後）を1つの面に並べる。押すとすぐ付く／外れる。
+// 編集パネルの「ピン留め」（固定したタグ）と「おすすめ」。押すとすぐ付く／外れる。
 // 押したものはその場に残して押した状態にする（押すたびに並びが詰まると、続けて押したときに隣を押してしまうため）
 let sugShown = { item:null, list:[], fresh:null }, sugTimer = 0;
 // 候補のタグのボタン。key は PC で付け外しに使える数字キー（固定したタグだけ）
@@ -3025,34 +3084,54 @@ function candBtn(it, t, kind, key){
   const on = (it.g || []).includes(t);
   const b = el('button', `ed-tag ${kind}${on ? ' on' : ''}`); b.type = 'button';
   b.setAttribute('aria-pressed', String(on));
+  // AI の候補は名前の前に小さな「AI」の印
+  if(kind === 'ai') b.append(el('small', 'ai-mark', 'AI'));
   b.append(el('span', '', '#' + t));
   if(key && canHover) b.append(el('kbd', '', String(key)));
   b.addEventListener('click', () => toggleTag(it, t));
   return b;
 }
-function editCandSec(it, force){
+function editPinSec(it){
   const pinMode = edView === 'pins';
-  const sec = edSec('cand', '候補', edLink(pinMode ? '完了' : '固定を編集', () => { edView = pinMode ? '' : 'pins'; renderEdit(); }));
-  const box = el('div', 'ed-cand');
+  const sec = edSec('pins', 'ピン留め', edLink(pinMode ? '完了' : '編集', () => { edView = pinMode ? '' : 'pins'; renderEdit(); }));
+  const box = el('div', 'ed-face');
   pins.forEach((t, i) => box.append(candBtn(it, t, 'pin', i + 1)));
-  if(!pinMode) editSugBtns(it, force).forEach(b => box.append(b));
   if(!box.children.length) box.append(el('span', 'ed-note', 'なし'));
   sec.append(box);
   return sec;
 }
-// おすすめのボタン（固定したタグと同じものは出さない）
-function editSugBtns(it, force){
+// おすすめ：規則のおすすめ（作者・サイト・一緒に付けるタグ）が先、AI の候補が後。
+// AI の候補は少し後から足すので、そのあとで規則のおすすめが増えたときは、並びを動かさないように AI の候補の後ろに足す。
+// reuse = AI の候補を足すだけのとき（規則のおすすめは数え直さない）
+function editSugSec(it, force, reuse){
+  if(aiShown.item !== it){ aiShown = { item:it, list:[], ready:false, at:0 }; clearTimeout(aiTimer); aiTimer = 0; }
+  const sec = edSec('sug', 'おすすめ');
+  const box = el('div', 'ed-face');
+  const rule = editSugBtns(it, force, reuse);
+  const ai = aiShown.ready ? aiShown.list.filter(t => !pins.includes(t)).map(t => candBtn(it, t, 'ai')) : [];
+  rule.filter(x => x.at < aiShown.at || !aiShown.ready).forEach(x => box.append(x.b));
+  ai.forEach(b => box.append(b));
+  if(aiShown.ready) rule.filter(x => x.at >= aiShown.at).forEach(x => box.append(x.b));
+  if(!box.children.length) box.append(el('span', 'ed-note', 'なし'));
+  // AI の候補を数えるのは、開いた・押した反応を返したあと
+  if(!aiShown.ready && !aiTimer) aiTimer = setTimeout(() => { aiTimer = 0; fillAi(it); }, 150);
+  sec.append(box);
+  return sec;
+}
+// 規則のおすすめのボタン（固定したタグと同じものは出さない）：[{ b:ボタン, at:出した順番 }]
+function editSugBtns(it, force, reuse){
   if(sugShown.item !== it) sugShown = { item:it, list:[], fresh:null };
   const stale = !sugIndex || sugIndex.items !== cache.items || sugIndex.len !== cache.items.length;
   let fresh;
-  if(stale && !force && sugShown.fresh){
+  if(reuse && sugShown.fresh) fresh = sugShown.fresh;
+  else if(stale && !force && sugShown.fresh){
     // タグを押した直後：数え直しは少し後に回して、押した反応を先に返す（候補は前のものを使う）
     fresh = sugShown.fresh;
     clearTimeout(sugTimer);
     sugTimer = setTimeout(() => {
       if(peekItem !== it || edPanel.hidden) return;
-      const old = edPanel.querySelector('.ed-sec[data-sec="cand"]');
-      if(old) old.replaceWith(editCandSec(it, true));
+      const old = edPanel.querySelector('.ed-sec[data-sec="sug"]');
+      if(old) old.replaceWith(editSugSec(it, true));
     }, 150);
   }else fresh = suggestTags(it);
   sugShown.fresh = fresh;
@@ -3060,19 +3139,80 @@ function editSugBtns(it, force){
   // 前に出していたものは、同じブックマークを開いている間は同じ位置に残す（候補から外れても消さない）。
   // 新しい候補は後ろに足す（全部で10個まで）
   const keep = sugShown.list.slice();
-  fresh.forEach(c => { if(keep.length < (sugShown.list.length ? 10 : 8) && !keep.includes(c.t) && !pins.includes(c.t)) keep.push(c.t); });
+  // 「AI の候補」にもう出ているタグは、あとから足さない（同じ面で二重に出さない）
+  const inAi = t => aiShown.item === it && aiShown.list.includes(t);
+  fresh.forEach(c => { if(keep.length < (sugShown.list.length ? 10 : 8) && !keep.includes(c.t) && !pins.includes(c.t) && !inAi(c.t)) keep.push(c.t); });
   sugShown.list = keep;
-  return keep.filter(t => !pins.includes(t)).map(t => {
+  return keep.map((t, at) => ({ t, at })).filter(x => !pins.includes(x.t)).map(({ t, at }) => {
     const b = candBtn(it, t, 'sug');
     const c = byT.get(t);
     if(c) b.title = c.why;
-    return b;
+    return { b, at };
   });
+}
+// ===== AI の候補：似た画像に付いているタグ =====
+// 似た画像の地図（タグで曲げていない、画像だけの近さ）で近い画像を集め、そこに付いているタグを数える。
+// 曲げた地図は、今付いているタグが位置に混ざるので使わない。タグなしの画像は「そのタグではない」とは数えない（数に入れない）。
+// 地図は、もう読み込んであるか、この端末に保存してあるものだけを使う（Raindrop から読む・画像を調べることはしない）
+const AI_NEAR = 40, AI_TEMP = 0.07, AI_MAX = 10;
+// 候補：[{ t, score }] を強い順に。地図がない・この画像が地図にないときは null
+function aiTags(it){
+  const m = simMap; if(!m || !m.V) return null;
+  const r0 = m.pos.get(it.i); if(r0 == null) return null;
+  if(!sugIndex || sugIndex.items !== cache.items || sugIndex.len !== cache.items.length) buildSugIndex();
+  const byId = new Map(cache.items.map(x => [x.i, x]));
+  const d = m.dims, V = m.V, o0 = r0 * d;
+  // タグが付いている画像のうち、近い順に AI_NEAR 枚（作者名のタグしかないものは数えない）
+  const near = [];   // [近さ, タグ] を近い順に
+  for(let r = 0; r < m.n; r++){
+    if(r === r0) continue;
+    let s = 0; const o = r * d; for(let j = 0; j < d; j++) s += V[o0 + j] * V[o + j];
+    if(near.length === AI_NEAR && s <= near[AI_NEAR - 1][0]) continue;
+    const x = byId.get(m.ids[r]); if(!x || x === it) continue;
+    const g = (x.g || []).filter(t => !sugIndex.authorTags.has(t)); if(!g.length) continue;
+    let k = near.length; while(k > 0 && near[k - 1][0] < s) k--;
+    near.splice(k, 0, [s, g]); if(near.length > AI_NEAR) near.pop();
+  }
+  if(!near.length) return [];
+  // 近いほど重く。いちばん近いものを基準にして数字が大きくなりすぎないようにする（並びは変わらない）
+  const top = near[0][0], score = new Map();
+  near.forEach(([s, g]) => { const w = Math.exp((s - top) / AI_TEMP); g.forEach(t => score.set(t, (score.get(t) || 0) + w)); });
+  // どこにでも付いているタグが勝ち続けないように、タグ付きのもの全体でそのタグが付いている割合の平方根で割る
+  const have = new Set(it.g || []), all = sugIndex.tagged || 1;
+  const out = [];
+  score.forEach((v, t) => {
+    if(have.has(t)) return;
+    const rate = (sugIndex.tagItems.get(t) || []).length / all || 1 / all;
+    out.push({ t, score:v / Math.sqrt(rate) });
+  });
+  return out.sort((a, b) => b.score - a.score || jaCmp(a.t, b.t));
+}
+// 出しているもの：開いているブックマークごとに決めて、押してもその場に残す（並びを動かさない）。
+// at = AI の候補を足したときの、規則のおすすめの数（そこに差し込む）
+let aiShown = { item:null, list:[], ready:false, at:0 }, aiTimer = 0, aiMapTried = false;
+function fillAi(it){
+  if(peekItem !== it || edPanel.hidden || aiShown.item !== it || aiShown.ready) return;
+  if(!simMap){
+    // まだ読み込んでいなければ、この端末に保存してある地図だけを1回読む
+    if(aiMapTried) return;
+    aiMapTried = true;
+    mapLocalGet().then(rec => { if(rec && rec.q && !simMap) useMap(rec); if(simMap) fillAi(it); }).catch(() => {});
+    return;
+  }
+  const res = aiTags(it);
+  // 今の「固定」と「おすすめ」に出ているタグ・作者名のタグは出さない
+  const shown = new Set([...pins, ...(sugShown.item === it ? sugShown.list : [])]);
+  aiShown.list = (res || []).filter(c => !shown.has(c.t) && !sugIndex.authorTags.has(c.t)).slice(0, AI_MAX).map(c => c.t);
+  aiShown.at = sugShown.item === it ? sugShown.list.length : 0;
+  aiShown.ready = true;
+  if(edView === 'pins') return;
+  const old = edPanel.querySelector('.ed-sec[data-sec="sug"]');
+  if(old) old.replaceWith(editSugSec(it, false, true));
 }
 // 付いているタグ：塗りで並べる。タグ全体を押すと外れる
 function editHaveSec(it){
   const sec = edSec('have', '付いているタグ');
-  const wrap = el('div', 'ed-wrap');
+  const wrap = el('div', 'ed-face');
   (it.g || []).forEach(t => {
     const b = el('button', 'ed-tag on'); b.type = 'button';
     b.title = '押すと外す';
@@ -3085,14 +3225,21 @@ function editHaveSec(it){
   return sec;
 }
 // すべてのタグ：一覧から選ぶ（押すと付く／外れる）。「固定を編集」中は固定するタグを選ぶ
+// 下の帯：見出し（タグの形・名前・数）と検索欄・並べ替えは、スクロールしても上に貼りつく
 function editTagSec(it){
   const pinMode = edView === 'pins';
   const have = new Set(it.g || []);
-  const sec = edSec('all', 'すべてのタグ');
+  const sec = el('div', 'ed-all'); sec.dataset.sec = 'all';
+  const head = el('div', 'ed-all-head');
+  const h = el('div', 'ed-all-h');
+  h.insertAdjacentHTML('beforeend', icon('tag'));
+  const cnt = el('span', 'cnt');
+  h.append(el('span', '', 'すべてのタグ'), cnt);
+  head.append(h);
   if(pinMode){
     const bn = el('div', 'ed-banner', `固定するタグを選んでいます（${pins.length}/9）`);
     bn.append(edLink('完了', () => { edView = ''; renderEdit(); }));
-    sec.append(bn);
+    head.append(bn);
   }
   const ch = tagChooser({
     id:'edTagInput', text:edFilter, extra:it.g || [],
@@ -3110,8 +3257,33 @@ function editTagSec(it){
     onBackspace: pinMode ? null : () => { if((it.g || []).length) removeTag(it, it.g[it.g.length - 1]); }
   });
   ch.grid.classList.toggle('pinmode', pinMode);
-  sec.append(ch.box);
+  cnt.textContent = cache.tags.length.toLocaleString();   // 一覧を作るときに数え直すので、そのあとで
+  head.append(ch.box.querySelector('.ed-tools'));
+  // いちばん上へ戻るボタン（すべてのタグの所で上向きにスクロールしたときだけ出す）
+  const up = el('button', 'ed-up'); up.type = 'button'; up.innerHTML = icon('up');
+  up.setAttribute('aria-label', 'いちばん上へ'); up.title = 'いちばん上へ';
+  head.append(up);
+  sec.append(head, ch.box);
   return sec;
+}
+// 「いちばん上へ」の出し入れ：すべてのタグの所まで来ていて、上向きにスクロールしたら出す。下向きなら隠す。いつもの場所では出さない
+let edUpOn = false;
+function watchEdScroll(body){
+  const zone = body.querySelector('.ed-all'), up = body.querySelector('.ed-up');
+  if(!zone || !up) return;
+  let last = body.scrollTop;
+  const inAll = y => y >= zone.offsetTop - 1;
+  const set = v => { edUpOn = v; up.classList.toggle('show', v); };
+  // 作り直したとき（タグを押したときなど）は、前の状態を引き継ぐ
+  set(edUpOn && inAll(last));
+  body.addEventListener('scroll', () => {
+    const y = body.scrollTop;
+    if(!inAll(y)) set(false);
+    else if(y < last - 2) set(true);
+    else if(y > last + 2) set(false);
+    last = y;
+  }, { passive:true });
+  up.addEventListener('click', () => { set(false); body.scrollTop = 0; last = 0; });
 }
 $('peekEdit').addEventListener('click', () => setEditOpen(!editOpen));
 // 入力中の Esc はプレビューを閉じずに、入力や一覧だけを閉じる
