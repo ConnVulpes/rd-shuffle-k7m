@@ -1,5 +1,4 @@
-/* ♥ と熱（heat cycleLike heatWeight 見た時間の数え方・熱の効き具合）と、
-   設定の同期（pullSettings readSettings writeSettings scheduleSync） */
+/* ♥ と熱（cycleLike heatWeight）、設定の同期（pullSettings） */
 // ---- ♥ と熱：今「いいな」と思っているものを、シャッフルで少し多めに出す ----
 // ♥（1〜3回）と、プレビューで見た動き（長く見た・拡大・高画質・サイトを開いた）が熱になる。
 // 熱は2週間で半分に冷める。♥ したものは冷めきっても、普通より少しだけ出やすいまま残る
@@ -197,4 +196,3 @@ function pullSettings(){
   });
   return syncing;
 }
-

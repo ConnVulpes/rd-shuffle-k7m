@@ -1,5 +1,4 @@
-/* まとめて変える（moveMany addTagsMany removeTagsMany restoreTags）。
-   後半は情報の画面の開け閉めと大きさ（applyEditOpen layoutEdit つまみ・幅）。② で edit.js に寄せる */
+/* まとめて変える（moveMany addTagsMany removeTagsMany）、複数選択（pickCard 下のバー）、長押しのメニュー */
 // ---- まとめて変える（複数選択から）----
 // Raindrop の「まとめて更新」はフォルダごとにしか送れないので、今いるフォルダごとに分けて送る
 function groupBy(list, keyOf){
@@ -128,86 +127,118 @@ async function restoreTags(list, before){
   showToast(fails.length ? `${fails.length}件は戻せませんでした` : '元に戻しました', null);
 }
 
-let sheetFull = store.get('sheetfull', false);   // スマホ：画面いっぱいに広げているか
-let sideW = store.get('sidew', 380);              // PC：左パネルの幅
-let tagSort = store.get('tagsort', 'count');      // 'count' よく使う順 | 'name' 名前順
-let edFilter = { text:'' }, edFilterFor = null;
-let sheetDragH = 0;                               // つまみをドラッグ中の高さ
-const wideUI = () => window.innerWidth >= 760;
+// ---- 複数選択：カード左上のチェックで選び、下のバーからまとめて移動・タグ付け ----
+const selected = new Set();
+let lastPick = null;
+const selBar = $('selBar'), selPop = $('selPop');
+let popKind = '';                  // 下のバーの上に開いている画面：'' | 'move' | 'tag'
+let popText = { text:'' };
 
-// later = 前後に送ったとき：画像を先に描かせて、パネルの作り直しは次の描画に回す
-// （続けて送ったときは最後の1回だけ作る）
-let editRaf = 0;
-function applyEditOpen(later){
-  edPanel.hidden = !editOpen || !peekItem;
-  peek.classList.toggle('editing', !edPanel.hidden);
-  $('peekEdit').setAttribute('aria-pressed', String(editOpen));
-  cancelAnimationFrame(editRaf);
-  if(!edPanel.hidden){
-    layoutEdit();
-    // 作り直すまでの間は、前のブックマークのパネルを押せないようにしておく
-    if(later){ edPanel.classList.add('stale'); editRaf = requestAnimationFrame(() => requestAnimationFrame(renderEdit)); }
-    else renderEdit();
-  }
-  else ['--edit-h', '--edit-l', '--toast-b'].forEach(k => peek.style.removeProperty(k));
+function setPicked(it, on){
+  if(on) selected.add(it); else selected.delete(it);
+  const c = cardOf.get(it);
+  if(c) c.classList.toggle('picked', on);
 }
-function setEditOpen(v){ editOpen = v; store.set('editing', v); edView = ''; if(v) setBare(false); applyEditOpen(); }
-// パネルの位置と大きさを決めて、画像エリア・トーストの位置もそれに合わせる
-function layoutEdit(){
-  if(edPanel.hidden) return;
-  const wide = wideUI();
-  edPanel.classList.toggle('side', wide);
-  edPanel.classList.toggle('sheet', !wide);
-  edPanel.classList.toggle('full', !wide && sheetFull && !sheetDragH);
-  if(wide){
-    const w = Math.round(Math.min(Math.max(sideW, 280), Math.min(640, window.innerWidth - 300)));
-    peek.style.setProperty('--edit-l', w + 'px');
-    peek.style.setProperty('--edit-h', '0px');
-    peek.style.setProperty('--toast-b', '16px');
-  }else{
-    const H = window.innerHeight;
-    const h = Math.round(sheetDragH || (sheetFull ? H : Math.max(280, H * 0.55)));
-    peek.style.setProperty('--edit-l', '0px');
-    peek.style.setProperty('--edit-h', h + 'px');
-    peek.style.setProperty('--toast-b', (Math.min(h, H - 70) + 12) + 'px');
-  }
+// range = Shift を押しながら：前に押したものから今のものまでをまとめて選ぶ
+function pickCard(it, range){
+  if(range && lastPick && lastPick !== it){
+    const a = order.indexOf(lastPick), b = order.indexOf(it);
+    if(a >= 0 && b >= 0) order.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => { if(cardOf.has(x)) setPicked(x, true); });
+  }else setPicked(it, !selected.has(it));
+  lastPick = it;
+  syncSelection();
 }
-function setSheetFull(v){ sheetFull = v; store.set('sheetfull', v); layoutEdit(); }
-addEventListener('resize', () => layoutEdit());
+function clearSelection(){
+  [...selected].forEach(x => setPicked(x, false));
+  lastPick = null;
+  syncSelection();
+}
+function syncSelection(){
+  const n = selected.size;
+  document.body.classList.toggle('selecting', n > 0);
+  selBar.hidden = !n;
+  $('selSpacer').hidden = !n;   // 下のバーに最後のカードが隠れないように（一覧全体の並べ直しは起こさない）
+  $('selCount').textContent = `${n.toLocaleString()}件`;
+  if(!n){ popKind = ''; }
+  renderSelPop();
+}
+function renderSelPop(){
+  const keepY = selPop.scrollTop;
+  selPop.hidden = !popKind;
+  $('selMove').setAttribute('aria-pressed', String(popKind === 'move'));
+  $('selTag').setAttribute('aria-pressed', String(popKind === 'tag'));
+  selPop.innerHTML = '';
+  if(!popKind) return;
+  const items = [...selected];
+  if(popKind === 'move'){
+    selPop.append(el('div', 'ed-h', `${items.length}件の移動先`));
+    const p = folderPicker(null, id => { popKind = ''; renderSelPop(); moveMany(items, id); });
+    selPop.append(p.box);
+    if(canHover) p.search.focus();
+    return;
+  }
+  // タグ：押すと、選んだもの全部に付く。全部に付いているタグを押すと全部から外れる
+  // （一部にだけ付いているタグは枠だけ色を付ける）
+  const all = name => items.every(x => (x.g || []).includes(name));
+  const some = name => items.some(x => (x.g || []).includes(name));
+  const ch = tagChooser({
+    text:popText,
+    placeholder:'絞り込む・新しいタグ（Enter）',
+    isOn: all,
+    isPartial: some,
+    onPick: name => { (all(name) ? removeTagsMany(items, [name]) : addTagsMany(items, [name])); },
+    onNew: name => addTagsMany(items, [name])
+  });
+  selPop.append(el('div', 'ed-h', `${items.length}件のタグ（押すと全部に付く／もう一度で外れる）`), ch.box);
+  selPop.scrollTop = keepY;
+  if(canHover){ ch.input.focus(); ch.input.setSelectionRange(ch.input.value.length, ch.input.value.length); }
+}
+$('selMove').addEventListener('click', () => { popKind = popKind === 'move' ? '' : 'move'; renderSelPop(); });
+$('selTag').addEventListener('click', () => { popKind = popKind === 'tag' ? '' : 'tag'; renderSelPop(); });
+$('selAll').addEventListener('click', () => { allCards().forEach(c => setPicked(c._item, true)); syncSelection(); });
+$('selClose').addEventListener('click', clearSelection);
 
-// スマホ：つまみ（と見出し）を上下にドラッグして高さを変える。離すと「半分」か「いっぱい」に吸い付く
-function startSheetDrag(e){
-  if(!edPanel.classList.contains('sheet')) return;
-  if(e.target.closest('button, input, label, a')) return;
-  e.preventDefault();
-  const y0 = e.clientY, h0 = edPanel.offsetHeight, H = window.innerHeight;
-  let moved = false;
-  edPanel.classList.add('drag');
-  const move = ev => {
-    if(Math.abs(ev.clientY - y0) > 4) moved = true;
-    sheetDragH = Math.min(H, Math.max(120, h0 - (ev.clientY - y0)));
-    layoutEdit();
-  };
-  const up = () => {
-    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
-    edPanel.classList.remove('drag');
-    const h = sheetDragH; sheetDragH = 0;
-    if(!moved){ setSheetFull(!sheetFull); return; }          // つまみをタップ：切り替え
-    if(h < H * 0.28){ sheetFull = false; store.set('sheetfull', false); setEditOpen(false); return; }  // 下まで下ろしたら閉じる
-    setSheetFull(h > H * 0.7);
-  };
-  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+// スマホ：カードを長押しで選択を始める
+// 似た画像の画面では、長押しでカードの近くに［プレビュー］［選択］を出す（PC のマウスでも）。選んでいる最中は、今どおり選択の切り替え
+let press = null;
+grid.addEventListener('pointerdown', e => {
+  const c = e.target.closest('.card');
+  if(!c || c._hero || e.target.closest('.rd-btn, .sel-box')) return;
+  if(e.pointerType !== 'touch' && !(sim && e.pointerType === 'mouse' && e.button === 0)) return;
+  c._long = false;
+  const x = e.clientX, y = e.clientY;
+  press = { c, x, y, t:setTimeout(() => {
+    if(sim && !selected.size){ c._long = true; openPressMenu(c, x, y); return; }
+    if(e.pointerType !== 'touch') return;
+    c._long = true;
+    pickCard(c._item, false);
+    if(navigator.vibrate) navigator.vibrate(10);
+  }, 450) };
+});
+const pressMenu = $('pressMenu');
+function openPressMenu(c, x, y){
+  pressMenu._card = c;
+  pressMenu.hidden = false;
+  const w = pressMenu.offsetWidth, h = pressMenu.offsetHeight;
+  const left = Math.max(12, Math.min(x - w / 2, innerWidth - w - 12));
+  // 指の下に出す。入りきらなければ上に
+  const top = y + 16 + h <= innerHeight - 12 ? y + 16 : Math.max(12, y - 16 - h);
+  pressMenu.style.left = (left + scrollX) + 'px';
+  pressMenu.style.top = (top + scrollY) + 'px';
+  if(navigator.vibrate) navigator.vibrate(10);
 }
-// PC：パネルの右端をドラッグして幅を変える
-function startSideResize(e){
-  e.preventDefault();
-  const x0 = e.clientX, w0 = edPanel.offsetWidth;
-  edPanel.classList.add('drag');
-  const move = ev => { sideW = w0 + (ev.clientX - x0); layoutEdit(); };
-  const up = () => {
-    removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up);
-    edPanel.classList.remove('drag');
-    sideW = edPanel.offsetWidth; store.set('sidew', sideW);
-  };
-  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
-}
+function closePressMenu(){ pressMenu.hidden = true; pressMenu._card = null; }
+$('pressPeek').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) openPeek(c._item); });
+$('pressPick').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) pickCard(c._item, false); });
+// 外を押したら閉じるだけ（後ろのカードは開かない）。長押しを離したときのクリックは、カードの方で無視する
+document.addEventListener('click', e => {
+  if(pressMenu.hidden || e.target.closest('#pressMenu')) return;
+  const c = e.target.closest('.card');
+  if(c && c === pressMenu._card && c._long) return;
+  e.preventDefault(); e.stopPropagation(); closePressMenu();
+}, true);
+const endPress = () => { if(press){ clearTimeout(press.t); press = null; } };
+grid.addEventListener('pointermove', e => { if(press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) endPress(); });
+grid.addEventListener('pointerup', endPress);
+grid.addEventListener('pointercancel', endPress);
+grid.addEventListener('contextmenu', e => { if(e.target.closest('.card') && (selected.size || (press && press.c._long))) e.preventDefault(); });

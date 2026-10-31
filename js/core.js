@@ -1,5 +1,5 @@
-/* 土台：定数・小さな道具（$ el esc sleep）・store・state・api・apiText、
-   ブックマークとフォルダ・タグの読み込み（loadMeta refreshAll applyCache） */
+/* 道具・定数・store・state・api・データの読み込み、更新（新着・変更分・すべて読み直す）、
+   handleError、ブラウザの中のデータベースの道具（idbOpen idbDo） */
 const API = 'https://api.raindrop.io/rest/v1';
 // 端末間で共有する設定（プリセット・固定タグ）は、Raindrop の専用フォルダの1件のメモ欄に入れておく
 const SET_TITLE = 'rd-shuffle 設定';
@@ -230,3 +230,158 @@ function descendants(id){
   return set;
 }
 
+// ---- 更新は3種類 ----
+// 新着　　　　　　：開いたとき・アプリに戻ったときに自動で（数リクエスト）
+// Raindrop から更新：メニューから。前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込む
+// すべて読み直す　：設定の画面から（refreshAll）
+let lastSync = 0;
+function setUpdateBusy(b){ ['updDiff', 'refresh'].forEach(id => { $(id).disabled = b; }); }
+// 新しい順に見ていき、知っているものに当たったら止める
+async function syncNew(manual = false){
+  if(!cache || refreshing || !state.token) return;
+  lastSync = Date.now();
+  if(manual){ refreshing = true; setUpdateBusy(true); statusEl.textContent = '新着を確認中…'; }
+  let handoff = false;   // 全部読み込みに切り替えたら、後始末はそちらに任せる
+  try{
+    const known = new Set(cache.items.map(x => x.i));
+    const fresh = [];
+    for(let p = 0; p < 5; p++){
+      const r = await api(`/raindrops/0?perpage=${PER}&page=${p}&sort=-created`);
+      const list = r.items || [];
+      let reached = false;
+      list.forEach(it => {
+        if(known.has(it._id)){ reached = true; return; }
+        if(isSettingsRaw(it)) return;
+        known.add(it._id);
+        fresh.push(compact(it));
+      });
+      if(reached || list.length < PER) break;
+      if(p === 4){ handoff = true; refreshing = false; refreshAll(); return; }  // 多すぎるときは全部読み直す
+    }
+    if(!fresh.length){ if(manual) showToast('新着はありません', null); return; }
+    if(refreshing && !manual) return;
+    const meta = await loadMeta();
+    cache.items = fresh.concat(cache.items);
+    cache.colls = meta.colls;
+    cache.tags = meta.tags;
+    store.set('cache', cache);
+    applyCache();
+    showNewNote(`新着 ${fresh.length}件`, fresh.length);
+    bkAdd(fresh.length);
+  }catch(e){
+    if(manual) handleError(e);   // 自動の確認は、失敗しても黙って次の機会に
+  }finally{
+    if(manual && !handoff){ refreshing = false; setUpdateBusy(false); }
+  }
+}
+// 取り込んだ件数を下に短く知らせる（「新着 3件・更新 2件」）。新しい順で一番上を見ているときは、その場で並べ直す
+function showNewNote(text, added){
+  if(added && state.sort === 'new' && window.scrollY < 200 && !peek.open) render();
+  showToast(text, null);
+}
+
+// 変更分：Raindrop の検索「lastUpdate:日付」で、前回の取り込み以降に変わった日を1日ずつ調べる
+function autoSync(){ if(store.get('diffbroken', false)) syncNew(); else syncChanged(true); }
+async function syncChanged(quiet = false){
+  if(!cache || refreshing || !state.token) return;
+  lastSync = Date.now();
+  const since = cache.syncedAt || cache.savedAt;
+  // 間が空きすぎたときは、日ごとに調べるより全部読み込むほうが早い
+  if(Date.now() - since > 31 * DAY){
+    statusEl.textContent = '前回から時間がたっているので、全部読み込みます';
+    return refreshAll();
+  }
+  refreshing = true; setUpdateBusy(true);
+  let handoff = false;
+  try{
+    // 世界時の日付で、前回の前日から今日までを調べる（時差でこぼさないように1日広めに）
+    const dates = [];
+    for(let t = Date.now(); t >= since - DAY; t -= DAY) dates.push(new Date(t).toISOString().slice(0, 10));
+    const search = async (coll, q) => {
+      const out = [];
+      for(let p = 0; p < 40; p++){
+        const r = await api(`/raindrops/${coll}?perpage=${PER}&page=${p}&search=${encodeURIComponent(q)}`);
+        // 絞り込みが効かずに全部返ってきたら、変更分の取り込みはあきらめて全部読み込む
+        if(p === 0 && coll === 0 && cache.items.length > 200 && (r.count || 0) > cache.items.length * 0.8) throw new Error('nofilter');
+        const list = r.items || [];
+        out.push(...list);
+        if(list.length < PER) break;
+      }
+      return out;
+    };
+    const changed = new Map(), trashed = new Set();
+    for(const d of dates){
+      if(!quiet) statusEl.textContent = `変更を確認中… ${d}`;
+      (await search(0, `lastUpdate:${d}`)).forEach(it => { if(!isSettingsRaw(it)) changed.set(it._id, it); });
+      (await search(-99, `lastUpdate:${d}`)).forEach(it => trashed.add(it._id));
+    }
+    const byId = new Map(cache.items.map(x => [x.i, x]));
+    const updated = [], fresh = [];
+    changed.forEach((it, id) => {
+      if(trashed.has(id)) return;
+      const old = byId.get(id);
+      if(old){ Object.assign(old, compact(it)); updated.push(old); }   // 同じ物を書き換えるので、表示中のカードもそのまま使える
+      else fresh.push(compact(it));
+    });
+    const gone = cache.items.filter(x => trashed.has(x.i));
+    cache.items = fresh.concat(cache.items.filter(x => !trashed.has(x.i)));
+    // フォルダとタグの一覧は、何か変わったときだけ読み直す（自動の確認を軽く）
+    if(fresh.length || updated.length || gone.length){
+      const meta = await loadMeta();
+      cache.colls = meta.colls;
+      cache.tags = meta.tags;
+    }
+    cache.syncedAt = Date.now();
+    store.set('cache', cache);
+    applyCache();
+    if(updated.length) afterLocalChange(updated, { media:true });
+    gone.forEach(x => { const c = cardOf.get(x); if(c) setGone(c, 'ゴミ箱へ移動'); });
+    if(!quiet) statusEl.textContent = '';
+    const parts = [];
+    if(fresh.length) parts.push(`新着 ${fresh.length}件`);
+    if(updated.length) parts.push(`更新 ${updated.length}件`);
+    if(gone.length) parts.push(`削除 ${gone.length}件`);
+    if(!parts.length){ if(!quiet) showToast('変更はありません', null); }
+    else showNewNote(parts.join('・'), fresh.length);
+    bkAdd(fresh.length + updated.length);
+  }catch(e){
+    if(e.message === 'nofilter'){
+      handoff = true; refreshing = false;
+      // 自動の確認では全部を読み直さず、次からは新着だけを見る
+      if(quiet){ store.set('diffbroken', true); setUpdateBusy(false); syncNew(); return; }
+      statusEl.textContent = '変更分だけを取れなかったので、全部読み込みます'; refreshAll(); return;
+    }
+    if(quiet){ statusEl.textContent = ''; return; }   // 自動の確認は、失敗しても黙って次の機会に
+    handleError(e);
+  }finally{
+    if(!handoff){ refreshing = false; setUpdateBusy(false); }
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible' && Date.now() - lastSync > 5 * 60 * 1000) autoSync();
+  if(document.visibilityState === 'visible' && Date.now() - lastPull > 60 * 1000) pullSettings();
+});
+
+function handleError(e){
+  const m = {
+    auth:'トークンが無効です。設定から入れ直してください。',
+    network:'Raindrop に接続できませんでした。ネット接続を確認してください。',
+    rate:'読み込みの上限に達しました。1分ほど待ってから「更新」を押してください。'
+  }[e.message] || '読み込みに失敗しました。「更新」をもう一度押してください。';
+  statusEl.textContent = m;
+  if(e.message === 'auth') openToken();
+}
+
+// ---- 保存（ブラウザの中のデータベース）----
+const idbs = {};
+function idbOpen(name, st){
+  return idbs[name] || (idbs[name] = new Promise((res, rej) => {
+    const r = indexedDB.open(name, 1);
+    r.onupgradeneeded = () => { if(!r.result.objectStoreNames.contains(st)) r.result.createObjectStore(st); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+}
+async function idbDo(name, st, mode, fn){
+  const db = await idbOpen(name, st);
+  return new Promise((res, rej) => { const t = db.transaction(st, mode); const q = fn(t.objectStore(st)); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
+}

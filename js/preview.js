@@ -1,5 +1,4 @@
-/* プレビュー：開く（openPeek）・前後へ送る・後ろを止める（lockScroll）、動画、回転と反転、
-   省データ（高画質は押したとき）、画像の下の2行に出す文字（itemTitle siteName saveDate authorName） */
+/* プレビュー（開く・送る・閉じる・タップ）、画像だけを見る、動画、回転、省データ、ズーム、明るさ */
 // ---- プレビュー ----
 const peek = $('peek'), peekBody = $('peekBody');
 let peekItem = null;
@@ -233,3 +232,212 @@ function openPeek(it, stepping){
   applyEditOpen(stepping);
 }
 
+// 閉じたあとの片付けは、close の知らせ（少し遅れて届く）を待たずにその場で行う
+function closePeek(){
+  if(peek.open){ peek.close(); onPeekClosed(); }
+}
+
+let peekCleaned = true, peekSilent = false;
+peek.addEventListener('close', onPeekClosed);
+function onPeekClosed(){
+  if(peekCleaned) return;
+  peekCleaned = true;
+  popLayer('peek');
+  viewEnd();
+  const last = peekItem;
+  hideCrop();
+  peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
+  setBare(false);   // 次に開くときは、ボタンと文字が出ている状態から
+  unlockScroll();
+  // 一覧にまだ出ていないところまで送っていたら、そこまでカードを足してから合わせる
+  const at = last ? order.indexOf(last) : -1;
+  while(at >= shownCount && shownCount < poolSize) appendMore();
+  if(peekSilent) peekSilent = false; else revealCard(last);
+}
+// プレビューを閉じたら、最後に見ていたカードが画面に入るところまでスクロールして、軽く光らせる
+// （前後に送っているうちに追加で読み込んだカードは、並び終わるのを少し待つ）
+function revealCard(it, tries = 0){
+  const c = it && cardOf.get(it);
+  if(!c) return;
+  if(!c._placed || !c.isConnected){ if(tries < 30) setTimeout(() => revealCard(it, tries + 1), 100); return; }
+  const top = document.querySelector('header').offsetHeight;
+  const r = c.getBoundingClientRect();
+  if(r.top < top || r.bottom > innerHeight){
+    const room = innerHeight - top;
+    const y = scrollY + r.top - top - Math.max(12, (room - r.height) / 2);
+    window.scrollTo({ top:Math.max(0, y), behavior:'instant' });
+  }
+  c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
+}
+const touchUI = matchMedia('(hover:none)').matches;
+peek.addEventListener('click', e => {
+  // ボタン類や編集パネルを押したときは何もしない。
+  // 押した直後に作り直されて画面から外れた部品（フォルダの選択欄など）は closest で親をたどれないので、
+  // 押した時点の経路（composedPath）で判断する
+  if(!e.target.isConnected) return;
+  if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like, .lb-sim, .lb-info, .crop'))) return;
+  if(zoomDragged){ zoomDragged = false; return; }   // ドラッグで動かした直後のクリックは無視
+  // ズーム中はクリック（タップ）で元の大きさに戻す
+  if(zoom.s !== 1){ resetZoom(true); setBare(false); return; }
+  if(e.target.closest('video[controls]')) return;
+  // 画像の真ん中の正方形を押すと、ボタンと文字を消す・戻す（情報の画面を開いている間は今までどおり）
+  if(!peek.classList.contains('editing') && inPeekCenter(e.clientX, e.clientY)){ setBare(!peekBare); return; }
+  // スマホ：画面の左半分をタップで前へ、右半分で次へ（閉じるのは×ボタン）
+  if(touchUI){ stepPeek(e.clientX < window.innerWidth / 2 ? -1 : 1); return; }
+  // PC：消している間は、どこを押しても戻すだけ（見えない矢印の場所を押して閉じてしまわないように）
+  if(peekBare){ setBare(false); return; }
+  // 画像やボタン以外（後ろが透けているところ）を押すと閉じる
+  if(e.target === peek || e.target === peekBody || e.target === zoomer) closePeek();
+});
+$('peekClose').addEventListener('click', closePeek);
+document.querySelector('#peekRd .lb-rd-ic').innerHTML = RD_ICON;
+
+// ---- ズーム：ホイールで拡大縮小（最初の大きさより小さくもできる）、ドラッグで移動、クリックで元に戻す ----
+const zoomer = $('zoomer'), zoomInd = $('zoomInd');
+const zoom = { s:1, x:0, y:0 };
+let zoomDragged = false, zoomIndTimer = 0;
+function applyZoom(anim){
+  zoomer.classList.toggle('anim', !!anim);
+  zoomer.style.transform = (zoom.s === 1 && !zoom.x && !zoom.y) ? '' : `translate(${zoom.x}px, ${zoom.y}px) scale(${zoom.s})`;
+  peek.classList.toggle('zoomed', zoom.s !== 1);
+}
+function showZoomInd(){
+  zoomInd.textContent = Math.round(zoom.s * 100) + '%';
+  zoomInd.classList.add('show');
+  clearTimeout(zoomIndTimer);
+  zoomIndTimer = setTimeout(() => zoomInd.classList.remove('show'), 900);
+}
+function resetZoom(anim){ zoom.s = 1; zoom.x = 0; zoom.y = 0; applyZoom(anim); }
+// (cx, cy) を中心に倍率を factor 倍する
+function zoomAt(factor, cx, cy){
+  if(factor > 1) viewBonus('zoom');
+  const was = zoom.s;
+  const r = peekBody.getBoundingClientRect();
+  const px = cx - (r.left + r.width / 2), py = cy - (r.top + r.height / 2);
+  const s2 = Math.min(10, Math.max(0.2, zoom.s * factor));
+  const k = s2 / zoom.s;
+  zoom.x = px - (px - zoom.x) * k;
+  zoom.y = py - (py - zoom.y) * k;
+  zoom.s = Math.abs(s2 - 1) < 0.02 ? 1 : s2;
+  if(zoom.s === 1){ zoom.x = 0; zoom.y = 0; }
+  applyZoom(false);
+  showZoomInd();
+  if(was !== 1 && zoom.s === 1) setBare(false);   // ズームを元の大きさに戻したら、消していたボタンと文字を戻す
+}
+peekBody.addEventListener('wheel', e => {
+  if(e.target.closest('iframe')) return;
+  e.preventDefault();
+  zoomAt(Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), e.clientX, e.clientY);
+}, { passive:false });
+// マウスのドラッグで移動
+let dragStart = null;
+peekBody.addEventListener('pointerdown', e => {
+  zoomDragged = false;   // 新しい操作の始まり：前のドラッグの印が残って次のタップを無視しないように
+  if(e.pointerType !== 'mouse' || e.button !== 0 || zoom.s === 1 || e.target.closest('video[controls]')) return;
+  dragStart = { x:e.clientX, y:e.clientY, zx:zoom.x, zy:zoom.y, moved:false };
+  zoomer.classList.add('drag');
+  e.preventDefault();
+});
+addEventListener('pointermove', e => {
+  if(!dragStart) return;
+  const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
+  if(Math.abs(dx) + Math.abs(dy) > 4) dragStart.moved = true;
+  zoom.x = dragStart.zx + dx; zoom.y = dragStart.zy + dy;
+  applyZoom(false);
+});
+addEventListener('pointerup', () => {
+  if(!dragStart) return;
+  zoomDragged = dragStart.moved;
+  dragStart = null;
+  zoomer.classList.remove('drag');
+});
+// スマホの指の操作：2本指で拡大縮小／拡大中は1本指で移動／等倍のときは左右スワイプで前後へ
+let touch = null;
+const center = (a, b) => ({ d:Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), mx:(a.clientX + b.clientX) / 2, my:(a.clientY + b.clientY) / 2 });
+peekBody.addEventListener('touchstart', e => {
+  const t = e.touches;
+  if(t.length === 1 && !touch) zoomDragged = false;
+  if(t.length === 2) touch = { mode:'pinch', ...center(t[0], t[1]) };
+  else if(t.length === 1) touch = zoom.s !== 1
+    ? { mode:'pan', x:t[0].clientX, y:t[0].clientY, moved:false }
+    : { mode:'swipe', x:t[0].clientX, y:t[0].clientY, dir:'', b0:bright,
+        // 画面のいちばん下（iPhone のアプリ切り替えのバーのあたり）から始まった指は、明るさにも前後にも使わない
+        edge: t[0].clientY > innerHeight - EDGE_B };
+}, { passive:true });
+peekBody.addEventListener('touchmove', e => {
+  if(!touch) return;
+  if(touch.mode === 'swipe'){
+    // 等倍のとき：最初に動いた向きで決める。縦なら明るさ（上で明るく、下で暗く）、横なら離したときに前後へ
+    if(e.touches.length !== 1 || touch.edge) return;
+    const t = e.touches[0], dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+    if(!touch.dir && Math.abs(dx) + Math.abs(dy) > 12) touch.dir = Math.abs(dy) > Math.abs(dx) * 1.2 ? 'v' : 'h';
+    if(touch.dir === 'v'){ e.preventDefault(); setBare(false); setBright(touch.b0 - dy * 1.5 / (peekBody.clientHeight || innerHeight)); }
+    return;
+  }
+  e.preventDefault();
+  if(touch.mode === 'pinch' && e.touches.length === 2){
+    const c = center(e.touches[0], e.touches[1]);
+    zoom.x += c.mx - touch.mx; zoom.y += c.my - touch.my;
+    zoomAt(c.d / touch.d, c.mx, c.my);
+    Object.assign(touch, c);
+  }else if(touch.mode === 'pan' && e.touches.length === 1){
+    const t = e.touches[0];
+    const dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+    if(Math.abs(dx) + Math.abs(dy) > 4) touch.moved = true;
+    zoom.x += dx; zoom.y += dy; touch.x = t.clientX; touch.y = t.clientY;
+    applyZoom(false);
+  }
+}, { passive:false });
+peekBody.addEventListener('touchend', e => {
+  if(!touch) return;
+  if(touch.mode === 'pan' && touch.moved) zoomDragged = true;
+  if(touch.mode === 'swipe' && touch.edge){ /* 端から始まった指は何もしない */ }
+  else if(touch.mode === 'swipe' && touch.dir === 'v'){ zoomDragged = true; saveBright(); lastVDrag = { b0:touch.b0, at:Date.now() }; }
+  else if(touch.mode === 'swipe' && !e.touches.length && zoom.s === 1){
+    const t = e.changedTouches[0], dx = t.clientX - touch.x, dy = t.clientY - touch.y;
+    if(Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) stepPeek(dx < 0 ? 1 : -1);
+  }
+  // 2本指のあと1本だけ残ったら、拡大中ならそのまま移動に切り替える
+  touch = (e.touches.length === 1 && zoom.s !== 1) ? { mode:'pan', x:e.touches[0].clientX, y:e.touches[0].clientY, moved:true } : null;
+}, { passive:true });
+// 途中で指の操作が打ち切られたとき（通知が来た等）も、次のタップを取りこぼさないように片付ける
+// 明るさを変えている途中で打ち切られたときは、アプリの切り替えなどに指を取られたので、変える前に戻す
+peekBody.addEventListener('touchcancel', () => {
+  if(touch && touch.mode === 'swipe' && touch.dir === 'v'){ setBright(touch.b0, true); saveBright(); }
+  touch = null;
+}, { passive:true });
+// 明るさを変えた直後にアプリから離れたら（下から持ち上げてアプリを切り替えた等）、それも元に戻す
+const EDGE_B = 40;
+let lastVDrag = null;
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState !== 'hidden') return;
+  const d = touch && touch.mode === 'swipe' && touch.dir === 'v' ? { b0:touch.b0, at:Date.now() } : lastVDrag;
+  if(d && Date.now() - d.at < 1000){ setBright(d.b0, true); saveBright(); }
+  lastVDrag = null; touch = null;
+});
+$('peekPrev').addEventListener('click', () => stepPeek(-1));
+
+// ---- 明るさ：上下スワイプ（PCは↑↓キー）で、プレビューだけを暗く・明るくする（端末の画面の明るさは変えられないので） ----
+const peekDim = $('peekDim');
+let bright = Number(store.get('bright', 1)) || 1;
+function applyBright(){
+  peekDim.classList.toggle('on', bright < 1);                          // 背景：100%未満のときだけ黒い膜（中身の後ろ）
+  peekDim.style.opacity = bright < 1 ? String(1 - bright) : '';
+  zoomer.style.filter = bright !== 1 ? `brightness(${bright})` : '';   // 画像・動画：そのものを暗く／明るく
+  // 100%以外のときだけ、上のバーに今の明るさ（押すと100%に戻る）を出す
+  $('peekBright').hidden = bright === 1;
+  $('peekBrightV').textContent = Math.round(bright * 100) + '%';
+}
+$('peekBright').addEventListener('click', () => { setBright(1); saveBright(); });
+function setBright(v, quiet){
+  v = Math.min(1.4, Math.max(0.1, v));
+  bright = Math.abs(v - 1) < 0.03 ? 1 : Math.round(v * 100) / 100;
+  applyBright();
+  if(quiet) return;
+  zoomInd.textContent = `明るさ ${Math.round(bright * 100)}%`;
+  zoomInd.classList.add('show'); clearTimeout(zoomIndTimer);
+  zoomIndTimer = setTimeout(() => zoomInd.classList.remove('show'), 900);
+}
+function saveBright(){ store.set('bright', bright); }
+applyBright();
+$('peekNext').addEventListener('click', () => stepPeek(1));

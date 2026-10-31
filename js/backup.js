@@ -1,5 +1,4 @@
-/* バックアップ（bkInit bkRun bkAuto bkPrune bkShare bkPaint）。
-   保存先の持ち手は IndexedDB rdbackup（使う idbDo は similar.js にある） */
+/* バックアップ（Raindrop がなくなっても中身が手元に残るように） */
 // ---- バックアップ（Raindrop がなくなっても中身が手元に残るように、定期的に写しを取る）----
 // Mac の Chrome：選んだフォルダに、1回ごとに日付のフォルダを作って3つのファイルを書く。
 //   前回から「新着＋更新＋アプリ内の編集」が 100 件たまったら、裏で自動に取る（「自動で保存」がオンのとき）。手動はいつでも。
@@ -209,4 +208,3 @@ function bkHand(made, first){
   list.forEach(f => { const a = el('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000); });
   bkDone(partial); bkPaint();
 }
-

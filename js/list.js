@@ -1,6 +1,142 @@
-/* 一覧：一段奥の画面（views enterView restoreView 道すじ）、戻る（pushLayer popLayer popstate）、
-   石積みの並べ方（layout placeCard）、サムネの候補と読み込み（thumbs mediaEl）、カード（card captionEl）、
-   アイコン（ICONS icon） */
+/* 一覧の並べ方（並び順・シャッフル・render・appendMore・続きの読み込み）、石積み・カード・サムネ・
+   画像がないときの代わり、一段奥の画面（似た画像・サムネが出ないもの）、戻る（pushLayer） */
+function shuffleArray(a){
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// 並べ替えはすべてブラウザの中で行う（Raindrop には問い合わせない）。
+// 条件に合う全件を一度に並べ、スクロールに合わせて少しずつカードを足していく
+let order = [];
+let shownCount = 0;
+let poolSize = 0;
+
+// 検索用の文字列（タイトル・URL・タグ・フォルダ名）はその場で作って覚えておく
+const hayCache = new WeakMap();
+function hayOf(x){
+  let h = hayCache.get(x);
+  if(!h){
+    h = [x.t, x.l, x.d, (x.g || []).join(' '), collName(x)].join(' ').toLowerCase();
+    hayCache.set(x, h);
+  }
+  return h;
+}
+function sortPool(pool){
+  const a = pool.slice();
+  const byDate = (x, y) => (x.a || '').localeCompare(y.a || '') || x.i - y.i;
+  if(state.sort === 'new') return a.sort((x, y) => byDate(y, x));
+  if(state.sort === 'old') return a.sort(byDate);
+  if(state.sort === 'title') return a.sort((x, y) => jaCmp((x.t || x.l), y.t || y.l));
+  // ♥ した順：♥ したものだけを、最後に ♥ した順に
+  if(state.sort === 'liked') return a.filter(x => likesOf(x)).sort((x, y) => heat.get(y.i).tl - heat.get(x.i).tl || likesOf(y) - likesOf(x));
+  // ランダム：熱いものほどくじが当たりやすい（並び全体に散らばって、少し多めに前の方に来る）
+  const s = heatStrength();
+  if(!s || !heat.size) return shuffleArray(a);
+  const now = Date.now();
+  return a.map(x => [x, -Math.log(1 - Math.random()) / heatWeight(x.i, now, s)]).sort((p, q) => p[1] - q[1]).map(p => p[0]);
+}
+// シャッフルボタン：並び順をシャッフルにして並べ直す
+function shuffle(){
+  exitSimilar();
+  if(state.sort !== 'shuffle'){ state.sort = 'shuffle'; store.set('sort', 'shuffle'); applySortUI(); }
+  render();
+}
+// 並び順：右の「ランダム ▾」から選ぶ。⇆ はランダムのときだけ出す
+const SORT_NAMES = { shuffle:'ランダム', new:'新しい順', old:'古い順', title:'タイトル順', liked:'♥ した順' };
+function applySortUI(){
+  if(!(state.sort in SORT_NAMES)) state.sort = 'shuffle';
+  $('sortLabel').textContent = SORT_NAMES[state.sort];
+  shuffleBtn.hidden = state.sort !== 'shuffle';
+  document.querySelectorAll('#sortMenu .menu-item').forEach(b => { b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', String(b.dataset.sort === state.sort)); });
+}
+function setSort(v){
+  exitSimilar();
+  state.sort = v; store.set('sort', v); applySortUI();
+  if(cache) render();
+}
+// 今の条件（範囲・種類・検索・並び順）で並べ直す
+function render(){
+  if(!cache){ refreshAll(); return; }
+  clearSelection();
+  // 似ているものを並べている間は、元の一覧の絞り込みも並び順も使わず、近い順のまま（似た画像の条件があれば、合うものだけ）
+  // サムネが出ないものだけのときは、今の絞り込みの中から
+  const pool = sim ? simPool() : cache.items.filter(makeFilter(state.filter)).filter(x => !ntMode || isNoThumb(x));
+  order = sim ? pool.slice() : sortPool(pool);
+  poolSize = order.length;
+  renderDeepBar();
+  shownCount = 0;
+  cardEls = [];
+  placeGen++; placeQueue = Promise.resolve(); placing = 0;
+  const oldHero = heroOf(); if(oldHero) oldHero.remove();
+  layout(true);
+  if(sim){
+    // 押した画像を1列目の先頭に（一覧の中には出さない）。画像が読み込まれて高さが決まってから、ほかのカードを並べ始める
+    const h = card(sim.center, true), gen = placeGen;
+    putHero(h);
+    placeQueue = placeQueue.then(() => Promise.race([h._ready, sleep(3000)])).then(() => { if(gen === placeGen) syncHeroGap(); });
+  }
+  watchHero();
+  window.scrollTo({ top:0, behavior:'instant' });
+  empty.hidden = poolSize > 0;
+  if(!poolSize){
+    moreEl.hidden = true;
+    statusEl.textContent = 'この条件のブックマークはありません。左上の「絞り込み」で条件を変えてください。';
+    return;
+  }
+  appendMore();
+  paintSimNone();
+}
+// 似た画像の並び：押した画像を先頭に、条件に合うものだけを似ている順に（押した画像は条件に関係なく出す）
+function simPool(){
+  if(!simF) return sim.list;
+  const f = makeFilter(simF);
+  return [sim.center, ...sim.list.filter(x => x !== sim.center && f(x))];
+}
+// 似た画像を絞り込んで合うものがないとき：「合うものがありません」［絞り込みを変える］
+function paintSimNone(){
+  const box = $('simNone');
+  const on = !!(sim && simF && poolSize <= 1);
+  box.hidden = !on;
+  if(!on) return;
+  const h = heroOf();
+  if(colCount >= 3 && h && cols[2]){
+    // 列が3本以上：上の画像の右の空き（3列目から右端まで、上の画像と同じ高さ）の真ん中
+    const a = cols[2].getBoundingClientRect(), z = cols[cols.length - 1].getBoundingClientRect(), hr = h.getBoundingClientRect();
+    box.classList.add('beside');
+    Object.assign(box.style, { left:(a.left + scrollX) + 'px', width:(z.right - a.left) + 'px', top:(hr.top + scrollY) + 'px', height:Math.max(hr.height, 160) + 'px' });
+  }else{
+    box.classList.remove('beside');
+    box.removeAttribute('style');
+  }
+}
+$('simNoneBtn').addEventListener('click', () => openFilter());
+
+// 画像の大きさが分かってから列に入れる。先に入れると高さ0として数えてしまい、
+// 縦長の画像が同じ列に偏って、下の方が1列だけになる。
+let placeGen = 0, placeQueue = Promise.resolve(), placing = 0;
+function appendMore(){
+  const next = order.slice(shownCount, shownCount + state.count);
+  const gen = placeGen;
+  // 似た画像の画面では、押した画像（いちばん上に置いたもの）は一覧に入れない
+  const els = next.filter(it => !(sim && it === sim.center)).map(it => { const c = card(it); cardEls.push(c); return c; });
+  shownCount += next.length;
+  placing += els.length;
+  placeQueue = placeQueue.then(async () => {
+    for(const c of els){
+      if(gen !== placeGen) return;
+      await Promise.race([c._ready, sleep(3000)]);
+      if(gen !== placeGen) return;
+      c._placed = true;
+      placeCard(c);
+      placing--;
+    }
+  });
+  updateStatus();
+}
+
 // ---- 一段奥の画面（似た画像・サムネイルが出ないもの）----
 // 入るときに今の一覧（並び・カード・スクロール位置）をそのまま取っておき、戻ったら元に戻す。
 // 似た画像の中でさらに似た画像を開くと、もう一段奥へ。戻るは一段ずつ
@@ -576,3 +712,113 @@ function card(it, top = false){
   return wrap;
 }
 
+// 画像がないときの代わり：タイトルを文字で見せる（タイトルもなければサイトの頭文字）
+function placeholder(it){
+  const title = (it.t || '').trim();
+  const site = (it.d || '').replace(/^www\./, '');
+  if(!title) return el('div', 'ph', ((site || '?')[0] || '?').toUpperCase());
+  const div = el('div', 'ph ph-text');
+  div.append(el('div', 'ph-title', title), el('div', 'ph-site', site));
+  return div;
+}
+
+function setShuffleBusy(b){
+  shuffleBtn.disabled = b; sortBtn.disabled = b;
+}
+
+const moreEl = $('more');
+new IntersectionObserver(entries => {
+  if(entries.some(e => e.isIntersecting) && shownCount < poolSize && !placing) appendMore();
+}, { rootMargin:'1200px 0px' }).observe(moreEl);
+// 画面がまだ埋まっていなければ、続きを足し続ける
+setInterval(() => {
+  if(shownCount < poolSize && !placing && document.documentElement.scrollHeight - innerHeight - scrollY < 1200) appendMore();
+}, 800);
+
+let resizeTimer = 0;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => layout(false), 150); });
+
+shuffleBtn.addEventListener('click', shuffle);
+const sortMenu = $('sortMenu');
+function setSortMenu(open){ sortMenu.hidden = !open; sortBtn.setAttribute('aria-expanded', String(open)); if(open) setMenu(false); }
+sortBtn.addEventListener('click', e => { e.stopPropagation(); setSortMenu(sortMenu.hidden); });
+sortMenu.addEventListener('click', e => { const b = e.target.closest('[data-sort]'); if(!b) return; setSortMenu(false); setSort(b.dataset.sort); });
+applySortUI();
+
+// ---- サムネが出ないものだけを並べる（メニューから。今の絞り込みの中から選ぶ）----
+// 一覧やプレビューで画像を出そうとした結果を、ブックマークごとに覚えておく（出た／どの候補も出なかった）。
+// サムネの候補（カバーや添付）が変わったら、覚えていた結果は使わない
+var ntMode = false;
+const thumbOk = store.get('thumbok', {});   // ID → '1:印' か '0:印'（印 = 候補の URL から作った短い文字）
+let thumbOkTimer = 0, ntBarTimer = 0;
+const strHash = s => { let h = 2166136261; for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+const thumbSig = it => strHash(thumbs(it).map(x => x.url).join('|') + '|' + it.l);
+function markThumb(it, ok){
+  if(!ok && navigator.onLine === false) return;   // つながっていないときの失敗は覚えない
+  const v = (ok ? '1:' : '0:') + thumbSig(it);
+  if(thumbOk[it.i] === v) return;
+  thumbOk[it.i] = v;
+  clearTimeout(thumbOkTimer);
+  thumbOkTimer = setTimeout(() => store.set('thumbok', thumbOk), 1500);
+  if(ntMode){ clearTimeout(ntBarTimer); ntBarTimer = setTimeout(renderDeepBar, 300); }
+}
+function thumbState(it){
+  const v = thumbOk[it.i]; if(!v) return null;
+  return v.slice(2) === thumbSig(it) ? v[0] === '1' : null;
+}
+// 候補が1つもなく、中継サービスで探せるサイト（X・pixiv）でもないもの：確かめるまでもなく出ない
+const canSiteThumb = it => !!xId(it.l) || /pixiv\.net\/(?:.*artworks\/\d+|.*illust_id=\d+)/.test(it.l || '');
+const surelyNone = it => !thumbs(it).length && !canSiteThumb(it);
+function isNoThumb(it){ const s = thumbState(it); return s === null ? surelyNone(it) : !s; }
+const isThumbUnknown = it => thumbState(it) === null && !surelyNone(it);
+
+// 確かめる：小さいサイズで1枚ずつ読んでみる（6件ずつ同時に）
+const tinyUrl = u => /pbs\.twimg\.com\//.test(u) ? (u.includes('name=') ? u.replace(/([?&]name=)\w+/, '$1thumb') : u + (u.includes('?') ? '&' : '?') + 'name=thumb')
+  : `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=48&h=48&fit=cover&output=webp`;
+function probeImg(url){
+  return new Promise(res => {
+    const im = new Image(); im.referrerPolicy = 'no-referrer';
+    const t = setTimeout(() => { im.src = ''; res(false); }, 15000);
+    im.onload = () => { clearTimeout(t); res(true); }; im.onerror = () => { clearTimeout(t); res(false); };
+    im.src = url;
+  });
+}
+function probeVideo(url){
+  return new Promise(res => {
+    const v = document.createElement('video'); v.muted = true; v.preload = 'metadata';
+    const t = setTimeout(() => { v.removeAttribute('src'); res(false); }, 15000);
+    v.onloadedmetadata = () => { clearTimeout(t); v.removeAttribute('src'); v.load(); res(true); }; v.onerror = () => { clearTimeout(t); res(false); };
+    v.src = url;
+  });
+}
+async function probeThumb(it){
+  for(const c of thumbs(it)){
+    if(c.video ? await probeVideo(c.url) : (await probeImg(tinyUrl(c.url)) || await probeImg(c.url))) return true;
+  }
+  for(const u of await siteThumbs(it)) if(await probeImg(tinyUrl(u)) || await probeImg(u)) return true;
+  return false;
+}
+let ntChecking = false, ntStop = false;
+async function checkThumbs(list){
+  ntChecking = true; ntStop = false; renderDeepBar();
+  let next = 0, done = 0;
+  const worker = async () => {
+    while(!ntStop && next < list.length){
+      const it = list[next++];
+      try{ markThumb(it, await probeThumb(it)); }catch(e){}
+      done++;
+      if(ntMode) $('deepSub').textContent = `確かめています… ${done.toLocaleString()} / ${list.length.toLocaleString()}`;
+    }
+  };
+  await Promise.all(Array.from({ length:6 }, worker));
+  store.set('thumbok', thumbOk);
+  ntChecking = false;
+  if(ntMode && cache) render(); else renderDeepBar();
+}
+$('ntBtn').addEventListener('click', () => { setMenu(false); if(ntMode || !cache) return; enterView({ kind:'nt' }); });
+$('ntCheck').addEventListener('click', () => {
+  if(ntChecking){ ntStop = true; return; }
+  const pool = cache.items.filter(makeFilter(state.filter));
+  const unknown = pool.filter(isThumbUnknown);
+  checkThumbs(unknown.length ? unknown : pool.filter(isNoThumb).filter(it => !surelyNone(it)));
+});

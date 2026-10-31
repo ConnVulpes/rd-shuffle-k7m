@@ -1,5 +1,4 @@
-/* 似た画像：印象の地図（IndexedDB の idbDo・画像の AI・縮める・Raindrop との同期・タグで曲げる・地図を更新）、
-   似たものを並べる（showSimilar）、範囲で探す（openCrop cropSearch）。最後に updateMapState() を1回 */
+/* 似た画像の地図（作る・縮める・Raindrop に置く・合わせる・曲げる）、似た画像を並べる、範囲で探す */
 // ===== 似ているもの（印象の地図） =====
 // 本人が試しページで選んだ組み合わせ：DINOv2 small・全体＋何か所か・あなたのタグで曲げた地図（強さ「中」）。
 // 地図は Mac で作り、64個の数字に縮めて Raindrop の「rd-shuffle 地図」フォルダに置く。iPhone はそれを読むだけ。
@@ -14,19 +13,6 @@ let mapKnownAt = store.get('mapat', 0);       // いちばん新しい地図の�
 let mapRef = store.get('mapref', null);       // { coll:フォルダID }
 var simMap = null, simFit = null, sim = null, simBusy = false; // 読み込んだ地図・曲げた地図・今並べている「似ているもの」（起動中に先に触られるので var）
 
-// ---- 保存（ブラウザの中のデータベース）----
-const idbs = {};
-function idbOpen(name, st){
-  return idbs[name] || (idbs[name] = new Promise((res, rej) => {
-    const r = indexedDB.open(name, 1);
-    r.onupgradeneeded = () => { if(!r.result.objectStoreNames.contains(st)) r.result.createObjectStore(st); };
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-  }));
-}
-async function idbDo(name, st, mode, fn){
-  const db = await idbOpen(name, st);
-  return new Promise((res, rej) => { const t = db.transaction(st, mode); const q = fn(t.objectStore(st)); t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); });
-}
 const mapLocalGet = () => idbDo('rdmap', 'kv', 'readonly', s => s.get('map')).catch(() => null);
 const mapLocalSet = rec => idbDo('rdmap', 'kv', 'readwrite', s => s.put(rec, 'map')).catch(() => null);
 // 試しページの地図（画像1枚ずつの元の数字。Mac にだけある）
@@ -859,4 +845,3 @@ async function cropSearch(){
   }
 }
 updateMapState();
-

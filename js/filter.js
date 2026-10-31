@@ -1,5 +1,4 @@
-/* 絞り込み：条件（state.filter）と makeFilter・filterSummary、絞り込みの画面（renderFilterDlg）、
-   プリセット（renderPresets）、openFilter。最後に並べ替えの道具 shuffleArray もある */
+/* 絞り込み（makeFilter）、絞り込みの画面（renderFilterDlg）、プリセット（renderPresets） */
 // ---- 絞り込み（フォルダ・タグの「含む／除く」、種類、言葉）----
 // fi/fx = 含む/除くフォルダ, ti/tx = 含む/除くタグ, tm = 含むタグが複数のとき any|all
 const NO_TAG = '\u0000none';
@@ -294,14 +293,3 @@ function applyFilterDlg(){
 }
 $('fdOk').addEventListener('click', applyFilterDlg);
 filterDlg.addEventListener('click', e => { if(e.target === filterDlg) filterDlg.close(); });
-
-function shuffleArray(a){
-  for(let i = a.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-// 並べ替えはすべてブラウザの中で行う（Raindrop には問い合わせない）。
-// 条件に合う全件を一度に並べ、スクロールに合わせて少しずつカードを足していく
