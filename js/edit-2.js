@@ -583,6 +583,7 @@ function onPeekClosed(){
   const last = peekItem;
   hideCrop();
   peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
+  setBare(false);   // 次に開くときは、ボタンと文字が出ている状態から
   unlockScroll();
   // 一覧にまだ出ていないところまで送っていたら、そこまでカードを足してから合わせる
   const at = last ? order.indexOf(last) : -1;
@@ -613,10 +614,14 @@ peek.addEventListener('click', e => {
   if(e.composedPath().some(n => n.matches && n.matches('.lb-top, .lb-nav, .lb-edit, .lb-toast, .lb-bright, .lb-hq, .lb-like, .lb-sim, .lb-info, .crop'))) return;
   if(zoomDragged){ zoomDragged = false; return; }   // ドラッグで動かした直後のクリックは無視
   // ズーム中はクリック（タップ）で元の大きさに戻す
-  if(zoom.s !== 1){ resetZoom(true); return; }
+  if(zoom.s !== 1){ resetZoom(true); setBare(false); return; }
   if(e.target.closest('video[controls]')) return;
+  // 画像の真ん中の正方形を押すと、ボタンと文字を消す・戻す（情報の画面を開いている間は今までどおり）
+  if(!peek.classList.contains('editing') && inPeekCenter(e.clientX, e.clientY)){ setBare(!peekBare); return; }
   // スマホ：画面の左半分をタップで前へ、右半分で次へ（閉じるのは×ボタン）
   if(touchUI){ stepPeek(e.clientX < window.innerWidth / 2 ? -1 : 1); return; }
+  // PC：消している間は、どこを押しても戻すだけ（見えない矢印の場所を押して閉じてしまわないように）
+  if(peekBare){ setBare(false); return; }
   // 画像やボタン以外（後ろが透けているところ）を押すと閉じる
   if(e.target === peek || e.target === peekBody || e.target === zoomer) closePeek();
 });

@@ -505,6 +505,12 @@ body.cur-idle .hero-crop{opacity:0}
 #peek.editing .lb-prev{left:calc(var(--edit-l, 0px) + 10px)}
 #peek.editing .lb-nav{top:calc((100% - var(--edit-h, 0px)) / 2)}
 #peek.editing .lb-toast{left:calc(var(--edit-l, 0px) + (100% - var(--edit-l, 0px)) / 2)}
+/* 画像だけを見る（画像の真ん中を押す）：上の段・下の2行と段・♥・明るさ・高画質・PC の矢印を消す。
+   画像の大きさと位置は変えない。消えている間は押せない（消し始めた瞬間から） */
+.lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav{transition:opacity .15s, visibility 0s}
+#peek.bare :is(.lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav){opacity:0; visibility:hidden; transition:opacity .15s, visibility 0s .15s}
+#peek.bare :is(.lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav), #peek.bare :is(.lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav) *{pointer-events:none}
+@media (prefers-reduced-motion: reduce){ .lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav, #peek.bare :is(.lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav){transition:none} }
 /* 編集パネル：PC は左から、スマホは下から（つまみを上に引くと画面いっぱい） */
 .lb-edit{position:absolute; z-index:3; display:flex; flex-direction:column; background:var(--card); color:var(--text); font-size:var(--fs)}
 .lb-edit[hidden]{display:none}

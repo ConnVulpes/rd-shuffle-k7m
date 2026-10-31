@@ -20,6 +20,7 @@ function resetZoom(anim){ zoom.s = 1; zoom.x = 0; zoom.y = 0; applyZoom(anim); }
 // (cx, cy) を中心に倍率を factor 倍する
 function zoomAt(factor, cx, cy){
   if(factor > 1) viewBonus('zoom');
+  const was = zoom.s;
   const r = peekBody.getBoundingClientRect();
   const px = cx - (r.left + r.width / 2), py = cy - (r.top + r.height / 2);
   const s2 = Math.min(10, Math.max(0.2, zoom.s * factor));
@@ -30,6 +31,7 @@ function zoomAt(factor, cx, cy){
   if(zoom.s === 1){ zoom.x = 0; zoom.y = 0; }
   applyZoom(false);
   showZoomInd();
+  if(was !== 1 && zoom.s === 1) setBare(false);   // ズームを元の大きさに戻したら、消していたボタンと文字を戻す
 }
 peekBody.addEventListener('wheel', e => {
   if(e.target.closest('iframe')) return;
@@ -78,7 +80,7 @@ peekBody.addEventListener('touchmove', e => {
     if(e.touches.length !== 1 || touch.edge) return;
     const t = e.touches[0], dx = t.clientX - touch.x, dy = t.clientY - touch.y;
     if(!touch.dir && Math.abs(dx) + Math.abs(dy) > 12) touch.dir = Math.abs(dy) > Math.abs(dx) * 1.2 ? 'v' : 'h';
-    if(touch.dir === 'v'){ e.preventDefault(); setBright(touch.b0 - dy * 1.5 / (peekBody.clientHeight || innerHeight)); }
+    if(touch.dir === 'v'){ e.preventDefault(); setBare(false); setBright(touch.b0 - dy * 1.5 / (peekBody.clientHeight || innerHeight)); }
     return;
   }
   e.preventDefault();

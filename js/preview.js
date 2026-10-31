@@ -13,10 +13,30 @@ function updatePeekNav(it){
 // プレビューのまま前後のブックマークへ
 function stepPeek(d){
   if(!peekItem) return;
+  setBare(false);   // 送ったら、消していたボタンと文字を戻す
   const i = order.indexOf(peekItem) + d;
   if(i < 0 || i >= poolSize) return;
   // 後ろの一覧のカードは、プレビューを閉じたときにまとめて足す（送っている間は重くしない）
   openPeek(order[i], true);
+}
+
+// ---- 画像だけを見る：画像の真ん中を押すと、ボタンと文字を消す ----
+// 戻すのは、もう一度真ん中を押す・前へ次へ・ズームを元に戻す・明るさのスワイプ・キー操作。
+// ズームとパンの最中とそのあとは戻さない。画像の大きさと位置は変えない（見た目は app.css の #peek.bare）
+let peekBare = false;
+function setBare(v){
+  if(peekBare === v) return;
+  peekBare = v;
+  peek.classList.toggle('bare', v);
+}
+// 押した点が、表示している画像の中心に置いた正方形（一辺は画面の幅の 1/5）の中か
+function inPeekCenter(x, y){
+  const m = zoomer.firstElementChild;
+  if(!m || m.tagName === 'IFRAME') return false;
+  const r = m.getBoundingClientRect();
+  if(!r.width || !r.height) return false;
+  const h = innerWidth / 10;
+  return Math.abs(x - (r.left + r.width / 2)) <= h && Math.abs(y - (r.top + r.height / 2)) <= h;
 }
 
 // プレビュー中は後ろの一覧が動かないように固定する（iPhone でも効く方法）

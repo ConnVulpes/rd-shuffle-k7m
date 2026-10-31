@@ -142,6 +142,8 @@ document.addEventListener('keydown', e => {
   const typing = ['input', 'select', 'textarea'].includes(tag);
   if(peek.open){
     if(typing) return;
+    // キーを押したら、消していたボタンと文字を戻す（ズームのキーと Shift だけのときは戻さない）
+    if(!/^[+=-]$/.test(e.key) && e.key !== 'Shift') setBare(false);
     if(e.key === 'ArrowLeft' || e.key === 'ArrowRight'){ e.preventDefault(); stepPeek(e.key === 'ArrowLeft' ? -1 : 1); return; }
     if(e.key === 'e' || e.key === 'E'){ e.preventDefault(); setEditOpen(!editOpen); return; }
     if(e.key === '0'){ e.preventDefault(); resetZoom(true); return; }

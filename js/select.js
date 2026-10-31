@@ -151,7 +151,7 @@ function applyEditOpen(later){
   }
   else ['--edit-h', '--edit-l', '--toast-b'].forEach(k => peek.style.removeProperty(k));
 }
-function setEditOpen(v){ editOpen = v; store.set('editing', v); edView = ''; applyEditOpen(); }
+function setEditOpen(v){ editOpen = v; store.set('editing', v); edView = ''; if(v) setBare(false); applyEditOpen(); }
 // パネルの位置と大きさを決めて、画像エリア・トーストの位置もそれに合わせる
 function layoutEdit(){
   if(edPanel.hidden) return;
