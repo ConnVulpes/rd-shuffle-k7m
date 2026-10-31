@@ -1,0 +1,823 @@
+/* 見た目のすべて（もとは index.html の <style> の中身。順番も中身もそのまま）。
+   共通の部品（文字・丸み・色・ガラス）→ 上のバー・一覧・カード → 窓 → プレビュー → 情報の画面 → スマホ向けの順 */
+:root{
+  --bg-top:#43464b; --bg-bottom:#2e3034;
+  --bar:rgba(46,48,52,.82); --field:#3a3d42; --line:#55595f;
+  --text:#ebecee; --muted:#a2a6ac;
+  --accent:#9ec4e8; --accent-ink:#17222d;
+  --card:#34373b; --ph:#3d4045;
+  --focus:#c8e0f6;
+  /* 共通の部品：文字は4段・太さは2つ（400/700）・角の丸みは3つ・余白は4の倍数 */
+  --fs-h:17px; --fs:15px; --fs-s:13px; --fs-xs:11px;
+  --r-s:8px; --r-m:12px; --r-full:999px;
+  /* 赤は ♥ だけ。画像の上（いつも暗い）で使う青 */
+  --heart:#ff5c7c; --accent-on-dark:#9ec4e8;
+  /* 画像の上に浮かべるガラス（半透明の面＋ぼかし。画像の上なので明るい画面でも同じ） */
+  --glass-bg:rgba(20,22,25,.72); --glass-line:rgba(255,255,255,.18); --glass-blur:blur(10px); --glass-shadow:0 4px 14px rgba(0,0,0,.3);
+  /* 文字の記号の代わりに使う形（× とピン） */
+  --mask-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 5.5l9 9M14.5 5.5l-9 9' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+  --mask-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4.5 10.5l3.5 3.5 7.5-8' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  --mask-pin:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M7.5 2.5h5l-.8 5.2 3.3 3.3H5l3.3-3.3zM10 11v6.5' fill='none' stroke='%23000' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg-top:#e3e5e8; --bg-bottom:#c9ccd1;
+    --bar:rgba(227,229,232,.85); --field:#f2f3f5; --line:#b6bac0;
+    --text:#24272b; --muted:#5b6066;
+    --accent:#2d6aa3; --accent-ink:#ffffff;
+    --card:#f4f5f6; --ph:#dcdfe3;
+    --focus:#2d6aa3;
+    --heart:#e0335a;
+  }
+}
+*{box-sizing:border-box}
+html{color-scheme:light dark; scrollbar-gutter:stable}
+html.modal-open, html.modal-open body{overflow:hidden; overscroll-behavior:none}
+body{
+  margin:0; min-height:100vh;
+  background:linear-gradient(180deg,var(--bg-top) 0%,var(--bg-bottom) 100%) fixed;
+  background-color:var(--bg-bottom);
+  color:var(--text);
+  font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif;
+  font-size:var(--fs); line-height:1.6;
+}
+header{
+  position:sticky; top:0; z-index:5;
+  display:flex; align-items:center; gap:12px;
+  padding:8px 20px;
+  background:var(--bar);
+  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
+}
+h1{font-size:var(--fs); font-weight:700; margin:0 6px 0 0; letter-spacing:.02em; white-space:nowrap}
+svg.ic, .ico{width:20px; height:20px; flex:none; display:block}
+/* 線の太さは大きさに関係なく 1.5 */
+svg.ic *, .ico *, .lb-btn svg *{vector-effect:non-scaling-stroke}
+.seg{display:inline-flex; border:1px solid var(--line); border-radius:var(--r-s); overflow:hidden}
+.seg button{
+  font:inherit; color:var(--muted); background:transparent; border:0;
+  padding:8px 16px; cursor:pointer;
+}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--field); color:var(--text); font-weight:700}
+select,input{
+  font:inherit; color:var(--text); background:var(--field);
+  border:1px solid var(--line); border-radius:var(--r-s); padding:8px 12px;
+}
+select{max-width:280px}
+.spacer{flex:1}
+.shuffle{
+  font:inherit; font-weight:700; color:var(--accent-ink); background:var(--accent);
+  border:0; border-radius:var(--r-s); padding:8px 20px; cursor:pointer;
+}
+.shuffle:disabled{opacity:.6; cursor:progress}
+.icon-btn{
+  font:inherit; color:var(--muted); background:transparent;
+  border:1px solid var(--line); border-radius:var(--r-s); padding:8px 12px; cursor:pointer;
+}
+button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
+/* 上のバー：絞り込み・並び順・シャッフル・表示 の4つだけ */
+.filter-btn{
+  display:inline-flex; align-items:center; gap:8px; min-width:0; max-width:520px; height:36px;
+  font:inherit; font-size:var(--fs); color:var(--text); background:var(--field);
+  border:1px solid var(--line); border-radius:var(--r-s); padding:0 12px; cursor:pointer;
+}
+.filter-btn span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.filter-btn.active{color:var(--accent); font-weight:700}
+.filter-btn .muted{color:var(--muted)}
+/* 並び順とシャッフル：1つの枠に、押せる場所が2つ（⇆ はランダムのときだけ） */
+.sort-ctl{display:inline-flex; align-items:stretch; height:36px; border:1px solid var(--line); border-radius:var(--r-s); overflow:hidden}
+.sort-ctl button{display:inline-flex; align-items:center; gap:4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; cursor:pointer; white-space:nowrap}
+.sort-ctl button:hover{background:var(--field)}
+.sort-ctl button:disabled{opacity:.5; cursor:progress}
+.sort-shuffle{padding:0 12px}
+.sort-shuffle[hidden]{display:none}
+.sort-shuffle:not([hidden]) + .sort-btn{border-left:1px solid var(--line)}
+.sort-btn{padding:0 8px 0 12px}
+.sort-btn .chev{width:16px; height:16px}
+.sort-menu{width:200px}
+.sort-menu .menu-item{justify-content:space-between}
+.sort-menu .menu-item[aria-checked="true"]{font-weight:700}
+.sort-menu .menu-item[aria-checked="true"]::after{content:''; width:16px; height:16px; background:var(--accent); -webkit-mask:var(--mask-check) center/contain no-repeat; mask:var(--mask-check) center/contain no-repeat}
+/* PC だけ：表示の3つのオン・オフ（オンは塗り、オフは枠）。押すと切り替わる */
+.st-icons{display:none; gap:8px}
+@media (hover:hover) and (min-width:641px){ .st-icons{display:flex} }
+.st-ic{display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:var(--r-s); cursor:pointer}
+.st-ic:hover{color:var(--text)}
+.st-ic[aria-pressed="true"]{color:var(--accent); background:color-mix(in srgb, var(--accent) 18%, transparent); border-color:var(--accent)}
+.tool-btn{
+  display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; flex:none;
+  color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:var(--r-s); cursor:pointer;
+}
+.tool-btn[aria-expanded="true"]{color:var(--text); background:var(--field)}
+.menu-wrap{position:relative}
+/* 表示メニュー */
+.menu{
+  position:absolute; top:calc(100% + 8px); right:0; z-index:6; width:288px;
+  display:flex; flex-direction:column; gap:4px; padding:8px;
+  background:var(--card); border:1px solid var(--line); border-radius:var(--r-m);
+  box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:var(--fs);
+  max-height:calc(100vh - 80px); overflow:auto; overscroll-behavior:contain;
+}
+.menu[hidden]{display:none}
+/* メニューの行は高さ 48 */
+.menu-item{display:flex; align-items:center; width:100%; min-height:48px; padding:0 12px; font:inherit; color:var(--text); text-align:left; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
+.menu-item:hover{background:var(--field)}
+.menu-item:disabled{opacity:.5; cursor:progress}
+.menu-size{display:flex; flex-direction:column; gap:0; padding:8px 12px 0}
+/* スライダー：見た目は細く、押せる範囲は高さ 44 */
+input[type=range]{height:44px; margin:0; padding:0; border:0; background:transparent; accent-color:var(--accent)}
+.menu-size input{width:100%}
+.menu hr{border:0; border-top:1px solid var(--line); margin:4px 0}
+kbd{font:inherit; font-size:var(--fs-xs); color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:0 4px; margin-left:8px} /* キーの形だけは角を小さく（例外） */
+/* オン・オフのスイッチ */
+.switch input{
+  appearance:none; -webkit-appearance:none; flex:none; width:38px; height:22px; margin:0; padding:0;
+  border-radius:var(--r-full); background:var(--line); border:0; position:relative; cursor:pointer; transition:background .15s;
+}
+.switch input::after{
+  content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;
+  background:#fff; transition:transform .15s;
+}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{transform:translateX(16px)}
+.status{color:var(--muted); font-size:var(--fs-s); margin:0 0 12px}
+.status:empty{display:none}
+
+main{padding:20px}
+.grid{display:flex; align-items:flex-start; justify-content:center; gap:var(--gap,16px)}
+.col{flex:0 0 var(--colw,250px); width:var(--colw,250px); min-width:0; display:flex; flex-direction:column; gap:var(--gap,16px)}
+.card{
+  position:relative; display:block;
+  background:var(--card); border-radius:var(--r-m); overflow:hidden;
+  color:inherit; text-decoration:none;
+}
+.card .thumb{display:block; width:100%; height:auto; background:var(--ph)}
+.badge{
+  position:absolute; top:8px; left:8px;
+  font-size:var(--fs-xs); font-weight:700; line-height:1;
+  padding:4px 8px; border-radius:var(--r-full);
+  color:#fff; background:rgba(0,0,0,.55);
+}
+.ph{
+  display:flex; align-items:center; justify-content:center;
+  aspect-ratio:4/3; background:var(--ph); color:var(--muted);
+  font-size:42px; font-weight:700;
+}
+/* 画像がないときはタイトルを文字で見せる */
+.ph-text{
+  flex-direction:column; align-items:stretch; justify-content:center; gap:8px;
+  padding:16px; font-size:var(--fs-s); font-weight:400; line-height:1.6; text-align:left;
+}
+.ph-text .ph-title{
+  color:var(--text); overflow:hidden; overflow-wrap:anywhere;
+  display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:5;
+}
+.ph-text .ph-site{font-size:var(--fs-xs); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.cap{display:flex; flex-direction:column; gap:4px; padding:8px 12px 12px}
+.cap-top{display:flex; align-items:baseline; gap:8px; min-width:0}
+.meta{flex:1; min-width:0; font-size:var(--fs-xs); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-variant-numeric:tabular-nums}
+.tags{display:flex; gap:8px; min-width:0; overflow:hidden; white-space:nowrap; font-size:var(--fs-xs); color:var(--muted)}
+.tag, .tag-more{flex:none}
+.none{font-size:var(--fs-xs); color:var(--muted); font-style:italic}
+body.no-cap .cap{display:none}
+.card-link{display:block; color:inherit; text-decoration:none}
+.icon-btn[aria-pressed="true"]{color:var(--text); background:var(--field)}
+body.cur-idle, body.cur-idle *{cursor:none !important}
+body.cur-idle .grid{pointer-events:none}
+body.cur-idle .rd-btn{opacity:0 !important}
+.cur-group{display:none}
+@media (hover:hover){ .cur-group{display:block} }
+.cur-group.off .sub{opacity:.45}
+/* 設定の画面：PC は窓で2列、スマホは画面いっぱいで1列。iPhone の設定と同じく、角の丸いまとまりに行を並べる */
+.set-dlg{width:min(800px, 94vw); max-height:90vh; padding:0; overflow:hidden; background:var(--bg-bottom)}
+.set-dlg[open]{display:flex; flex-direction:column}
+.set-head{flex:none; display:flex; align-items:center; gap:12px; padding:12px 16px 12px 24px; border-bottom:1px solid var(--line)}
+.set-head h2{margin:0 auto 0 0; font-size:var(--fs-h)}
+.set-done{display:none; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; padding:8px; min-height:44px; cursor:pointer}
+.set-x{display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; color:var(--muted); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
+.set-x:hover{background:var(--field); color:var(--text)}
+.set-body{flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:grid; grid-template-columns:1fr 1fr; gap:0 24px; padding:8px 24px 24px}
+.set-col{min-width:0}
+.set-dlg h3{margin:20px 0 8px 16px; font-size:var(--fs-s); font-weight:400; color:var(--muted)}
+.set-group{background:var(--card); border-radius:var(--r-m); overflow:hidden}
+.set-row{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:48px; padding:8px 16px; width:100%; font:inherit; color:var(--text); text-align:left; background:transparent; border:0}
+.set-row + .set-row, .set-group:not(.set-keys) > * + *{border-top:1px solid color-mix(in srgb, var(--line) 60%, transparent)}
+.cur-group > .set-row + .set-row{border-top:1px solid color-mix(in srgb, var(--line) 60%, transparent)}
+label.set-row{cursor:pointer}
+.set-row.sub{padding-left:32px; color:var(--muted)}
+.set-row input[type=range]{flex:1; min-width:80px; max-width:200px; margin-left:auto}
+.set-val{flex:none; min-width:3.6em; text-align:right; font-size:var(--fs-s); color:var(--muted); font-variant-numeric:tabular-nums}
+.set-seg button{padding:4px 16px; font-variant-numeric:tabular-nums}
+.set-act{color:var(--accent); cursor:pointer}
+.set-act:hover{background:var(--field)}
+.set-act:disabled{opacity:.5; cursor:progress}
+/* バックアップ：名前や日時は右に寄せ、ボタンのすぐ左に。長いフォルダ名は「…」で切る */
+.bk-val{flex:1; min-width:0; text-align:right; font-size:var(--fs-s); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-variant-numeric:tabular-nums}
+#bkAutoGroup .icon-btn{flex:none}
+#bkAutoSec[hidden]{display:none}
+.map-state{flex:1; min-width:0; font-size:var(--fs-s); color:var(--muted); line-height:1.5}
+.set-note{margin:8px 16px 0; font-size:var(--fs-s); color:var(--muted); line-height:1.6}
+.set-grip{display:none}
+.set-dlg{transition:transform .2s ease-out}
+.set-dlg.drag{transition:none}
+@media (prefers-reduced-motion: reduce){ .set-dlg{transition:none} }
+.set-pc{display:none}
+@media (hover:hover){ .set-pc{display:block} }
+.set-keys{display:grid; grid-template-columns:max-content 1fr max-content 1fr; align-items:center; gap:8px 12px; padding:12px 16px; font-size:var(--fs-s)}
+.set-keys kbd{margin:0; justify-self:start; font-size:var(--fs-xs); color:var(--text)}
+.set-keys-h{grid-column:1 / -1; color:var(--muted); font-size:var(--fs-xs)}
+.set-keys-h:not(:first-child){margin-top:8px}
+@media (max-width:640px){
+  .set-dlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
+  .set-dlg{animation:setUp .2s ease-out}
+  @keyframes setUp{ from{ transform:translateY(100%) } }
+  .set-grip{display:flex; flex:none; height:20px; padding-top:env(safe-area-inset-top); box-sizing:content-box; align-items:flex-end; justify-content:center; touch-action:none}
+  .set-grip::before{content:''; width:40px; height:4px; border-radius:var(--r-full); background:var(--line)}
+  .set-head{display:grid; grid-template-columns:1fr auto 1fr; padding:0 8px 4px; border-bottom:0; touch-action:none}
+  .set-head h2{grid-column:2; margin:0}
+  .set-done{display:inline-flex; align-items:center; grid-column:3; justify-self:end}
+  .set-x{display:none}
+  .set-body{grid-template-columns:1fr; padding:0 16px calc(32px + env(safe-area-inset-bottom))}
+}
+@media (max-width:640px) and (prefers-reduced-motion: reduce){ .set-dlg{animation:none} }
+.more{padding:24px 0 8px; text-align:center; color:var(--muted); font-size:var(--fs-s)}
+
+/* プレビュー：画像を画面いっぱいに見せるだけ */
+#peek{
+  position:fixed; inset:0; width:auto; height:auto; max-width:none; max-height:none;
+  margin:0; padding:0; border:0; border-radius:0;
+  /* 後ろの一覧が透けて見えるように、暗くしてぼかすだけにする */
+  background:rgba(10,11,13,.62); color:#eee; overflow:hidden;
+  -webkit-backdrop-filter:blur(14px) saturate(.9); backdrop-filter:blur(14px) saturate(.9);
+  overscroll-behavior:contain;
+}
+#peek[open]{display:block}
+/* プレビューの大きさ：上のボタン（--btn-h）、下の段（閉じる・♥ は --row-h、似た画像は --sim-h。高さの真ん中をそろえる）。
+   下の段の上に2行（タイトル1行と「サイト · 日付」。高さ --txt-h、上下のすき間 --txt-g）。
+   画像は上のボタンの 2px 下（--img-t）から2行の上までを使い、文字を重ねない */
+#peek{--btn-h:36px; --top-h:calc(var(--btn-h) + 16px); --img-t:calc(var(--btn-h) + 10px); --row-h:44px; --sim-h:36px; --row-b:12px;
+  --sim-b:calc(var(--row-b) + (var(--row-h) - var(--sim-h)) / 2);
+  --txt-h:29px; --txt-g:6px;
+  --cap-h:calc(var(--row-b) + var(--row-h) + var(--txt-g) * 2 + var(--txt-h))}
+@media (hover:none){ #peek{--btn-h:44px; --row-h:52px; --sim-h:44px; --txt-g:2px} }
+/* 情報の画面を開いている間：スマホは2行と似た画像・♥ を隠して、画像をシートの上までいっぱいに。
+   PC は画像の横に出るので、似た画像・♥ は残し、2行だけ隠す */
+@media (max-width:759px){
+  #peek.editing{--cap-h:0px}
+  #peek.editing .lb-info, #peek.editing .lb-sim, #peek.editing .lb-like{display:none}
+}
+@media (min-width:760px){
+  #peek.editing{--cap-h:calc(var(--row-b) + var(--row-h) + var(--txt-g))}
+  #peek.editing .lb-info{display:none}
+}
+/* 素早く2回タップしたときに「ダブルタップ」として飲み込まれないように（1回ずつ確実に送る） */
+#peek, .peek-body{touch-action:manipulation}
+#peek::backdrop{background:transparent}
+.peek-body:focus{outline:none}
+/* ズーム：中身をまとめて拡大縮小・移動する */
+.zoomer{position:relative; z-index:1; width:100%; height:100%; display:flex; align-items:center; justify-content:center; transform-origin:50% 50%; will-change:transform}
+.zoomer.anim{transition:transform .18s ease-out}
+#peek.zoomed .zoomer{cursor:grab}
+#peek.zoomed .zoomer.drag{cursor:grabbing}
+.zoom-ind{position:absolute; left:50%; top:var(--top-h); transform:translateX(-50%); z-index:2; padding:4px 12px; border-radius:var(--r-full); font-size:var(--fs-s); color:#fff; background:rgba(0,0,0,.55); pointer-events:none; opacity:0; transition:opacity .2s}
+.zoom-ind.show{opacity:1}
+/* 明るさ：画像・動画そのものは filter で暗くし、背景だけ黒い膜で暗くする。
+   動画の上には何も重ねない（iPhone で動画の再生ボタンが押せなくなるため） */
+.peek-dim{position:absolute; inset:0; z-index:0; background:#000; pointer-events:none; display:none}
+.peek-dim.on{display:block}
+.lb-like{position:absolute; right:12px; bottom:calc(var(--row-b) + env(safe-area-inset-bottom)); z-index:3; width:var(--row-h); height:var(--row-h); border-radius:var(--r-full);
+  display:flex; align-items:center; justify-content:center; gap:0; padding:0; cursor:pointer; font:inherit; line-height:1;
+  color:#fff; -webkit-tap-highlight-color:transparent}
+/* 下の段・明るさ・高画質は同じガラス */
+.lb-like, .lb-sim, .lb-btn.lb-bright, .lb-hq, #peek .lb-top > #peekClose{
+  background:var(--glass-bg); border:1px solid var(--glass-line); box-shadow:var(--glass-shadow);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur)}
+@media (hover:hover){ #peek .lb-top > #peekClose{background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.18); box-shadow:none; -webkit-backdrop-filter:none; backdrop-filter:none} #peek .lb-top > #peekClose:hover{background:rgba(255,255,255,.22)} }
+.lb-like:not([data-n="0"]){color:var(--heart)}
+.lb-like .ico{width:24px; height:24px}
+.ico.fill{fill:currentColor}
+.lb-like-n{font-size:var(--fs-xs); font-weight:700; align-self:flex-end; margin-bottom:9px}
+.cap-like{color:var(--heart); font-size:var(--fs-xs); letter-spacing:-1px; flex:none}
+.lb-btn.lb-bright{--bright-h:32px; position:absolute; left:50%; bottom:calc(100% + 8px + (var(--btn-h) - var(--bright-h)) / 2); transform:translateX(-50%); pointer-events:auto; height:var(--bright-h); gap:4px; padding:0 12px; font-size:var(--fs-s); font-variant-numeric:tabular-nums; border-radius:var(--r-full)}
+.lb-btn.lb-bright:hover{background:var(--glass-bg)}
+/* スマホ：見た目は 36、押せる範囲だけ上下に広げて 44 */
+@media (hover:none){ .lb-btn.lb-bright{--bright-h:36px} .lb-btn.lb-bright::after{content:""; position:absolute; left:-1px; right:-1px; top:-5px; bottom:-5px} }   /* 縁の 1px の外から数えて上下 4 */
+.lb-bright svg{width:16px; height:16px; flex:none}
+.lb-bright[hidden]{display:none}
+.peek-body{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:var(--img-t) 12px calc(var(--cap-h) + env(safe-area-inset-bottom))}
+.peek-body .thumb, .peek-body img, .peek-body video{
+  display:block; max-width:100%; max-height:100%; width:auto; height:auto;
+  object-fit:contain; border-radius:var(--r-s); background:transparent;
+}
+.peek-body .ph{width:min(560px,100%); border-radius:var(--r-m)}
+.peek-body .ph-text{min-height:200px; font-size:var(--fs-h)}
+.peek-body .ph-text .ph-title{-webkit-line-clamp:14}
+.lb-top{
+  position:absolute; top:0; left:0; right:0; z-index:2;
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  background:linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0));
+}
+.peek-pos{margin-right:auto; color:rgba(255,255,255,.6); font-size:var(--fs-s); font-variant-numeric:tabular-nums; padding-left:4px}
+.lb-btn{
+  display:inline-flex; align-items:center; justify-content:center; height:var(--btn-h, 34px); padding:0 12px;
+  font:inherit; font-size:var(--fs-s); color:#fff; text-decoration:none; cursor:pointer;
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18); border-radius:var(--r-s);
+}
+.lb-btn:hover{background:rgba(255,255,255,.22)}
+#peekClose{width:var(--btn-h); padding:0; gap:8px}
+#peekClose .lbl{display:none}
+.lb-ic{width:var(--btn-h); padding:0}
+.lb-ic svg{width:20px; height:20px}
+.lb-rd-ic{display:none}
+.lb-rd-ic svg{display:block}
+/* 回転・反転：中の画像だけを回す（拡大・移動は外側で行う） */
+.zoomer > *{transform:scaleX(var(--flip, 1)) rotate(var(--rot, 0deg))}
+.zoomer.turning > *{transition:transform .2s ease-out}
+.zoomer.sideways > img, .zoomer.sideways > video, .zoomer.sideways > .thumb{max-width:var(--zh); max-height:var(--zw)}
+@media (max-width:640px){
+  .lb-top{padding:8px}
+  #peekRd{width:var(--btn-h); padding:0}
+  .lb-rd-ic{display:block}
+  .lb-rd-t{display:none}
+}
+.lb-nav{
+  position:absolute; top:50%; z-index:2; transform:translateY(-50%);
+  width:44px; height:64px; border:0; border-radius:var(--r-m); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; padding:0; color:#fff; background:rgba(255,255,255,.10);
+}
+.lb-nav:hover{background:rgba(255,255,255,.22)}
+.lb-nav:disabled{opacity:0; pointer-events:none}
+.lb-prev{left:10px}
+.lb-next{right:10px}
+@media (hover:none){ .lb-nav{display:none} }
+.lb-btn[aria-pressed="true"]{background:rgba(255,255,255,.9); color:#16181b; border-color:transparent}
+.peek-body iframe{width:min(100%, calc((100dvh - var(--img-t) - var(--cap-h)) * 16 / 9)); aspect-ratio:16/9; border:0; border-radius:var(--r-s); background:#000}
+/* プレビュー下の2行（タイトル1行と「サイト · 日付」）。画像が遅いときでも何か分かるように。
+   2行のまとまりは1つのボタンで、押すと情報の画面を開く */
+.lb-cap{
+  position:absolute; left:0; right:0; bottom:0; z-index:2; pointer-events:none; text-align:center;
+  display:flex; flex-direction:column; justify-content:flex-end;
+  height:calc(var(--cap-h) + env(safe-area-inset-bottom)); padding:0 16px calc(var(--sim-b) + env(safe-area-inset-bottom));
+  color:#fff; transition:opacity .15s;
+}
+/* 押せる範囲：スマホは上下に広げて高さ 44（見た目の行の高さ 29 は変えない）。PC は 29 のまま */
+.lb-info{--pad-t:0px; --pad-b:0px; flex:none; display:block; width:fit-content; max-width:min(900px, 100%); margin:calc(-1 * var(--pad-t)) auto calc(-1 * var(--pad-b));
+  padding:var(--pad-t) 12px var(--pad-b); font:inherit; color:#fff; text-align:center; background:transparent; border:0; border-radius:var(--r-s);
+  cursor:pointer; pointer-events:auto; -webkit-tap-highlight-color:transparent}
+@media (hover:none){ .lb-info{--pad-t:9px; --pad-b:6px} }   /* 下は似た画像とのすき間 6 まで、残りを上に */
+@media (hover:hover){ .lb-info:hover{background:rgba(255,255,255,.1)} }
+.lb-info > span{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.lb-cap-t{font-size:var(--fs-s); line-height:16px}
+.lb-cap-d{font-size:var(--fs-xs); line-height:13px; color:rgba(255,255,255,.6)}
+#peek.zoomed .lb-info{pointer-events:none}
+/* 「似た画像」：画面の真ん中。高さは --sim-h で、閉じる・♥ と高さの真ん中をそろえる。
+   2行とのすき間は、閉じる・♥ の上の端から --txt-g */
+.lb-cap > .lb-sim{
+  flex:none; display:flex; align-items:stretch; width:max-content; max-width:none; height:var(--sim-h); margin:calc((var(--row-h) - var(--sim-h)) / 2 + var(--txt-g)) auto 0; pointer-events:auto;
+  border-radius:var(--r-full);
+}
+.lb-sim > button{
+  position:relative; display:flex; align-items:center; justify-content:center; font:inherit; font-size:var(--fs-s); color:#fff; cursor:pointer;
+  padding:0 16px; border:0; border-radius:var(--r-full); background:transparent;
+}
+.lb-sim > button:hover{background:rgba(255,255,255,.12)}
+#peek.zoomed .lb-sim{pointer-events:none}
+/* スマホ：見た目も押せる範囲も高さ 44（縁の 1px も押せる） */
+@media (hover:none){
+  .lb-sim > button::after{content:""; position:absolute; left:0; right:0; top:-1px; bottom:-1px}
+}
+/* 範囲を選ぶ画面：似た画像の画面の上に重ねる。左上の画像を画面に収まる大きさで。選んだ四角の外は暗く */
+.crop{position:fixed; inset:0; z-index:8; display:flex; flex-direction:column; background:#0a0b0d; color:#eee; touch-action:manipulation;
+  padding-top:env(safe-area-inset-top); -webkit-user-select:none; user-select:none}
+.crop[hidden]{display:none}
+.crop-stage{flex:1; min-height:0; display:flex; align-items:center; justify-content:center; padding:16px; cursor:crosshair; touch-action:none}
+.crop-pic{position:relative; flex:none}
+.crop-pic > img{pointer-events:none; -webkit-user-drag:none}
+.crop-shade{position:absolute; inset:0; overflow:hidden; pointer-events:none}
+.crop-shade[hidden], .crop-box[hidden]{display:none}
+.crop-hole{position:absolute; box-shadow:0 0 0 9999px rgba(0,0,0,.55)}
+.crop-box{position:absolute; border:1.5px solid #fff; cursor:move; pointer-events:none}
+.crop-box i{position:absolute; width:16px; height:16px; margin:-8px 0 0 -8px; border-radius:50%; background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.crop-box i[data-c="nw"]{left:0; top:0}
+.crop-box i[data-c="ne"]{left:100%; top:0}
+.crop-box i[data-c="sw"]{left:0; top:100%}
+.crop-box i[data-c="se"]{left:100%; top:100%}
+.crop-bar{flex:none; display:flex; justify-content:center; gap:12px; padding:0 16px calc(16px + env(safe-area-inset-bottom))}
+.crop-btn{height:36px; padding:0 20px; font:inherit; font-size:var(--fs); border-radius:var(--r-s); cursor:pointer}
+.crop-go{border:0; font-weight:700; color:#16181b; background:var(--accent-on-dark)}
+.crop-go:disabled{opacity:.4; cursor:default}
+@media (hover:none){ .crop-btn{height:44px} }
+/* 一段奥の画面（似た画像・サムネイルが出ないもの）：上のバーを「‹ 戻る」・名前・メニューに入れ替え、薄い青の面にする */
+.deep-bar{display:none; flex:1; min-width:0; align-items:center; gap:4px}
+header.deep{background:color-mix(in srgb, var(--accent) 14%, var(--bar))}
+header.deep > h1, header.deep > .filter-btn, header.deep > .spacer, header.deep > .st-icons, header.deep > .sort-wrap{display:none}
+header.deep > .deep-bar{display:flex}
+#ntCheck{white-space:nowrap}
+.deep-back{flex:none; display:inline-flex; align-items:center; gap:2px; height:36px; padding:0 12px 0 4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer; white-space:nowrap}
+.deep-back:hover{background:var(--field)}
+/* 道すじ：たどってきた画像を左から順に。押すとその段へ戻る。横は止まらずにスクロール */
+.deep-path{flex:0 1 auto; min-width:0; display:flex; align-items:center; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch}
+.deep-path::-webkit-scrollbar{display:none}
+/* 左にまだあるときは、左端を薄く消す */
+.deep-path.more-left{-webkit-mask-image:linear-gradient(to right, transparent, #000 24px); mask-image:linear-gradient(to right, transparent, #000 24px)}
+.path-sep{flex:none; width:12px; height:12px; color:var(--muted)}
+.path-item{flex:none; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; padding:0; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
+.path-item:hover{background:var(--field)}
+.path-thumb{width:30px; height:30px; border-radius:var(--r-s); object-fit:cover; background:var(--ph); display:flex; align-items:center; justify-content:center; color:var(--muted)}
+.path-thumb .ico{width:18px; height:18px}
+.path-item[aria-current="true"] .path-thumb{box-shadow:0 0 0 2px var(--accent)}
+/* 戻ったあとの先の段は薄く残す。押すとまた進む */
+.path-item.ahead .path-thumb{opacity:.35}
+.path-item.ahead:hover .path-thumb{opacity:.7}
+.deep-title{flex:1; display:flex; flex-direction:column; min-width:0; padding-left:8px; line-height:1.3}
+.deep-title:empty, #deepName:empty{display:none}
+#deepName{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+.deep-sub{font-size:var(--fs-xs); color:var(--muted); white-space:nowrap}
+.deep-sub:empty{display:none}
+.deep-right{margin-left:auto; flex:none; display:flex; align-items:center}
+#ntCheck[hidden], #simFilterBtn[hidden]{display:none}
+.deep-right{gap:8px}
+/* 似た画像の絞り込み：かけている間は一覧の絞り込み中と同じ青 */
+#simFilterBtn.active{color:var(--accent); border-color:var(--accent)}
+/* 似た画像を絞り込んで 0 件のとき。列が3本以上なら上の画像の右の空きの真ん中、それより少なければ上の画像の下 */
+.sim-none{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:32px 16px; text-align:center; color:var(--muted); box-sizing:border-box}
+.sim-none.beside{position:absolute; padding:16px}
+.sim-none[hidden]{display:none}
+.sim-none p{margin:0}
+/* 来た画像（似た画像の元）を枠で示す */
+.card.is-base{box-shadow:0 0 0 2px var(--accent)}
+/* 似た画像の画面：押した画像を1列目の先頭に置く。列が2本以上なら2列ぶんの幅で右へはみ出させ、
+   2列目の先頭には同じ高さの空きを置く。高さは画面の 70% まで（それより縦長なら、画像は縮めて真ん中に） */
+.sim-hero{flex:none; z-index:1}
+.sim-hero .card-link > .thumb{max-height:70vh; object-fit:contain; background:none}
+.sim-gap{flex:none; pointer-events:none}
+/* 上の画像の右下の「範囲で探す」：ガラスの丸。位置は見えている画像の右下に合わせて JS で置く */
+.hero-crop{position:absolute; left:0; top:0; z-index:2; display:flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0;
+  border-radius:var(--r-full); border:1px solid var(--glass-line); background:var(--glass-bg); color:#fff; cursor:pointer;
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); box-shadow:var(--glass-shadow)}
+.hero-crop[hidden]{display:none}
+.hero-crop:hover{background:rgba(20,22,25,.85)}
+@media (hover:none){ .hero-crop{width:44px; height:44px} }
+body.cur-idle .hero-crop{opacity:0}
+/* 似た画像の画面の長押しで出す選択肢（カードの近くに） */
+.menu.press-menu{position:absolute; top:0; left:0; right:auto; width:160px; max-height:none}
+/* 入るときは右から、戻るときは左へ */
+@keyframes viewIn{ from{ transform:translateX(32px); opacity:.3 } }
+@keyframes viewBack{ from{ transform:translateX(-32px); opacity:.3 } }
+.grid.view-in{animation:viewIn .2s ease-out}
+.grid.view-back{animation:viewBack .2s ease-out}
+@media (prefers-reduced-motion: reduce){ .grid.view-in, .grid.view-back{animation:none} }
+#peek.zoomed .lb-cap{opacity:0}
+/* 軽量モードの「高画質で見る」：画像の右下に */
+.lb-hq{
+  position:absolute; right:12px; bottom:calc(var(--edit-h, 0px) + var(--cap-h) + env(safe-area-inset-bottom) + 8px); z-index:3;
+  display:inline-flex; align-items:center; height:var(--btn-h); font:inherit; font-size:var(--fs-s); color:#fff; cursor:pointer;
+  padding:0 16px; border-radius:var(--r-full);
+}
+/* 狭い画面では、明るさの表示（真ん中）と並ばないように1段上に */
+@media (max-width:359px){ .lb-hq{bottom:calc(var(--edit-h, 0px) + var(--cap-h) + env(safe-area-inset-bottom) + 52px)} }
+.lb-hq[hidden]{display:none}
+#peek.hq-loading .lb-hq{opacity:.6; pointer-events:none}
+@media (min-width:760px){ #peek.editing .lb-hq{bottom:calc(var(--cap-h) + 8px)} }
+/* 高画質を読み込み中の小さな印 */
+#peek.hq-loading::after{content:""; position:absolute; right:18px; top:calc(var(--top-h) + 6px); width:16px; height:16px; border-radius:50%;
+  border:2px solid rgba(255,255,255,.3); border-top-color:#fff; animation:hqspin .8s linear infinite; z-index:3}
+@keyframes hqspin{ to{ transform:rotate(360deg) } }
+#peek.editing .lb-cap{left:var(--edit-l, 0px); bottom:var(--edit-h, 0px); height:var(--cap-h); padding-bottom:var(--sim-b)}
+#peek.editing .peek-body{padding-bottom:var(--cap-h)}
+/* スマホ：閉じるボタンは親指の届く左下に（編集シートを開いているときはその上） */
+@media (hover:none){
+  /* 横長で大きめにして押しやすく（親指で左下をざっくり押しても当たる） */
+  #peekClose{
+    position:fixed; left:12px; bottom:calc(var(--row-b) + env(safe-area-inset-bottom)); z-index:3;
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    width:104px; height:var(--row-h); border-radius:var(--r-full);
+  }
+  #peekClose .lbl{display:inline; font-size:var(--fs); letter-spacing:.04em}
+  #peek.editing #peekClose{bottom:calc(var(--edit-h, 0px) + var(--row-b))}
+  body #peek .lb-toast{margin-bottom:62px} /* 下の共通の指定より強くする */
+}
+#peek .lb-toast{margin-bottom:46px}
+/* 編集中は、画像の表示エリアをパネルの分だけ狭める */
+#peek.editing .peek-body{left:var(--edit-l, 0px); bottom:var(--edit-h, 0px)}
+#peek.editing .lb-top{left:var(--edit-l, 0px)}
+#peek.editing .lb-prev{left:calc(var(--edit-l, 0px) + 10px)}
+#peek.editing .lb-nav{top:calc((100% - var(--edit-h, 0px)) / 2)}
+#peek.editing .lb-toast{left:calc(var(--edit-l, 0px) + (100% - var(--edit-l, 0px)) / 2)}
+/* 編集パネル：PC は左から、スマホは下から（つまみを上に引くと画面いっぱい） */
+.lb-edit{position:absolute; z-index:3; display:flex; flex-direction:column; background:var(--card); color:var(--text); font-size:var(--fs)}
+.lb-edit[hidden]{display:none}
+.lb-edit.side{left:0; top:0; bottom:0; width:var(--edit-l, 360px); border-right:1px solid var(--line); box-shadow:8px 0 30px rgba(0,0,0,.35)}
+.lb-edit.sheet{left:0; right:0; bottom:0; height:var(--edit-h, 50vh); border-radius:var(--r-m) var(--r-m) 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.35); padding-bottom:env(safe-area-inset-bottom); transition:height .22s ease-out}
+.lb-edit.sheet.full{border-radius:0}
+.lb-edit.drag{transition:none}
+.lb-edit.stale .ed-scroll{pointer-events:none}
+.ed-grip{flex:none; height:20px; display:flex; align-items:flex-end; justify-content:center; touch-action:none; cursor:ns-resize}
+.ed-grip::before{content:''; width:40px; height:4px; border-radius:var(--r-full); background:var(--line)}
+.lb-edit.side .ed-grip{display:none}
+.ed-resize{position:absolute; top:0; bottom:0; right:-5px; width:10px; cursor:ew-resize; touch-action:none; z-index:1}
+.ed-resize:hover, .lb-edit.drag .ed-resize{background:color-mix(in srgb, var(--accent) 35%, transparent)}
+.lb-edit.sheet .ed-resize{display:none}
+/* 見出しの行：タイトル全文と「作者 · サイト · 日付」・自動で次へ（文字ごと押せる）・閉じる。押せる範囲はスマホ 44、PC 32。
+   タイトルが何行になっても、スイッチと × は1行目の高さにそろえる。下に区切りの線 */
+.ed-head{--ed-hit:32px; flex:none; display:flex; align-items:flex-start; gap:12px; padding:8px 16px; border-bottom:1px solid var(--line); margin-bottom:12px}
+.lb-edit.sheet .ed-head{touch-action:none; padding-top:4px}
+.ed-ttl{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; padding-top:calc((var(--ed-hit) - 21px) / 2)}
+.ed-ttl-t{font-size:var(--fs); line-height:21px; overflow:hidden; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3}
+.ed-ttl-d{font-size:var(--fs-xs); line-height:1.5; color:var(--muted); overflow-wrap:anywhere}
+.ed-head{flex-wrap:wrap; row-gap:0}
+.ed-brk{flex-basis:100%; height:0}
+.ed-head .switch{margin-left:auto; flex:none; display:flex; align-items:center; gap:8px; min-height:32px; white-space:nowrap; font-size:var(--fs-s); color:var(--muted); cursor:pointer; user-select:none; -webkit-user-select:none}
+.ed-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:32px; height:32px; margin-right:-6px; border-radius:var(--r-s); border:0; background:transparent; color:var(--muted); cursor:pointer; flex:none}
+.ed-x:hover{background:var(--field); color:var(--text)}
+@media (hover:none){
+  .ed-head{--ed-hit:44px}
+  .ed-head .switch{min-height:44px}
+  .ed-x{width:44px; height:44px; margin-right:-12px}
+}
+/* 中身は1列：上が「いつもの場所」（地の上に角の丸い面を並べ、面の上に小さく薄い見出し）、下が「すべてのタグ」の帯。左の端をそろえる */
+.lb-edit{--ed-face:color-mix(in srgb, var(--text) 6%, var(--card)); --ed-band:color-mix(in srgb, var(--bg-bottom) 85%, #000)}
+.ed-scroll{position:relative; flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column}
+.ed-home{display:flex; flex-direction:column; gap:16px; padding:4px 16px 20px}
+.ed-face{display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:44px; padding:8px; border-radius:var(--r-m); background:var(--ed-face)}
+@media (hover:none){ .ed-face{min-height:52px} }   /* タグ1行と同じ高さ（「なし」からタグが付いても高さが変わらない） */
+.ed-face > .ed-note{padding:0 4px}
+/* AI の候補の印：青い細い枠の小さな文字 */
+/* おすすめ：見出しに電球。似た画像からの候補は、面の中で小見出しを付けて分ける */
+.ed-h .ico{width:14px; height:14px}
+.ed-h > span:first-child{display:inline-flex; align-items:center; gap:4px}
+/* すべてのタグ：一段暗い帯。見出しと検索欄・並べ替えは上に貼りつく */
+.ed-all{flex:1 0 auto; display:flex; flex-direction:column; gap:8px; padding:0 16px 16px; background:var(--ed-band); border-top:1px solid var(--line)}
+.ed-all-head{position:sticky; top:0; z-index:2; display:flex; flex-direction:column; gap:8px; margin:0 -16px; padding:12px 16px 8px; background:var(--ed-band)}
+.ed-all-h{display:flex; align-items:center; gap:8px; font-size:var(--fs); font-weight:700}
+.ed-all-h .ico{color:var(--muted)}
+.ed-all-h .cnt{font-size:var(--fs-s); font-weight:400; color:var(--muted); font-variant-numeric:tabular-nums}
+.ed-all .ed-tools{position:static; margin:0; padding:0; background:transparent}
+/* いちばん上へ：貼りついた見出しのすぐ下、左右の真ん中に浮かべるガラスの丸 */
+.ed-up{position:absolute; left:50%; top:calc(100% + 8px); transform:translateX(-50%);
+  display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0;
+  border-radius:var(--r-full); border:1px solid var(--glass-line); background:var(--glass-bg); color:#fff; cursor:pointer;
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); box-shadow:var(--glass-shadow);
+  opacity:0; visibility:hidden; transition:opacity .15s, visibility 0s .15s}
+.ed-up.show{opacity:1; visibility:visible; transition:opacity .15s}
+@media (hover:none){ .ed-up{width:44px; height:44px} }
+@media (prefers-reduced-motion: reduce){ .ed-up, .ed-up.show{transition:none} }
+.ed-sec{display:flex; flex-direction:column; gap:8px}
+.ed-h{display:flex; align-items:center; gap:8px; font-size:var(--fs-s); color:var(--muted)}
+/* 小見出しの右の文字だけのボタンは、文字の右端をパネルの端にそろえる。
+   押せる範囲（高さ 36）は上下に少しはみ出させて、小見出しの行を低めにする（隣のボタンとは 12 以上あける） */
+.ed-h .ed-link{margin:-4px -8px -4px auto}
+.ed-wrap{display:flex; flex-wrap:wrap; align-items:center; gap:8px}
+.ed-folder{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:40px; font:inherit; font-size:var(--fs-s); text-align:left;
+  padding:4px 12px; border-radius:var(--r-m); border:0; background:var(--ed-face); color:var(--text); cursor:pointer;
+}
+@media (hover:none){ .ed-folder{min-height:44px} }
+@media (hover:hover){ .ed-folder:hover{background:color-mix(in srgb, var(--text) 10%, var(--card))} }
+.ed-folder span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ed-folder .ico{flex:none; color:var(--muted)}
+/* サムネイルの行：左に小さな画像、その右に取り元（薄く）、右端に矢印 */
+.ed-cover-row{justify-content:flex-start; padding-left:8px}
+.ed-cover-row .ico{margin-left:auto}
+.ed-cover-th{flex:none; width:32px; height:32px; border-radius:var(--r-s); overflow:hidden; background:var(--ph)}
+.ed-cover-th img{display:block; width:100%; height:100%; object-fit:cover}
+.ed-cover-src{color:var(--muted)}
+/* 文字だけのボタン（青い文字・下線なし）。押せる範囲は高さ 36 */
+.ed-link{display:inline-flex; align-items:center; min-height:36px; font:inherit; font-size:var(--fs-s); border:0; background:transparent; color:var(--accent); cursor:pointer; padding:0 8px; border-radius:var(--r-s); white-space:nowrap}
+.ed-link:hover{background:var(--field)}
+@media (hover:none){ .ed-link{min-height:44px} .ed-h .ed-link{margin:-12px -8px -12px auto} }
+.ed-list{width:100%; max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:var(--r-s)}
+.lb-edit.side .ed-list, .lb-edit.full .ed-list{max-height:42vh}
+.ed-list button{display:flex; align-items:center; gap:8px; width:100%; font:inherit; font-size:var(--fs-s); text-align:left; padding:8px 12px; border:0; border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent); background:transparent; color:var(--text); cursor:pointer}
+.ed-list .cnt{margin-left:auto; color:var(--muted); font-size:var(--fs-xs)}
+.ed-list .path{color:var(--muted)}
+.ed-list .cur{background:color-mix(in srgb, var(--accent) 16%, transparent)}
+.ed-search{width:100%; height:32px; padding:0 12px; font-size:var(--fs-s); margin:0}
+.ed-tools{display:flex; align-items:center; gap:8px; position:sticky; top:-4px; z-index:1; padding:4px 0; margin:-4px 0; background:var(--card)}
+.ed-tools .ed-search{flex:1; min-width:0}
+/* 並べ替えの切り替え：線はボタンごとに引いて、ボタンの高さ＝見た目の高さにする */
+.ed-seg{display:flex; flex:none}
+.ed-seg button{font:inherit; font-size:var(--fs-xs); padding:0 12px; height:32px; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
+.ed-seg button:first-child{border-radius:var(--r-s) 0 0 var(--r-s)}
+.ed-seg button:last-child{border-radius:0 var(--r-s) var(--r-s) 0}
+.ed-seg button + button{border-left:0}
+.ed-seg button[aria-pressed="true"]{background:var(--field); color:var(--text)}
+@media (hover:none){ .ed-tools .ed-search, .ed-seg button{height:36px} }
+/* タグは1種類の形：丸いカプセル。付いている＝塗り、まだ＝枠。押すと付く／もう一度押すと外れる */
+.ed-grid{display:flex; flex-wrap:wrap; gap:8px}
+.ed-tag{
+  display:inline-flex; align-items:center; gap:4px; max-width:100%; min-height:28px; font:inherit; font-size:var(--fs-s); line-height:1.5;
+  padding:0 12px; border-radius:var(--r-full); border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;
+}
+@media (hover:none){ .ed-tag{min-height:36px} }
+@media (hover:hover){ .ed-tag:hover{background:var(--field)} }
+.ed-tag > span:first-of-type{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.ed-tag .cnt{font-size:var(--fs-xs); color:var(--muted); font-variant-numeric:tabular-nums}
+.ed-tag.on{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.ed-tag.on .cnt{color:inherit; opacity:.75}
+.ed-tag kbd{margin:0; padding:0 4px; color:inherit; border-color:currentColor; opacity:.7; font-size:var(--fs-xs)}
+.ed-tag.new{border-style:dashed; color:var(--muted)}
+.ed-tag.some{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+/* 固定したタグは名前の前にピンの形 */
+.ed-tag.pin::before,
+.ed-grid.pinmode .ed-tag.on::before{content:''; flex:none; width:12px; height:12px; background:currentColor; -webkit-mask:var(--mask-pin) center/contain no-repeat; mask:var(--mask-pin) center/contain no-repeat}
+.ed-grid.pinmode .ed-tag.on{background:transparent; color:var(--text); border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
+.ed-grid.pinmode .ed-tag:disabled{opacity:.4; cursor:default}
+.ed-banner{font-size:var(--fs-s); padding:0 0 0 12px; border-radius:var(--r-s); background:color-mix(in srgb, var(--accent) 14%, transparent); display:flex; align-items:center; gap:8px}
+.ed-banner .ed-link{margin-left:auto}
+.ed-note{font-size:var(--fs-xs); color:var(--muted)}
+.lb-toast{
+  position:absolute; left:50%; transform:translateX(-50%); z-index:5;
+  bottom:calc(var(--toast-b, 16px) + env(safe-area-inset-bottom));
+  display:flex; align-items:center; gap:12px; padding:8px 8px 8px 16px; border-radius:var(--r-m);
+  background:rgba(20,22,25,.92); color:#fff; font-size:var(--fs-s); box-shadow:0 6px 20px rgba(0,0,0,.4); max-width:calc(100% - 24px);
+  width:max-content; /* 真ん中寄せのせいで幅が半分に縮み、短い文でも折り返していたのを防ぐ */
+}
+.lb-toast[hidden]{display:none}
+.lb-toast button{font:inherit; font-size:var(--fs-s); color:var(--accent-on-dark); background:transparent; border:0; cursor:pointer; padding:4px 8px; white-space:nowrap}
+.lb-toast button[hidden]{display:none}
+.rd-btn{
+  position:absolute; top:8px; right:8px;
+  display:flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:50%;
+  color:#fff; background:rgba(0,0,0,.5);
+  opacity:.85; box-shadow:0 1px 4px rgba(0,0,0,.35);
+}
+.rd-btn:hover{opacity:1}
+@media (hover:none){ .rd-btn{display:none} }
+@media (hover:hover){
+  .rd-btn{opacity:0}
+  .card:hover .rd-btn,.rd-btn:focus-visible{opacity:.9}
+}
+/* 似た画像の画面だけ：水滴の隣の「プレビュー」（PC でカードに乗せると出る） */
+.pv-btn{right:48px; padding:0; border:0; cursor:pointer; font:inherit}
+@media (hover:none){ .pv-btn{display:none} }
+
+/* 複数選択：左上のチェック・選んだカード・下のバー */
+.sel-box{
+  position:absolute; top:8px; left:8px; z-index:1; width:26px; height:26px; padding:4px; border-radius:var(--r-s); cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  color:transparent; background:rgba(20,22,25,.45); border:1.5px solid rgba(255,255,255,.85);
+  box-shadow:0 1px 4px rgba(0,0,0,.35); opacity:0;
+}
+.sel-box svg{width:100%; height:100%}
+.sel-box::after{content:""; position:absolute; inset:-1px}
+@media (hover:none){ body.selecting .sel-box::after{inset:-9px} }
+@media (hover:hover){ .card:hover .sel-box, .sel-box:focus-visible{opacity:1} }
+body.selecting .sel-box{opacity:1}
+.card.picked .sel-box{color:var(--accent-ink); background:var(--accent); border-color:var(--accent)}
+/* 選んだカードは上に薄い色と枠を重ねるだけ（画像そのものは描き直さないので軽い） */
+.card.picked::after{content:""; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+  background:color-mix(in srgb, var(--accent) 16%, transparent); box-shadow:inset 0 0 0 3px var(--accent)}
+@media (hover:hover){ .card:hover .badge{left:42px} }
+body.selecting .badge{left:42px}
+.card-link{-webkit-touch-callout:none}
+/* プレビューを閉じたときに、最後に見ていたカードを軽く光らせる */
+@keyframes cardFlash{ 0%{box-shadow:0 0 0 3px var(--accent)} 100%{box-shadow:0 0 0 3px transparent} }
+.card.flash{animation:cardFlash 1.4s ease-out}
+/* 今の絞り込みから外れたカード（移動したものなど）は薄く */
+/* 今の絞り込みから外れたカード：中身だけ薄くして、理由のラベルははっきり出す */
+.card.gone > .card-link, .card.gone > .badge{opacity:.32}
+.card.gone:hover > .card-link, .card.gone:hover > .badge{opacity:.7}
+.gone-tag{position:absolute; left:50%; top:50%; transform:translate(-50%, -50%); z-index:2; max-width:calc(100% - 16px);
+  padding:4px 12px; border-radius:var(--r-full); font-size:var(--fs-xs); line-height:1.4; color:#fff; background:rgba(0,0,0,.72);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none}
+.sel-spacer{height:96px}
+.selbar{
+  position:fixed; left:50%; bottom:calc(16px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:4;
+  width:min(760px, calc(100% - 24px)); display:flex; flex-direction:column; gap:8px;
+}
+.selbar[hidden]{display:none}
+.sel-row{
+  display:flex; align-items:center; gap:12px; padding:8px 12px; border-radius:var(--r-m);
+  background:var(--card); border:1px solid var(--line); box-shadow:0 10px 30px rgba(0,0,0,.4);
+}
+.sel-count{font-size:var(--fs); font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap}
+.sel-btn{font:inherit; font-size:var(--fs-s); white-space:nowrap; height:36px; padding:0 12px; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer}
+.sel-btn.main[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.sel-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:36px; height:36px; flex:none; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
+.sel-pop{
+  max-height:min(60vh, 520px); overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:12px; padding:16px;
+  background:var(--card); border:1px solid var(--line); border-radius:var(--r-m); box-shadow:0 10px 30px rgba(0,0,0,.4); font-size:var(--fs);
+}
+.sel-pop[hidden]{display:none}
+.sel-pop .ed-list{max-height:none}
+.ed-picker, .ed-chooser{display:flex; flex-direction:column; gap:8px}
+.ed-tag:disabled{opacity:.45; cursor:default}
+.ed-drop{display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px 12px; border:1.5px dashed var(--line); border-radius:var(--r-m); text-align:center; font-size:var(--fs-s); color:var(--muted)}
+.ed-drop.over{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent)}
+/* お知らせをページの下に出すとき（プレビューの外） */
+.lb-toast.page{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:6}
+body.selecting .lb-toast.page{bottom:calc(84px + env(safe-area-inset-bottom))}
+@media (hover:none){ body.selecting .lb-toast.page{bottom:calc(92px + env(safe-area-inset-bottom))} }
+@media (max-width:640px){
+  .sel-row{padding:8px}
+  .sel-btn{padding:0 12px}
+  #selAll{display:none}
+}
+@media (hover:none){ .sel-btn{height:44px} .sel-x{width:44px; height:44px} }
+
+.empty{max-width:520px; margin:12vh auto; text-align:center; color:var(--muted)}
+.empty p{margin:0 0 8px}
+
+dialog{
+  border:1px solid var(--line); border-radius:var(--r-m); padding:24px;
+  background:var(--card); color:var(--text); width:min(460px,92vw);
+}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{font-size:var(--fs-h); margin:0 0 10px}
+dialog p{font-size:var(--fs-s); color:var(--muted); margin:0 0 12px}
+dialog input{width:100%; margin-bottom:16px}
+.row{display:flex; gap:12px; justify-content:flex-end}
+/* 絞り込み画面 */
+#filterDlg{width:min(560px,94vw); height:min(760px,90vh); padding:0; overflow:hidden}
+#filterDlg[open]{display:flex; flex-direction:column}
+.fd-head{display:flex; align-items:baseline; gap:12px; padding:16px 16px 8px}
+.fd-head h2{margin:0}
+.fd-head h2:focus{outline:none}
+.fd-hit{color:var(--muted); font-size:var(--fs-s); font-variant-numeric:tabular-nums}
+/* プリセット：よく使う絞り込みを名前を付けて保存（この端末に保存） */
+.fd-presets{display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:0 16px 12px}
+.fd-pre-lab{font-size:var(--fs-s); color:var(--muted)}
+.fd-pre, .fd-pre-add, .fd-pre-edit, .fd-pre-ok, .fd-pre-cancel{font:inherit; font-size:var(--fs-s); line-height:1.5; padding:4px 12px; border-radius:var(--r-full); cursor:pointer; white-space:nowrap}
+.fd-pre{border:1px solid var(--line); background:var(--field); color:var(--text); max-width:100%; overflow:hidden; text-overflow:ellipsis}
+.fd-pre[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.fd-pre.del{display:inline-flex; align-items:center; gap:4px; border-color:var(--text); background:transparent}
+.fd-pre.del::after{content:""; flex:none; width:12px; height:12px; background:currentColor; -webkit-mask:var(--mask-x) center/contain no-repeat; mask:var(--mask-x) center/contain no-repeat}
+.fd-pre-add, .fd-pre-edit, .fd-pre-cancel{border:1px dashed var(--line); background:transparent; color:var(--muted)}
+.fd-pre-add:disabled{opacity:.45; cursor:default}
+.fd-pre-ok{border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink)}
+dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font-size:16px /* iOS の拡大を防ぐ */}
+.fd-picked{display:flex; flex-wrap:nowrap; gap:8px; padding:0 16px 12px; min-height:32px; overflow:hidden}
+.fd-picked.open{flex-wrap:wrap; max-height:40vh; overflow:auto}
+.fd-picked .chip{flex:none; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fd-picked:not(.open) .chip:first-child{flex:0 1 auto; min-width:0}
+.fd-picked .chip[hidden]{display:none}
+.chip-more{flex:none; font:inherit; font-size:var(--fs-s); line-height:1.5; padding:2px 12px; border-radius:var(--r-full); border:0; background:transparent; color:var(--accent); font-weight:700; cursor:pointer; white-space:nowrap}
+.chip{
+  display:inline-flex; align-items:center; gap:4px; font:inherit; font-size:var(--fs-s); line-height:1.5;
+  padding:2px 8px; border-radius:var(--r-full); cursor:pointer;
+  color:var(--text); background:var(--field); border:1px solid var(--line);
+}
+.chip::after{content:""; flex:none; width:12px; height:12px; background:var(--muted); -webkit-mask:var(--mask-x) center/contain no-repeat; mask:var(--mask-x) center/contain no-repeat}
+.chip.ex{border-style:dashed; color:var(--muted)}
+.fd-tabs{margin:0 16px; align-self:flex-start}
+.fd-pane{flex:1; min-height:0; display:flex; flex-direction:column; gap:12px; padding:12px 16px}
+.fd-pane[hidden]{display:none}
+.fd-pane input[type=search]{width:100%; margin:0}
+.fd-match{display:flex; align-items:center; gap:12px; font-size:var(--fs-s); color:var(--muted)}
+.fd-match[hidden]{display:none}
+.fd-match .seg button{padding:4px 12px; font-size:var(--fs-s)}
+.fd-list{flex:1; min-height:0; overflow:auto; border:1px solid var(--line); border-radius:var(--r-s)}
+.fd-row{display:flex; align-items:center; gap:12px; padding:8px 8px 8px 12px; font-size:var(--fs); border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent)}
+.fd-row:last-child{border-bottom:0}
+.fd-row .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.fd-row .nm .path{color:var(--muted)}
+.fd-row .cnt{color:var(--muted); font-size:var(--fs-xs); font-variant-numeric:tabular-nums}
+.fd-row.in{background:color-mix(in srgb, var(--accent) 14%, transparent)}
+.fd-row.ex .nm{color:var(--muted); text-decoration:line-through}
+.tri{display:inline-flex; border:1px solid var(--line); border-radius:var(--r-s); overflow:hidden; flex:none}
+.tri button{font:inherit; font-size:var(--fs-s); height:28px; padding:0 12px; border:0; background:transparent; color:var(--muted); cursor:pointer}
+.tri button+button{border-left:1px solid var(--line)}
+.tri button[aria-pressed="true"].inc{background:var(--accent); color:var(--accent-ink)}
+.tri button[aria-pressed="true"].exc{background:var(--muted); color:var(--card)}
+.fd-label{font-size:var(--fs-s); font-weight:700}
+.fd-types{display:flex; flex-wrap:wrap; gap:8px}
+.fd-types button{font:inherit; font-size:var(--fs-s); padding:4px 12px; border-radius:var(--r-full); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
+.fd-types button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+.fd-note{font-size:var(--fs-s); color:var(--muted); margin:0; line-height:1.7}
+.fd-foot{display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid var(--line)}
+.fd-foot button{min-height:36px}
+.fd-foot .spacer{flex:1}
+.fd-foot button{white-space:nowrap}
+@media (max-width:640px){
+  #filterDlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
+  .fd-tabs{align-self:stretch}
+  .fd-tabs button{flex:1}
+  .fd-foot{padding:12px}
+  .fd-foot button{padding:0 12px}
+}
+/* スマホ：タブと下のボタンは 44、含む／除く・プリセットの「今の条件を保存」は 36（行は 48） */
+@media (hover:none){
+  .fd-tabs button{height:44px; padding:0 16px}
+  .tri button{height:36px}
+  .fd-row{min-height:48px; padding:4px 8px 4px 12px}
+  .fd-pre, .fd-pre-add, .fd-pre-edit, .fd-pre-ok, .fd-pre-cancel{min-height:36px}
+  .fd-foot button{height:44px}
+}
+
+@media (max-width:640px){
+  header{padding:8px 12px; gap:8px}
+  h1{display:none}
+  main{padding:12px}
+  .filter-btn{flex:1}
+  header .spacer{display:none}
+  /* 上のバーのボタンは高さ 44 */
+  .filter-btn, .sort-ctl, .deep-back{height:44px}
+  .path-item{width:44px; height:44px}
+  #ntCheck{height:44px; padding:0 12px}
+  #simNoneBtn{min-height:44px}
+  .tool-btn{width:44px; height:44px}
+  .menu{position:fixed; top:68px; right:12px; left:12px; width:auto; max-height:calc(100dvh - 80px - env(safe-area-inset-bottom)); overflow:auto; overscroll-behavior:contain}
+}
