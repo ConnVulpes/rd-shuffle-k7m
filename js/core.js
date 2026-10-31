@@ -41,6 +41,33 @@ const jaCmp = new Intl.Collator('ja').compare;
 const esc = v => String(v).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c]);
 // 要素を作る小さな道具：el('div', 'クラス', '中の文字')
 const el = (tag, cls, text) => { const e = document.createElement(tag); if(cls) e.className = cls; if(text != null) e.textContent = text; return e; };
+// 検索欄に「全部消す」× を付ける（4つの検索欄で共通）。返すのは欄を包んだ要素で、欄の代わりに置く。
+// × は文字があるときだけ出す（出し入れは CSS の :placeholder-shown なので、文字をコードで変えても合う）。
+// 押すと文字を消して、手で全部消したときと同じ input を流す（after があれば、そのあとに呼ぶ）。
+// 入力中に押したら、そのまま続けて入力できる（フォーカスを外さない）。入力中でなければ消すだけ（キーボードを出さない）
+function clearable(input, after){
+  const wrap = el('span', 'clr');
+  const x = el('button', 'clr-x'); x.type = 'button'; x.tabIndex = -1;
+  x.setAttribute('aria-label', '文字を消す'); x.title = '文字を消す';
+  x.innerHTML = icon('x');   // icon は list.js にあるので、呼ぶのは全部を読み込んだあと
+  if(!input.placeholder) input.placeholder = ' ';
+  if(input.parentNode) input.replaceWith(wrap);
+  wrap.append(input, x);
+  let typing = false;
+  // 押したときに、欄からフォーカスが動かないように止める（マウスもタッチも）。
+  // それでも外れたとき（iPhone など）は、押したあとに欄へ戻す（押す操作の中なのでキーボードは閉じない）
+  x.addEventListener('pointerdown', e => { typing = document.activeElement === input; e.preventDefault(); });
+  x.addEventListener('mousedown', e => e.preventDefault());
+  x.addEventListener('click', e => {
+    e.preventDefault();
+    if(typing && document.activeElement !== input) input.focus();
+    typing = false;
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles:true }));
+    if(after) after();
+  });
+  return wrap;
+}
 
 // Raindrop への問い合わせはすべてここを通す。
 // 読み込みが上限に当たったら少し待ってやり直す。書き込みはすぐ失敗として返す（元に戻せるように）

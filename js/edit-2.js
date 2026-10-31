@@ -25,7 +25,7 @@ function folderPicker(cur, onPick){
     if(e.key === 'Enter'){ e.preventDefault(); const b = list.querySelectorAll('button'); if(b.length === 1) b[0].click(); }
   });
   fill();
-  box.append(search, list);
+  box.append(clearable(search), list);
   return { box, search };
 }
 // タグ：絞り込み欄・並び順・タグのボタン一覧。
@@ -46,7 +46,7 @@ function tagChooser({ isOn, isPartial = () => false, onPick, onNew = null, isDis
   });
   const paintSeg = () => segBtns.forEach(([v, b]) => b.setAttribute('aria-pressed', String(tagSort === v)));
   paintSeg();
-  tools.append(input, seg);
+  tools.append(clearable(input), seg);
   const grid = el('div', 'ed-grid');
   let shown = [];
   const draw = () => {
