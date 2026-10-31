@@ -751,6 +751,8 @@ dialog input{width:100%; margin-bottom:16px}
 .fd-head{display:flex; align-items:baseline; gap:12px; padding:16px 16px 8px}
 .fd-head h2{margin:0}
 .fd-head h2:focus{outline:none}
+/* 設定の画面も、開いたときは見出しを選んだ状態にする（「完了」に枠が出ないように） */
+#setTitle:focus{outline:none}
 .fd-hit{color:var(--muted); font-size:var(--fs-s); font-variant-numeric:tabular-nums}
 /* プリセット：よく使う絞り込みを名前を付けて保存（この端末に保存） */
 .fd-presets{display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:0 16px 12px}
