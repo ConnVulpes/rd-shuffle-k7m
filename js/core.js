@@ -1,4 +1,4 @@
-/* 道具・定数・store・state・api・データの読み込み、更新（新着・変更分・すべて読み直す）、
+/* 道具・定数・store・state・api・データの読み込み、更新（新着・変更分・すべて再取得）、
    handleError、ブラウザの中のデータベースの道具（idbOpen idbDo） */
 const API = 'https://api.raindrop.io/rest/v1';
 // 端末間で共有する設定（プリセット・固定タグ）は、Raindrop の専用フォルダの1件のメモ欄に入れておく
@@ -233,7 +233,7 @@ function descendants(id){
 // ---- 更新は3種類 ----
 // 新着　　　　　　：開いたとき・アプリに戻ったときに自動で（数リクエスト）
 // Raindrop から更新：メニューから。前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込む
-// すべて読み直す　：設定の画面から（refreshAll）
+// すべて再取得　　：設定の画面から（refreshAll）
 let lastSync = 0;
 function setUpdateBusy(b){ ['updDiff', 'refresh'].forEach(id => { $(id).disabled = b; }); }
 // 新しい順に見ていき、知っているものに当たったら止める
