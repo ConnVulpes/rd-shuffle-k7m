@@ -63,6 +63,51 @@ document.addEventListener('keydown', e => {
   if(e.key === '3') setSize(380);
 });
 
+// 「?」を押している間だけ、キーの一覧を画面の上に重ねる（PC だけ）。
+// 上のキー操作とは別に聞くので、ほかのキーの動きは変わらない。中身は設定の画面のキーの一覧を写して作る（同じ中身を2か所に書かない）
+const keyPeek = $('keyPeek');
+let keyPeekCode = '';   // 押したキーの場所（Shift を先に離したときも、このキーを離したら消す）
+const keyPeekOpen = () => !!keyPeek.showPopover && keyPeek.matches(':popover-open');
+function buildKeyPeek(){
+  if(keyPeek.childElementCount) return;
+  // 見出しごとに1つのまとまりにする（1つめが一覧、2つめがプレビュー）
+  let sec = null;
+  [...setDlg.querySelector('.set-keys').children].forEach(n => {
+    if(n.classList.contains('set-keys-h')){ sec = el('div', 'kp-sec'); sec.dataset.sec = keyPeek.childElementCount ? 'peek' : 'list'; keyPeek.append(sec); }
+    if(sec) sec.append(n.cloneNode(true));
+  });
+}
+function showKeyPeek(on){
+  if(!keyPeek.showPopover) return;
+  if(on){
+    buildKeyPeek();
+    // いまの場面のまとまりを先に・濃く
+    const now = peek.open ? 'peek' : 'list';
+    keyPeek.querySelectorAll('.kp-sec').forEach(s => s.classList.toggle('now', s.dataset.sec === now));
+    if(!keyPeekOpen()) keyPeek.showPopover();
+  }else if(keyPeekOpen()) keyPeek.hidePopover();
+}
+document.addEventListener('keydown', e => {
+  if(!canHover) return;
+  if(e.key !== '?'){
+    // 押している間に窓が開いたら消す
+    if(keyPeekOpen() && (setDlg.open || filterDlg.open || dlg.open || cropOpen)) showKeyPeek(false);
+    return;
+  }
+  if(e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target;
+  if(/^(input|select|textarea)$/i.test(t.tagName || '') || t.isContentEditable) return;
+  if(setDlg.open || filterDlg.open || dlg.open || cropOpen) return;
+  keyPeekCode = e.code;
+  showKeyPeek(true);
+});
+document.addEventListener('keyup', e => {
+  if(e.key === '?' || e.key === 'Shift' || (keyPeekCode && e.code === keyPeekCode)) showKeyPeek(false);
+});
+// ブラウザから離れたら消す（離したことが届かず出たままになるのを防ぐ）
+addEventListener('blur', () => showKeyPeek(false));
+document.addEventListener('visibilitychange', () => { if(document.hidden) showKeyPeek(false); });
+
 // 絞り込みの画面の2つの検索欄に「全部消す」×（× の形を作る icon は list.js にあるので、全部を読み込んだここで付ける）。
 // 言葉で探すは、手で消したときの 0.2 秒待ちを飛ばして、すぐ件数を出し直す
 clearable(fdSearch);
