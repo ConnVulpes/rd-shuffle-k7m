@@ -753,12 +753,31 @@ sortBtn.addEventListener('click', e => { e.stopPropagation(); setSortMenu(sortMe
 // （そのクリックは、メニューの外を押したときの処理（settings.js）が sortHeld を見て飲みこむ）
 let sortHeld = false, holdTimer = 0;
 document.addEventListener('pointerdown', () => { sortHeld = false; }, true);
+// 開く瞬間に端末を短く震わせる。Android は vibrate、iPhone（iOS 18 から）は見えないスイッチを切り替えたときの震えを使う
+const hapticSw = (() => {
+  const l = el('label'); l.setAttribute('aria-hidden', 'true');
+  l.style.cssText = 'position:fixed; width:1px; height:1px; overflow:hidden; opacity:0; pointer-events:none; left:-10px; top:-10px';
+  const i = el('input'); i.type = 'checkbox'; i.setAttribute('switch', ''); i.tabIndex = -1;
+  l.append(i); document.body.append(l); return l;
+})();
+function haptic(){
+  if(navigator.vibrate && navigator.vibrate(10)) return;
+  try{ hapticSw.click(); }catch(e){}
+}
+const sortCtlEl = $('sortCtl');
+function endSortPress(){ sortCtlEl.classList.remove('pressing'); }
 shuffleBtn.addEventListener('pointerdown', e => {
   if(e.button !== 0 || shuffleBtn.disabled) return;
   clearTimeout(holdTimer);
-  holdTimer = setTimeout(() => { holdTimer = 0; sortHeld = true; setSortMenu(true); }, 500);
+  sortCtlEl.classList.remove('popped'); sortCtlEl.classList.add('pressing');
+  holdTimer = setTimeout(() => {
+    holdTimer = 0; sortHeld = true; endSortPress();
+    void sortCtlEl.offsetWidth; sortCtlEl.classList.add('popped');
+    haptic(); setSortMenu(true);
+  }, 500);
 });
-['pointerup', 'pointercancel', 'pointerleave'].forEach(t => shuffleBtn.addEventListener(t, () => { clearTimeout(holdTimer); holdTimer = 0; }));
+sortCtlEl.addEventListener('animationend', () => sortCtlEl.classList.remove('popped'));
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => shuffleBtn.addEventListener(t, () => { clearTimeout(holdTimer); holdTimer = 0; endSortPress(); }));
 // 右クリックでも開く（スマホの長押しで出る場合も、同じく開くだけ）
 $('sortCtl').addEventListener('contextmenu', e => {
   e.preventDefault();

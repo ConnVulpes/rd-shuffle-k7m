@@ -2,11 +2,11 @@
    （キャプション・省データ・カーソルを隠す・カードの大きさ・一度に読み込む数） */
 // 設定の画面（メニューの「設定…」）
 const setDlg = $('setDlg');
-// 今の版：公開のたびに bump.sh が上げる ?v=年月日時分（日本時間）から「2026年11月5日 20:35 の版」と出す
+// 今の版：公開のたびに bump.sh が上げる ?v=年月日時分（日本時間）から「v2026.11.05 · 20:35」と出す
 function paintVersion(){
   const l = document.querySelector('link[rel="stylesheet"][href*="app.css?v="]');
   const m = l && l.getAttribute('href').match(/v=(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
-  $('setVer').textContent = m ? `${+m[1]}年${+m[2]}月${+m[3]}日 ${m[4]}:${m[5]} の版` : '';
+  $('setVer').textContent = m ? `v${m[1]}.${m[2]}.${m[3]} · ${m[4]}:${m[5]}` : '';
 }
 function openSettings(){ setMenu(false); updateMapState(); bkPaint(); paintVersion(); setDlg.style.transform = ''; setDlg.showModal(); syncModal(); }
 // 設定・絞り込み・トークンの窓を開いている間は、後ろの一覧がスクロールしないようにする
