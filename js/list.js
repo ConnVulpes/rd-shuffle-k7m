@@ -66,8 +66,8 @@ function render(){
   if(!cache){ refreshAll(); return; }
   clearSelection();
   // 似ているものを並べている間は、元の一覧の絞り込みも並び順も使わず、近い順のまま（似た画像の条件があれば、合うものだけ）
-  // サムネが出ないものだけのときは、今の絞り込みの中から
-  const pool = sim ? simPool() : cache.items.filter(makeFilter(state.filter)).filter(x => !ntMode || isNoThumb(x));
+  // サムネが出ないものだけのときは、絞り込みの条件はかけずに、全部のブックマークの中から
+  const pool = sim ? simPool() : ntMode ? ntPool() : cache.items.filter(makeFilter(state.filter));
   order = sim ? pool.slice() : sortPool(pool);
   poolSize = order.length;
   renderDeepBar();
@@ -205,7 +205,6 @@ function goForward(n, fromPop){
 // 一段戻る（履歴の出し入れは呼ぶ側で）
 function restoreView(quiet){
   const v = views.pop(); if(!v) return;
-  if(v.kind === 'nt') ntStop = true;
   clearSelection();
   const sn = v.snap; delete v.snap;
   fwd.unshift(v);
@@ -282,7 +281,6 @@ function renderDeepBar(){
   // 帯の中：似た画像は道すじ、サムネイルが出ないもの（だけ）は名前と件数
   document.querySelector('.deep-title').hidden = !!v && v.kind === 'sim';
   $('deepPath').hidden = !!v && v.kind !== 'sim' && views.length === 1 && !fwd.length;
-  $('ntCheck').hidden = !ntMode;
   // 似た画像の絞り込み：似た画像の画面だけ。かけている間は青
   const fb = $('simFilterBtn'), sum = simF ? filterSummary(simF) : '';
   fb.hidden = !(v && v.kind === 'sim');
@@ -292,12 +290,7 @@ function renderDeepBar(){
   renderPath();
   if(v.kind === 'sim'){ $('deepName').textContent = ''; $('deepSub').textContent = ''; return; }
   $('deepName').textContent = 'サムネイルが出ないもの';
-  if(ntChecking){ $('ntCheck').textContent = '止める'; return; }
-  const pool = cache ? cache.items.filter(makeFilter(state.filter)) : [];
-  const unknown = pool.filter(isThumbUnknown).length;
-  $('deepSub').textContent = `${poolSize.toLocaleString()}件` + (unknown ? `・未確認 ${unknown.toLocaleString()}件` : '');
-  $('ntCheck').textContent = unknown ? '確かめる' : '確かめ直す';
-  $('ntCheck').title = unknown ? 'まだ一度も画像を出していないものを、小さいサイズで読んで確かめます' : '今並んでいるものを、もう一度読んで確かめます（直したものは外れます）';
+  $('deepSub').textContent = `${poolSize.toLocaleString()}件`;
 }
 
 // ---- 戻る：「‹ 戻る」・Esc・ブラウザの戻る・マウスの戻るボタンは同じ動き ----
@@ -787,12 +780,12 @@ $('sortCtl').addEventListener('contextmenu', e => {
 sortMenu.addEventListener('click', e => { const b = e.target.closest('[data-sort]'); if(!b) return; setSortMenu(false); setSort(b.dataset.sort); });
 applySortUI();
 
-// ---- サムネが出ないものだけを並べる（メニューから。今の絞り込みの中から選ぶ）----
+// ---- サムネが出ないものだけを並べる（絞り込みの「その他」から。絞り込みの条件はかけず、全部の中から選ぶ）----
 // 一覧やプレビューで画像を出そうとした結果を、ブックマークごとに覚えておく（出た／どの候補も出なかった）。
 // サムネの候補（カバーや添付）が変わったら、覚えていた結果は使わない
 var ntMode = false;
 const thumbOk = store.get('thumbok', {});   // ID → '1:印' か '0:印'（印 = 候補の URL から作った短い文字）
-let thumbOkTimer = 0, ntBarTimer = 0;
+let thumbOkTimer = 0;
 const strHash = s => { let h = 2166136261; for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 const thumbSig = it => strHash(thumbs(it).map(x => x.url).join('|') + '|' + it.l);
 function markThumb(it, ok){
@@ -802,65 +795,18 @@ function markThumb(it, ok){
   thumbOk[it.i] = v;
   clearTimeout(thumbOkTimer);
   thumbOkTimer = setTimeout(() => store.set('thumbok', thumbOk), 1500);
-  if(ntMode){ clearTimeout(ntBarTimer); ntBarTimer = setTimeout(renderDeepBar, 300); }
 }
 function thumbState(it){
   const v = thumbOk[it.i]; if(!v) return null;
   return v.slice(2) === thumbSig(it) ? v[0] === '1' : null;
 }
-// 候補が1つもなく、中継サービスで探せるサイト（X・pixiv）でもないもの：確かめるまでもなく出ない
+// 候補が1つもなく、中継サービスで探せるサイト（X・pixiv）でもないもの：画面に出すまでもなく出ない
 const canSiteThumb = it => !!xId(it.l) || /pixiv\.net\/(?:.*artworks\/\d+|.*illust_id=\d+)/.test(it.l || '');
 const surelyNone = it => !thumbs(it).length && !canSiteThumb(it);
 function isNoThumb(it){ const s = thumbState(it); return s === null ? surelyNone(it) : !s; }
-const isThumbUnknown = it => thumbState(it) === null && !surelyNone(it);
+// サムネが出ないものの一覧と件数（一覧に出したことがあって失敗したもの・候補が1つもないもの）
+const ntPool = () => cache ? cache.items.filter(isNoThumb) : [];
 
-// 確かめる：小さいサイズで1枚ずつ読んでみる（6件ずつ同時に）
+// 小さいサイズのサムネの URL（道すじのサムネで使う）
 const tinyUrl = u => /pbs\.twimg\.com\//.test(u) ? (u.includes('name=') ? u.replace(/([?&]name=)\w+/, '$1thumb') : u + (u.includes('?') ? '&' : '?') + 'name=thumb')
   : `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=48&h=48&fit=cover&output=webp`;
-function probeImg(url){
-  return new Promise(res => {
-    const im = new Image(); im.referrerPolicy = 'no-referrer';
-    const t = setTimeout(() => { im.src = ''; res(false); }, 15000);
-    im.onload = () => { clearTimeout(t); res(true); }; im.onerror = () => { clearTimeout(t); res(false); };
-    im.src = url;
-  });
-}
-function probeVideo(url){
-  return new Promise(res => {
-    const v = document.createElement('video'); v.muted = true; v.preload = 'metadata';
-    const t = setTimeout(() => { v.removeAttribute('src'); res(false); }, 15000);
-    v.onloadedmetadata = () => { clearTimeout(t); v.removeAttribute('src'); v.load(); res(true); }; v.onerror = () => { clearTimeout(t); res(false); };
-    v.src = url;
-  });
-}
-async function probeThumb(it){
-  for(const c of thumbs(it)){
-    if(c.video ? await probeVideo(c.url) : (await probeImg(tinyUrl(c.url)) || await probeImg(c.url))) return true;
-  }
-  for(const u of await siteThumbs(it)) if(await probeImg(tinyUrl(u)) || await probeImg(u)) return true;
-  return false;
-}
-let ntChecking = false, ntStop = false;
-async function checkThumbs(list){
-  ntChecking = true; ntStop = false; renderDeepBar();
-  let next = 0, done = 0;
-  const worker = async () => {
-    while(!ntStop && next < list.length){
-      const it = list[next++];
-      try{ markThumb(it, await probeThumb(it)); }catch(e){}
-      done++;
-      if(ntMode) $('deepSub').textContent = `確かめています… ${done.toLocaleString()} / ${list.length.toLocaleString()}`;
-    }
-  };
-  await Promise.all(Array.from({ length:6 }, worker));
-  store.set('thumbok', thumbOk);
-  ntChecking = false;
-  if(ntMode && cache) render(); else renderDeepBar();
-}
-$('ntBtn').addEventListener('click', () => { setMenu(false); if(ntMode || !cache) return; enterView({ kind:'nt' }); });
-$('ntCheck').addEventListener('click', () => {
-  if(ntChecking){ ntStop = true; return; }
-  const pool = cache.items.filter(makeFilter(state.filter));
-  const unknown = pool.filter(isThumbUnknown);
-  checkThumbs(unknown.length ? unknown : pool.filter(isNoThumb).filter(it => !surelyNone(it)));
-});

@@ -235,7 +235,25 @@ function descendants(id){
 // Raindrop から更新：メニューから。前回から Raindrop 側で変わったもの（タグ・フォルダの変更、ゴミ箱行き）も取り込む
 // すべて再取得　　：設定の画面から（refreshAll）
 let lastSync = 0;
-function setUpdateBusy(b){ ['updDiff', 'refresh'].forEach(id => { $(id).disabled = b; }); }
+let updBusy = false;
+function setUpdateBusy(b){ updBusy = b; ['updDiff', 'refresh'].forEach(id => { $(id).disabled = b; }); paintUpdTime(); }
+// メニューの「Raindrop から更新」の右：最後に Raindrop とそろえた時刻（更新している間は「更新中…」、キャッシュがなければ何も出さない）
+function paintUpdTime(){
+  const at = cache && (cache.syncedAt || cache.savedAt);
+  $('updDiffVal').textContent = !cache ? '' : updBusy ? '更新中…' : at ? updTimeText(at) : '';
+}
+// 1分未満「たった今」／1時間未満「N分前」／今日「20:47」／昨日「昨日 21:04」／それより前「11月3日」（年が違えば「2025年11月3日」）
+function updTimeText(t){
+  const now = new Date(), d = new Date(t), ago = now - d;
+  if(ago < 60 * 1000) return 'たった今';
+  if(ago < 60 * 60 * 1000) return `${Math.floor(ago / 60000)}分前`;
+  const hm = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const day0 = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((day0(now) - day0(d)) / DAY);
+  if(days <= 0) return hm;
+  if(days === 1) return `昨日 ${hm}`;
+  return (d.getFullYear() === now.getFullYear() ? '' : `${d.getFullYear()}年`) + `${d.getMonth() + 1}月${d.getDate()}日`;
+}
 // 新しい順に見ていき、知っているものに当たったら止める
 async function syncNew(manual = false){
   if(!cache || refreshing || !state.token) return;

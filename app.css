@@ -473,8 +473,6 @@ label.set-row{cursor:pointer}
 header.deep::before{background:color-mix(in srgb, var(--accent) 22%, var(--band-bg))}
 header.deep > h1, header.deep > .filter-btn, header.deep > .band-sep, header.deep > .st-icons, header.deep > .sort-wrap{display:none}
 header.deep > .deep-bar{display:flex}
-#ntCheck{white-space:nowrap}
-header #ntCheck{height:var(--band-btn); padding:0 12px; font-size:var(--fs-s); border-radius:var(--r-full)}
 .deep-back{flex:none; display:inline-flex; align-items:center; gap:2px; height:var(--band-btn); padding:0 12px 0 4px; font:inherit; font-size:var(--fs-s); font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-full); cursor:pointer; white-space:nowrap}
 .deep-back:hover{background:color-mix(in srgb, var(--text) 10%, transparent)}
 .deep-path[hidden], .deep-title[hidden]{display:none}
@@ -498,7 +496,7 @@ header #ntCheck{height:var(--band-btn); padding:0 12px; font-size:var(--fs-s); b
 .deep-sub{font-size:var(--fs-xs); color:var(--muted); white-space:nowrap}
 .deep-sub:empty{display:none}
 .deep-right{margin-left:auto; flex:none; display:flex; align-items:center}
-#ntCheck[hidden], #simFilterBtn[hidden]{display:none}
+#simFilterBtn[hidden]{display:none}
 .deep-right{gap:8px}
 /* 似た画像の絞り込み：かけている間は一覧の絞り込み中と同じ青 */
 #simFilterBtn.active{color:var(--accent); border-color:var(--accent)}
@@ -866,6 +864,12 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 .fd-types button{font:inherit; font-size:var(--fs-s); padding:4px 12px; border-radius:var(--r-full); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
 .fd-types button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
 .fd-note{font-size:var(--fs-s); color:var(--muted); margin:0; line-height:1.7}
+/* 「その他」のいちばん下：サムネイルが出ないものの一覧へ切り替える行（押すと窓を閉じる）。上とは線で分ける。
+   文字の左端を上のラベルとそろえるため、左右に 8 はみ出させる。高さは PC 36・スマホ 44 */
+.fd-nt{border-top:1px solid var(--line); padding-top:4px}
+.fd-nt-btn{display:flex; align-items:center; justify-content:space-between; gap:12px; width:calc(100% + 16px); min-height:36px; margin:0 -8px; padding:0 8px; font:inherit; font-size:var(--fs); color:var(--text); text-align:left; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
+.fd-nt-btn:hover{background:var(--field)}
+@media (hover:none){ .fd-nt-btn{min-height:44px} }
 .fd-foot{display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid var(--line)}
 .fd-foot button{min-height:36px}
 .fd-foot .spacer{flex:1}

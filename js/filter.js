@@ -85,6 +85,7 @@ const filterDlg = $('filterDlg'), fdList = $('fdList'), fdSearch = $('fdSearch')
 let draft = emptyFilter(), fdTab = 'folder';
 // fdFor：今開いている絞り込みの画面が、元の一覧の条件（'list'）と似た画像の条件（'sim'）のどちらを変えるか
 let fdFor = 'list';
+let fdNtCount = null;   // 「その他」に出すサムネイルが出ないものの件数（開いたときに数え直す）
 const cloneF = f => JSON.parse(JSON.stringify(f));
 
 function toggleIn(listIn, listEx, v, which){
@@ -152,6 +153,11 @@ function renderFilterDlg(){
   $('fdMatch').hidden = fdTab !== 'tag';
   document.querySelectorAll('#fdMatchSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.match === f.tm)));
   document.querySelectorAll('#fdTypes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.type === f.type)));
+  // 「その他」のいちばん下：サムネイルが出ないものの件数（絞り込みの条件によらないので、開くたびに1回だけ数える）
+  // 似た画像の条件を変えているときは出さない（その画面を絞るためのものなので）
+  $('fdNt').parentElement.hidden = fdFor === 'sim';
+  if(fdTab === 'other' && fdNtCount === null) fdNtCount = ntPool().length;
+  if(fdNtCount !== null) $('fdNtVal').innerHTML = `<span>${fdNtCount.toLocaleString()}件</span>` + icon('right');
 
   if(fdTab !== 'other'){
     fdSearch.placeholder = fdTab === 'folder' ? 'フォルダを探す' : 'タグを探す';
@@ -257,7 +263,7 @@ function openFilter(tab){
   // 似た画像の画面では、似た画像の条件を編集する（元の一覧の条件は変えない）
   fdFor = sim ? 'sim' : 'list';
   draft = fdFor === 'sim' ? Object.assign(emptyFilter(), simF ? cloneF(simF) : {}) : cloneF(state.filter);
-  presetEdit = false; presetNaming = false; fdPickedOpen = false;
+  presetEdit = false; presetNaming = false; fdPickedOpen = false; fdNtCount = null;
   if(tab) fdTab = tab;
   fdSearch.value = '';
   $('fdQ').value = draft.q || '';
@@ -276,6 +282,12 @@ $('fdQ').addEventListener('input', () => { clearTimeout(fdQTimer); fdQTimer = se
 $('fdQ').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); draft.q = $('fdQ').value.trim(); applyFilterDlg(); } });
 $('fdClear').addEventListener('click', () => { draft = emptyFilter(); $('fdQ').value = ''; renderFilterDlg(); });
 $('fdCancel').addEventListener('click', () => filterDlg.close());
+// サムネイルが出ないもの：条件は変えずに閉じて（キャンセルと同じ）、一覧をその画面に切り替える
+$('fdNt').addEventListener('click', () => {
+  filterDlg.close();
+  if(ntMode || !cache) return;
+  enterView({ kind:'nt' });
+});
 function applyFilterDlg(){
   if(fdFor === 'sim'){
     // 似た画像の条件：今の段の並びだけ変える（段は増やさない。元の一覧の条件はそのまま）

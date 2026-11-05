@@ -159,9 +159,9 @@ countSeg.addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
   state.count = Number(b.dataset.n); store.set('count', state.count); applyCount();
 });
-// メニュー（カードの大きさ・サムネイルが出ないもの・Raindrop から更新・設定…）
+// メニュー（並び順・カードの大きさ・Raindrop から更新・設定…）。開くたびに最後の更新時刻を書き直す
 const viewBtn = $('viewBtn'), viewMenu = $('viewMenu');
-function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); if(open && typeof setSortMenu === 'function') setSortMenu(false); }
+function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); if(open){ paintUpdTime(); if(typeof setSortMenu === 'function') setSortMenu(false); } }
 viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.hidden); });
 // メニューのいちばん上の「並び順」：シャッフルの長押しと同じ並び順の選択肢を開く（メニューは閉じる）
 $('sortRow').addEventListener('click', e => { e.stopPropagation(); setSortMenu(true); });
