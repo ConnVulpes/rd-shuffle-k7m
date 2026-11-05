@@ -30,25 +30,21 @@
   js/similar.js   似た画像の地図・似た画像・範囲で探す
   js/main.js      貼り付け・キー操作・起動（いちばん最後）
   ?v= は版の番号。公開の前に rd-shuffle-dev の bump.sh で上げる -->
-<link rel="stylesheet" href="app.css?v=202611052019">
+<link rel="stylesheet" href="app.css?v=202611052035">
 </head>
 <body>
-<header>
+<!-- 下に浮かぶ帯（もとは上のバー。部品の id はそのまま）。PC は左端にアプリ名、右に表示の3つ -->
+<header class="band">
   <h1>Raindrop シャッフル</h1>
   <button type="button" class="filter-btn" id="filterBtn" title="絞り込み（F）">
     <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.6 5.6V13l-2.8-1.4V8.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
     <span id="filterLabel">すべて</span>
   </button>
-  <span class="spacer"></span>
-  <div class="st-icons" id="stIcons">
-    <button type="button" class="st-ic" id="stCap" aria-pressed="false" title="キャプション（C）" aria-label="キャプション"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="14" height="9" rx="1.5"/><path d="M4 15.5h12"/></svg></button>
-    <button type="button" class="st-ic" id="stSaver" aria-pressed="false" title="省データモード" aria-label="省データモード"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 15.5C4.5 8.5 9 4.5 16 4.5c0 7-4.5 11-11.5 11zM4.5 15.5l6-6"/></svg></button>
-    <button type="button" class="st-ic" id="stCur" aria-pressed="false" title="カーソルを自動で隠す（H）" aria-label="カーソルを自動で隠す"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3v13l3.6-3.4 2.6 5.4 2-1-2.6-5.2h4.9z"/></svg></button>
-  </div>
   <div class="menu-wrap sort-wrap">
+    <!-- シャッフル：押すとシャッフル、長押し・右クリックで並び順。PC だけ右に ▾ -->
     <div class="sort-ctl" id="sortCtl">
-      <button type="button" class="sort-shuffle" id="shuffle" title="シャッフル（R）" aria-label="シャッフル"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h2.2c1.4 0 2.4.7 3.2 1.9l1.2 1.8c.8 1.2 1.8 1.9 3.2 1.9H14M2 11.5h2.2c1.4 0 2.4-.7 3.2-1.9M9.2 6.4c.8-1.2 1.8-1.9 3.2-1.9H14M12 2.5l2 2-2 2M12 9.5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-      <button type="button" class="sort-btn" id="sortBtn" aria-haspopup="true" aria-expanded="false" aria-controls="sortMenu" title="並び順"><span id="sortLabel">ランダム</span><svg class="ico chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 8l4.5 4.5L14.5 8"/></svg></button>
+      <button type="button" class="sort-shuffle" id="shuffle" title="シャッフル（R）・長押しで並び順" aria-label="シャッフル"><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h2.2c1.4 0 2.4.7 3.2 1.9l1.2 1.8c.8 1.2 1.8 1.9 3.2 1.9H14M2 11.5h2.2c1.4 0 2.4-.7 3.2-1.9M9.2 6.4c.8-1.2 1.8-1.9 3.2-1.9H14M12 2.5l2 2-2 2M12 9.5l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="sortLabel">シャッフル</span></button>
+      <button type="button" class="sort-btn" id="sortBtn" aria-haspopup="true" aria-expanded="false" aria-controls="sortMenu" title="並び順" aria-label="並び順"><svg class="ico chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 8l4.5 4.5L14.5 8"/></svg></button>
     </div>
     <div class="menu sort-menu" id="sortMenu" hidden>
       <button type="button" class="menu-item" data-sort="shuffle"><span>ランダム</span></button>
@@ -65,16 +61,23 @@
     <span class="deep-right"><button type="button" class="icon-btn" id="ntCheck" hidden>確かめる</button><button type="button" class="tool-btn" id="simFilterBtn" title="絞り込み（F）" aria-label="絞り込み" hidden><svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 3h12l-4.6 5.6V13l-2.8-1.4V8.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button></span>
   </div>
   <div class="menu-wrap">
-    <button type="button" class="tool-btn" id="viewBtn" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu" title="表示の設定">
-      <svg class="ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4h7M12 4h2M2 8h2M7 8h7M2 12h8M13 12h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.5" cy="4" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="8" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="11.5" cy="12" r="1.6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    <button type="button" class="tool-btn" id="viewBtn" aria-haspopup="true" aria-expanded="false" aria-controls="viewMenu" title="メニュー" aria-label="メニュー">
+      <svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 5.5h12M4 10h12M4 14.5h12"/></svg>
     </button>
     <div class="menu" id="viewMenu" hidden>
+      <button type="button" class="menu-item menu-row" id="sortRow" aria-haspopup="true" aria-controls="sortMenu"><span>並び順</span><span class="menu-val"><span id="sortRowVal">ランダム</span><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4.5l5.5 5.5-5.5 5.5"/></svg></span></button>
       <div class="menu-size"><label for="size">カードの大きさ</label><input type="range" id="size" min="90" max="380" step="5"></div>
       <button type="button" class="menu-item" id="ntBtn">サムネイルが出ないもの</button>
       <button type="button" class="menu-item" id="updDiff">Raindrop から更新</button>
       <hr>
       <button type="button" class="menu-item" id="settings">設定…</button>
     </div>
+  </div>
+  <span class="band-sep" aria-hidden="true"></span>
+  <div class="st-icons" id="stIcons">
+    <button type="button" class="st-ic" id="stCap" aria-pressed="false" title="キャプション（C）" aria-label="キャプション"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3.5" width="14" height="9" rx="1.5"/><path d="M4 15.5h12"/></svg></button>
+    <button type="button" class="st-ic" id="stSaver" aria-pressed="false" title="省データモード" aria-label="省データモード"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 15.5C4.5 8.5 9 4.5 16 4.5c0 7-4.5 11-11.5 11zM4.5 15.5l6-6"/></svg></button>
+    <button type="button" class="st-ic" id="stCur" aria-pressed="false" title="カーソルを自動で隠す（H）" aria-label="カーソルを自動で隠す"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 3v13l3.6-3.4 2.6 5.4 2-1-2.6-5.2h4.9z"/></svg></button>
   </div>
 </header>
 
@@ -86,7 +89,7 @@
   <div class="sel-spacer" id="selSpacer" hidden></div>
   <div class="empty" id="empty">
     <p>シャッフルを押すと、ブックマークがランダムに並びます。</p>
-    <p>カードを押すと画像が大きく開き、右上の水滴ボタンで Raindrop の編集画面が開きます。左上の「絞り込み」でフォルダやタグを選べます。</p>
+    <p>カードを押すと画像が大きく開き、右上の水滴ボタンで Raindrop の編集画面が開きます。下の帯の「絞り込み」でフォルダやタグを選べます。</p>
   </div>
 </main>
 
@@ -233,6 +236,7 @@
         <h3>キーの一覧</h3>
         <div class="set-group set-keys"><div class="set-keys-h">一覧</div><kbd>R</kbd><span>シャッフル</span><kbd>F</kbd><span>絞り込み</span><kbd>/</kbd><span>言葉で探す</span><kbd>C</kbd><span>キャプション</span><kbd>H</kbd><span>カーソルを隠す</span><kbd>1 2 3</kbd><span>カードの大きさ</span><kbd>?</kbd><span>キーの一覧（押している間）</span><div class="set-keys-h">プレビュー</div><kbd>← →</kbd><span>前・次</span><kbd>L</kbd><span>♥</span><kbd>S</kbd><span>似た画像</span><kbd>E</kbd><span>情報</span><kbd>T</kbd><span>タグを入力</span><kbd>1〜9</kbd><span>固定タグ</span><kbd>R</kbd><span>回転</span><kbd>F</kbd><span>反転</span><kbd>+ − 0</kbd><span>拡大・縮小・戻す</span><kbd>↑ ↓</kbd><span>明るさ</span><kbd>B</kbd><span>明るさを戻す</span><kbd>Q</kbd><span>高画質</span><kbd>Esc</kbd><span>閉じる</span></div>
       </div>
+      <p class="set-ver" id="setVer"></p>
     </div>
   </div>
 </dialog>
@@ -251,16 +255,16 @@
 <!-- 「?」を押している間だけ重ねるキーの一覧（PC）。中身は main.js が設定の画面のキーの一覧から写して作る -->
 <div id="keyPeek" class="key-peek" popover="manual" aria-hidden="true"></div>
 
-<script src="js/core.js?v=202611052019"></script>
-<script src="js/filter.js?v=202611052019"></script>
-<script src="js/list.js?v=202611052019"></script>
-<script src="js/preview.js?v=202611052019"></script>
-<script src="js/edit.js?v=202611052019"></script>
-<script src="js/select.js?v=202611052019"></script>
-<script src="js/settings.js?v=202611052019"></script>
-<script src="js/heat-sync.js?v=202611052019"></script>
-<script src="js/backup.js?v=202611052019"></script>
-<script src="js/similar.js?v=202611052019"></script>
-<script src="js/main.js?v=202611052019"></script>
+<script src="js/core.js?v=202611052035"></script>
+<script src="js/filter.js?v=202611052035"></script>
+<script src="js/list.js?v=202611052035"></script>
+<script src="js/preview.js?v=202611052035"></script>
+<script src="js/edit.js?v=202611052035"></script>
+<script src="js/select.js?v=202611052035"></script>
+<script src="js/settings.js?v=202611052035"></script>
+<script src="js/heat-sync.js?v=202611052035"></script>
+<script src="js/backup.js?v=202611052035"></script>
+<script src="js/similar.js?v=202611052035"></script>
+<script src="js/main.js?v=202611052035"></script>
 </body>
 </html>

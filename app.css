@@ -14,6 +14,11 @@
   --heart:#ff5c7c; --accent-on-dark:#9ec4e8;
   /* 画像の上に浮かべるガラス（半透明の面＋ぼかし。画像の上なので明るい画面でも同じ） */
   --glass-bg:rgba(20,22,25,.72); --glass-line:rgba(255,255,255,.18); --glass-blur:blur(10px); --glass-shadow:0 4px 14px rgba(0,0,0,.3);
+  /* 下に浮かぶ帯：ガラスの面（明るい画面では明るいガラス）、高さ、押せる大きさ（PC 36・スマホ 44）、下からの間 */
+  --band-bg:var(--glass-bg); --band-line:var(--glass-line);
+  --band-h:48px; --band-btn:36px; --band-pad:6px; --band-b:12px;
+  /* シャッフルだけが光る：アイコンの光の色のグラデーション */
+  --glow-a:#7a5cff; --glow-b:#3fe0c5; --glow-ink:#17222d;
   /* 文字の記号の代わりに使う形（× とピン） */
   --mask-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 5.5l9 9M14.5 5.5l-9 9' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
   --mask-check:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M4.5 10.5l3.5 3.5 7.5-8' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -28,8 +33,10 @@
     --card:#f4f5f6; --ph:#dcdfe3;
     --focus:#2d6aa3;
     --heart:#e0335a;
+    --band-bg:rgba(244,245,246,.72); --band-line:rgba(0,0,0,.12);
   }
 }
+@media (hover:none), (max-width:640px){ :root{--band-h:56px; --band-btn:44px} }
 *{box-sizing:border-box}
 html{color-scheme:light dark; scrollbar-gutter:stable}
 html.modal-open, html.modal-open body{overflow:hidden; overscroll-behavior:none}
@@ -41,15 +48,26 @@ body{
   font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif;
   font-size:var(--fs); line-height:1.6;
 }
+/* 下に浮かぶ帯（もとは上のバー）：画面の下の真ん中に浮かぶ、角の丸いガラスの帯。いつも出しておく。
+   ガラスの面は ::before に置く（帯そのものに backdrop-filter を付けると、中のメニューの position:fixed が帯の中に閉じこめられるため） */
 header{
-  position:sticky; top:0; z-index:5;
-  display:flex; align-items:center; gap:12px;
-  padding:8px 20px;
-  background:var(--bar);
-  -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
-  border-bottom:1px solid var(--line);
+  position:fixed; left:0; right:0; bottom:calc(var(--band-b) + env(safe-area-inset-bottom)); z-index:5;
+  width:max-content; max-width:calc(100% - 24px); margin:0 auto;
+  display:flex; align-items:center; gap:4px; height:var(--band-h); padding:0 var(--band-pad);
+  border-radius:var(--r-full); color:var(--text);
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
 }
-h1{font-size:var(--fs); font-weight:700; margin:0 6px 0 0; letter-spacing:.02em; white-space:nowrap}
+header::before{
+  content:''; position:absolute; inset:0; z-index:-1; border-radius:inherit;
+  background:var(--band-bg); border:1px solid var(--band-line); box-shadow:var(--glass-shadow);
+  -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+}
+/* 選んでいる間（下に複数選択のバーが出る）は帯を隠す */
+body.selecting header{display:none}
+/* アプリ名：PC だけ、帯の左端に小さく薄く */
+h1{display:none; font-size:var(--fs-s); font-weight:400; color:var(--muted); margin:0; padding:0 8px 0 12px; white-space:nowrap}
+/* 画面のいちばん上：時計や電池の表示が画像の上でも読めるよう、ごく薄い暗いぼかし（上の安全な余白があるときだけ） */
+body::before{content:''; position:fixed; top:0; left:0; right:0; z-index:4; height:calc(env(safe-area-inset-top) * 1.5); pointer-events:none; background:linear-gradient(rgba(0,0,0,.35), transparent)}
 svg.ic, .ico{width:20px; height:20px; flex:none; display:block}
 /* 線の太さは大きさに関係なく 1.5 */
 svg.ic *, .ico *, .lb-btn svg *{vector-effect:non-scaling-stroke}
@@ -76,40 +94,49 @@ select{max-width:280px}
   border:1px solid var(--line); border-radius:var(--r-s); padding:8px 12px; cursor:pointer;
 }
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
-/* 上のバー：絞り込み・並び順・シャッフル・表示 の4つだけ */
-.filter-btn{
-  display:inline-flex; align-items:center; gap:8px; min-width:0; max-width:520px; height:36px;
-  font:inherit; font-size:var(--fs); color:var(--text); background:var(--field);
-  border:1px solid var(--line); border-radius:var(--r-s); padding:0 12px; cursor:pointer;
+/* 帯の中：左から（PC はアプリ名）・絞り込み・シャッフル・メニュー（PC は区切り・表示の3つ）。ボタンは枠なしの丸 */
+.filter-btn, header .tool-btn, header .st-ic{
+  display:inline-flex; align-items:center; justify-content:center; flex:none; width:var(--band-btn); height:var(--band-btn); padding:0;
+  color:var(--text); background:transparent; border:0; border-radius:var(--r-full); cursor:pointer; -webkit-tap-highlight-color:transparent;
 }
-.filter-btn span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
-.filter-btn.active{color:var(--accent); font-weight:700}
-.filter-btn .muted{color:var(--muted)}
-/* 並び順とシャッフル：1つの枠に、押せる場所が2つ（⇆ はランダムのときだけ） */
-.sort-ctl{display:inline-flex; align-items:stretch; height:36px; border:1px solid var(--line); border-radius:var(--r-s); overflow:hidden}
-.sort-ctl button{display:inline-flex; align-items:center; gap:4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; cursor:pointer; white-space:nowrap}
-.sort-ctl button:hover{background:var(--field)}
+.filter-btn:hover, header .tool-btn:hover, header .st-ic:hover{background:color-mix(in srgb, var(--text) 10%, transparent)}
+/* 絞り込み：アイコンだけ。絞り込み中はアイコンを青く（条件の文字は出さない） */
+.filter-btn span{display:none}
+.filter-btn.active{color:var(--accent)}
+/* シャッフル：帯の真ん中で光る（グラデーションはここだけ）。PC は右に区切りと ▾ で、押せる場所が2つ */
+.sort-ctl{
+  display:inline-flex; align-items:stretch; height:var(--band-btn); margin:0 4px; border-radius:var(--r-full); overflow:hidden;
+  background:linear-gradient(90deg, var(--glow-a), var(--glow-b));
+  box-shadow:0 0 16px color-mix(in srgb, var(--glow-a) 45%, transparent), 0 0 24px color-mix(in srgb, var(--glow-b) 25%, transparent);
+}
+.sort-ctl button{display:inline-flex; align-items:center; gap:4px; font:inherit; font-weight:700; color:var(--glow-ink); background:transparent; border:0; cursor:pointer; white-space:nowrap; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none}
+.sort-ctl button:hover{background:rgba(255,255,255,.16)}
 .sort-ctl button:disabled{opacity:.5; cursor:progress}
-.sort-shuffle{padding:0 12px}
-.sort-shuffle[hidden]{display:none}
-.sort-shuffle:not([hidden]) + .sort-btn{border-left:1px solid var(--line)}
-.sort-btn{padding:0 8px 0 12px}
+.sort-shuffle{padding:0 20px}
+/* ランダム以外のときは「新しい順 · ⇆」（文字が先） */
+.sort-shuffle.alt{flex-direction:row-reverse}
+.sort-ctl .sort-btn{display:none; position:relative; padding:0 12px 0 8px}
+.sort-btn::before{content:''; position:absolute; left:0; top:8px; bottom:8px; width:1px; background:color-mix(in srgb, var(--glow-ink) 30%, transparent)}
 .sort-btn .chev{width:16px; height:16px}
 .sort-menu{width:200px}
 .sort-menu .menu-item{justify-content:space-between}
 .sort-menu .menu-item[aria-checked="true"]{font-weight:700}
 .sort-menu .menu-item[aria-checked="true"]::after{content:''; width:16px; height:16px; background:var(--accent); -webkit-mask:var(--mask-check) center/contain no-repeat; mask:var(--mask-check) center/contain no-repeat}
-/* PC だけ：表示の3つのオン・オフ（オンは塗り、オフは枠）。押すと切り替わる */
-.st-icons{display:none; gap:8px}
-@media (hover:hover) and (min-width:641px){ .st-icons{display:flex} }
-.st-ic{display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:var(--r-s); cursor:pointer}
-.st-ic:hover{color:var(--text)}
-.st-ic[aria-pressed="true"]{color:var(--accent); background:color-mix(in srgb, var(--accent) 18%, transparent); border-color:var(--accent)}
+/* PC だけ：区切りのあとに表示の3つのオン・オフ（オンは青）。押すと切り替わる */
+.band-sep{display:none; flex:none; width:1px; height:20px; margin:0 4px; background:var(--band-line)}
+.st-icons{display:none; gap:4px}
+.st-ic[aria-pressed="true"]{color:var(--accent); background:color-mix(in srgb, var(--accent) 18%, transparent)}
+@media (hover:hover) and (min-width:641px){
+  h1, .band-sep{display:block}
+  .st-icons{display:flex}
+  .sort-ctl .sort-btn{display:inline-flex}
+}
 .tool-btn{
   display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; flex:none;
   color:var(--muted); background:transparent; border:1px solid var(--line); border-radius:var(--r-s); cursor:pointer;
 }
 .tool-btn[aria-expanded="true"]{color:var(--text); background:var(--field)}
+header .tool-btn[aria-expanded="true"]{background:color-mix(in srgb, var(--text) 14%, transparent)}
 .menu-wrap{position:relative}
 /* 表示メニュー */
 .menu{
@@ -120,6 +147,15 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
   max-height:calc(100vh - 80px); overflow:auto; overscroll-behavior:contain;
 }
 .menu[hidden]{display:none}
+/* 帯の中のメニュー（並び順・≡）は帯の上に開く */
+header .menu{top:auto; bottom:calc(100% + var(--band-pad) + 8px); max-height:calc(100dvh - var(--band-h) - var(--band-b) - 40px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+header .sort-menu{right:auto; left:50%; transform:translateX(-50%)}
+/* ≡ のいちばん上の行「並び順　ランダム ›」 */
+.menu-row{justify-content:space-between; gap:12px}
+.menu-val{display:inline-flex; align-items:center; gap:4px; color:var(--muted); font-size:var(--fs-s)}
+.menu-val .ico{width:16px; height:16px}
+/* 一段奥では並び順を使わない（前の上のバーでも隠していた）ので、メニューの行も隠す */
+header.deep #sortRow{display:none}
 /* メニューの行は高さ 48 */
 .menu-item{display:flex; align-items:center; width:100%; min-height:48px; padding:0 12px; font:inherit; color:var(--text); text-align:left; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
 .menu-item:hover{background:var(--field)}
@@ -144,7 +180,7 @@ kbd{font:inherit; font-size:var(--fs-xs); color:var(--muted); border:1px solid v
 .status{color:var(--muted); font-size:var(--fs-s); margin:0 0 12px}
 .status:empty{display:none}
 
-main{padding:20px}
+main{padding:calc(20px + env(safe-area-inset-top)) 20px calc(var(--band-h) + var(--band-b) + 32px + env(safe-area-inset-bottom))}
 .grid{display:flex; align-items:flex-start; justify-content:center; gap:var(--gap,16px)}
 .col{flex:0 0 var(--colw,250px); width:var(--colw,250px); min-width:0; display:flex; flex-direction:column; gap:var(--gap,16px)}
 .card{
@@ -218,6 +254,8 @@ label.set-row{cursor:pointer}
 #bkAutoSec[hidden]{display:none}
 .map-state{flex:1; min-width:0; font-size:var(--fs-s); color:var(--muted); line-height:1.5}
 .set-note{margin:8px 16px 0; font-size:var(--fs-s); color:var(--muted); line-height:1.6}
+/* 設定のいちばん下：今の版（公開した日時。読み込みの ?v= から） */
+.set-ver{margin:24px 16px 4px; font-size:var(--fs-xs); color:var(--muted); text-align:center}
 .set-grip{display:none}
 .set-dlg{transition:transform .2s ease-out}
 .set-dlg.drag{transition:none}
@@ -422,23 +460,25 @@ label.set-row{cursor:pointer}
 .crop-go{border:0; font-weight:700; color:#16181b; background:var(--accent-on-dark)}
 .crop-go:disabled{opacity:.4; cursor:default}
 @media (hover:none){ .crop-btn{height:44px} }
-/* 一段奥の画面（似た画像・サムネイルが出ないもの）：上のバーを「‹ 戻る」・名前・メニューに入れ替え、薄い青の面にする */
-.deep-bar{display:none; flex:1; min-width:0; align-items:center; gap:4px}
-header.deep{background:color-mix(in srgb, var(--accent) 14%, var(--bar))}
-header.deep > h1, header.deep > .filter-btn, header.deep > .spacer, header.deep > .st-icons, header.deep > .sort-wrap{display:none}
+/* 一段奥の画面（似た画像・サムネイルが出ないもの）：帯の中身を「‹ 一覧」・道すじ（または名前）・絞り込み・≡ に入れ替え、帯をうっすら青みにする */
+.deep-bar{display:none; flex:1 1 auto; min-width:0; align-items:center; gap:4px}
+header.deep::before{background:color-mix(in srgb, var(--accent) 22%, var(--band-bg))}
+header.deep > h1, header.deep > .filter-btn, header.deep > .band-sep, header.deep > .st-icons, header.deep > .sort-wrap{display:none}
 header.deep > .deep-bar{display:flex}
 #ntCheck{white-space:nowrap}
-.deep-back{flex:none; display:inline-flex; align-items:center; gap:2px; height:36px; padding:0 12px 0 4px; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer; white-space:nowrap}
-.deep-back:hover{background:var(--field)}
+header #ntCheck{height:var(--band-btn); padding:0 12px; font-size:var(--fs-s); border-radius:var(--r-full)}
+.deep-back{flex:none; display:inline-flex; align-items:center; gap:2px; height:var(--band-btn); padding:0 12px 0 4px; font:inherit; font-size:var(--fs-s); font-weight:700; color:var(--accent); background:transparent; border:0; border-radius:var(--r-full); cursor:pointer; white-space:nowrap}
+.deep-back:hover{background:color-mix(in srgb, var(--text) 10%, transparent)}
+.deep-path[hidden], .deep-title[hidden]{display:none}
 /* 道すじ：たどってきた画像を左から順に。押すとその段へ戻る。横は止まらずにスクロール */
 .deep-path{flex:0 1 auto; min-width:0; display:flex; align-items:center; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch}
 .deep-path::-webkit-scrollbar{display:none}
 /* 左にまだあるときは、左端を薄く消す */
 .deep-path.more-left{-webkit-mask-image:linear-gradient(to right, transparent, #000 24px); mask-image:linear-gradient(to right, transparent, #000 24px)}
 .path-sep{flex:none; width:12px; height:12px; color:var(--muted)}
-.path-item{flex:none; display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; padding:0; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
-.path-item:hover{background:var(--field)}
-.path-thumb{width:30px; height:30px; border-radius:var(--r-s); object-fit:cover; background:var(--ph); display:flex; align-items:center; justify-content:center; color:var(--muted)}
+.path-item{flex:none; display:inline-flex; align-items:center; justify-content:center; width:var(--band-btn); height:var(--band-btn); padding:0; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
+.path-item:hover{background:color-mix(in srgb, var(--text) 10%, transparent)}
+.path-thumb{width:calc(var(--band-btn) - 8px); height:calc(var(--band-btn) - 8px); border-radius:var(--r-s); object-fit:cover; background:var(--ph); display:flex; align-items:center; justify-content:center; color:var(--muted)}
 .path-thumb .ico{width:18px; height:18px}
 .path-item[aria-current="true"] .path-thumb{box-shadow:0 0 0 2px var(--accent)}
 /* 戻ったあとの先の段は薄く残す。押すとまた進む */
@@ -446,7 +486,7 @@ header.deep > .deep-bar{display:flex}
 .path-item.ahead:hover .path-thumb{opacity:.7}
 .deep-title{flex:1; display:flex; flex-direction:column; min-width:0; padding-left:8px; line-height:1.3}
 .deep-title:empty, #deepName:empty{display:none}
-#deepName{font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
+#deepName{font-size:var(--fs-s); font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%}
 .deep-sub{font-size:var(--fs-xs); color:var(--muted); white-space:nowrap}
 .deep-sub:empty{display:none}
 .deep-right{margin-left:auto; flex:none; display:flex; align-items:center}
@@ -737,7 +777,7 @@ body.selecting .badge{left:42px}
 .ed-drop{display:flex; flex-direction:column; align-items:center; gap:8px; padding:16px 12px; border:1.5px dashed var(--line); border-radius:var(--r-m); text-align:center; font-size:var(--fs-s); color:var(--muted)}
 .ed-drop.over{border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, transparent)}
 /* お知らせをページの下に出すとき（プレビューの外） */
-.lb-toast.page{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); z-index:6}
+.lb-toast.page{position:fixed; bottom:calc(var(--band-h) + var(--band-b) + 12px + env(safe-area-inset-bottom)); z-index:6}
 body.selecting .lb-toast.page{bottom:calc(84px + env(safe-area-inset-bottom))}
 @media (hover:none){ body.selecting .lb-toast.page{bottom:calc(92px + env(safe-area-inset-bottom))} }
 @media (max-width:640px){
@@ -839,16 +879,11 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 }
 
 @media (max-width:640px){
-  header{padding:8px 12px; gap:8px}
-  h1{display:none}
-  main{padding:12px}
-  .filter-btn{flex:1}
-  header .spacer{display:none}
-  /* 上のバーのボタンは高さ 44 */
-  .filter-btn, .sort-ctl, .deep-back{height:44px}
-  .path-item{width:44px; height:44px}
-  #ntCheck{height:44px; padding:0 12px}
+  main{padding:calc(12px + env(safe-area-inset-top)) 12px calc(var(--band-h) + var(--band-b) + 24px + env(safe-area-inset-bottom))}
+  /* 帯のボタンの高さ 44 は --band-btn で */
   #simNoneBtn{min-height:44px}
   .tool-btn{width:44px; height:44px}
-  .menu{position:fixed; top:68px; right:12px; left:12px; width:auto; max-height:calc(100dvh - 80px - env(safe-area-inset-bottom)); overflow:auto; overscroll-behavior:contain}
+  /* 帯のメニューは画面の幅に合わせて、帯のすぐ上に */
+  header .menu{position:fixed; top:auto; left:auto; right:12px; bottom:calc(var(--band-h) + var(--band-b) + 8px + env(safe-area-inset-bottom)); width:min(320px, calc(100% - 24px)); transform:none; max-height:calc(100dvh - var(--band-h) - var(--band-b) - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow:auto; overscroll-behavior:contain}
+  header .sort-menu{left:50%; right:auto; width:240px; transform:translateX(-50%)}
 }

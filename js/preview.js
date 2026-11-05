@@ -260,10 +260,11 @@ function revealCard(it, tries = 0){
   const c = it && cardOf.get(it);
   if(!c) return;
   if(!c._placed || !c.isConnected){ if(tries < 30) setTimeout(() => revealCard(it, tries + 1), 100); return; }
-  const top = document.querySelector('header').offsetHeight;
+  // 見える範囲：上は画面の端から少しあけたところ、下は帯（header）の上まで
+  const top = 8, bottom = Math.min(innerHeight, document.querySelector('header').getBoundingClientRect().top - 8);
   const r = c.getBoundingClientRect();
-  if(r.top < top || r.bottom > innerHeight){
-    const room = innerHeight - top;
+  if(r.top < top || r.bottom > bottom){
+    const room = bottom - top;
     const y = scrollY + r.top - top - Math.max(12, (room - r.height) / 2);
     window.scrollTo({ top:Math.max(0, y), behavior:'instant' });
   }

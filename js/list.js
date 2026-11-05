@@ -44,12 +44,16 @@ function shuffle(){
   if(state.sort !== 'shuffle'){ state.sort = 'shuffle'; store.set('sort', 'shuffle'); applySortUI(); }
   render();
 }
-// 並び順：右の「ランダム ▾」から選ぶ。⇆ はランダムのときだけ出す
+// 並び順：帯のシャッフルの長押し・右クリック・PC の ▾・メニューの「並び順」から選ぶ。
+// シャッフルの文字は、ランダムのときは「⇆ シャッフル」、ほかのときは「新しい順 · ⇆」のように今の並び順
 const SORT_NAMES = { shuffle:'ランダム', new:'新しい順', old:'古い順', title:'タイトル順', liked:'♥ した順' };
 function applySortUI(){
   if(!(state.sort in SORT_NAMES)) state.sort = 'shuffle';
-  $('sortLabel').textContent = SORT_NAMES[state.sort];
-  shuffleBtn.hidden = state.sort !== 'shuffle';
+  const rnd = state.sort === 'shuffle', name = SORT_NAMES[state.sort];
+  $('sortLabel').textContent = rnd ? 'シャッフル' : name + ' ·';
+  shuffleBtn.classList.toggle('alt', !rnd);
+  shuffleBtn.setAttribute('aria-label', rnd ? 'シャッフル' : `${name}（押すとランダムに戻して混ぜる）`);
+  $('sortRowVal').textContent = name;
   document.querySelectorAll('#sortMenu .menu-item').forEach(b => { b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', String(b.dataset.sort === state.sort)); });
 }
 function setSort(v){
@@ -83,7 +87,7 @@ function render(){
   empty.hidden = poolSize > 0;
   if(!poolSize){
     moreEl.hidden = true;
-    statusEl.textContent = 'この条件のブックマークはありません。左上の「絞り込み」で条件を変えてください。';
+    statusEl.textContent = 'この条件のブックマークはありません。下の帯の「絞り込み」で条件を変えてください。';
     return;
   }
   appendMore();
@@ -275,6 +279,9 @@ $('deepPath').addEventListener('scroll', e => e.target.classList.toggle('more-le
 function renderDeepBar(){
   const v = views[views.length - 1];
   document.querySelector('header').classList.toggle('deep', !!v);
+  // 帯の中：似た画像は道すじ、サムネイルが出ないもの（だけ）は名前と件数
+  document.querySelector('.deep-title').hidden = !!v && v.kind === 'sim';
+  $('deepPath').hidden = !!v && v.kind !== 'sim' && views.length === 1 && !fwd.length;
   $('ntCheck').hidden = !ntMode;
   // 似た画像の絞り込み：似た画像の画面だけ。かけている間は青
   const fb = $('simFilterBtn'), sum = simF ? filterSummary(simF) : '';
@@ -742,6 +749,22 @@ shuffleBtn.addEventListener('click', shuffle);
 const sortMenu = $('sortMenu');
 function setSortMenu(open){ sortMenu.hidden = !open; sortBtn.setAttribute('aria-expanded', String(open)); if(open) setMenu(false); }
 sortBtn.addEventListener('click', e => { e.stopPropagation(); setSortMenu(sortMenu.hidden); });
+// シャッフルの長押し（0.5 秒）で並び順を開く。長押しで開いたときは、指を離したあとのクリックでシャッフルしない
+// （そのクリックは、メニューの外を押したときの処理（settings.js）が sortHeld を見て飲みこむ）
+let sortHeld = false, holdTimer = 0;
+document.addEventListener('pointerdown', () => { sortHeld = false; }, true);
+shuffleBtn.addEventListener('pointerdown', e => {
+  if(e.button !== 0 || shuffleBtn.disabled) return;
+  clearTimeout(holdTimer);
+  holdTimer = setTimeout(() => { holdTimer = 0; sortHeld = true; setSortMenu(true); }, 500);
+});
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => shuffleBtn.addEventListener(t, () => { clearTimeout(holdTimer); holdTimer = 0; }));
+// 右クリックでも開く（スマホの長押しで出る場合も、同じく開くだけ）
+$('sortCtl').addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if(holdTimer){ clearTimeout(holdTimer); holdTimer = 0; sortHeld = true; }
+  if(sortMenu.hidden && !shuffleBtn.disabled) setSortMenu(true);
+});
 sortMenu.addEventListener('click', e => { const b = e.target.closest('[data-sort]'); if(!b) return; setSortMenu(false); setSort(b.dataset.sort); });
 applySortUI();
 
