@@ -38,8 +38,25 @@ function sortPool(pool){
   const now = Date.now();
   return a.map(x => [x, -Math.log(1 - Math.random()) / heatWeight(x.i, now, s)]).sort((p, q) => p[1] - q[1]).map(p => p[0]);
 }
+// シャッフルの光の色：起動するたびとシャッフルするたびに色相だけ変える。明るさと鮮やかさは同じなので、どの色でも文字が読める。
+// 落ち着いて見えるように、鮮やかさは控えめ、2色目は 70° だけずらす（1つの光の中の色の揺れに見える間）。
+// からし色・オリーブ（色相 65〜125°）は暗い帯の上で濁って見えるので出さない。前の色と近すぎる色相（60° 以内）は引き直す
+let glowH = -1, glowS = 100;
+function paintGlow(first){
+  let h;
+  do { h = Math.floor(Math.random() * 360); } while((h >= 65 && h < 125) || (glowH >= 0 && Math.abs(((h - glowH + 540) % 360) - 180) < 60));
+  glowH = h;
+  const c = $('sortCtl');
+  if(first) c.style.transition = 'none'; else glowS += 180;
+  c.style.setProperty('--glow-a', `oklch(0.64 0.17 ${h})`);
+  c.style.setProperty('--glow-b', `oklch(0.85 0.11 ${(h + 290) % 360})`);
+  c.style.setProperty('--glow-ink', `oklch(0.22 0.05 ${h})`);
+  c.style.setProperty('--glow-s', glowS + 'deg');
+  if(first){ void c.offsetWidth; c.style.transition = ''; }
+}
 // シャッフルボタン：並び順をシャッフルにして並べ直す
 function shuffle(){
+  paintGlow(false);
   exitSimilar();
   if(state.sort !== 'shuffle'){ state.sort = 'shuffle'; store.set('sort', 'shuffle'); applySortUI(); }
   render();
@@ -779,6 +796,7 @@ $('sortCtl').addEventListener('contextmenu', e => {
 });
 sortMenu.addEventListener('click', e => { const b = e.target.closest('[data-sort]'); if(!b) return; setSortMenu(false); setSort(b.dataset.sort); });
 applySortUI();
+paintGlow(true);
 
 // ---- サムネが出ないものだけを並べる（絞り込みの「その他」から。絞り込みの条件はかけず、全部の中から選ぶ）----
 // 一覧やプレビューで画像を出そうとした結果を、ブックマークごとに覚えておく（出た／どの候補も出なかった）。

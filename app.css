@@ -17,7 +17,8 @@
   /* 下に浮かぶ帯：ガラスの面（明るい画面では明るいガラス）、高さ、押せる大きさ（PC 36・スマホ 44）、下からの間 */
   --band-bg:var(--glass-bg); --band-line:var(--glass-line);
   --band-h:48px; --band-btn:36px; --band-pad:6px; --band-b:12px;
-  /* シャッフルだけが光る：アイコンの光の色のグラデーション */
+  /* シャッフルだけが光る：グラデーションの2色と文字の色。起動するたび・シャッフルするたびに list.js の paintGlow が色相だけ変える
+     （ここの値はアイコンの色。JS が動く前に一瞬だけ出る） */
   --glow-a:#7a5cff; --glow-b:#3fe0c5; --glow-ink:#17222d;
   /* 文字の記号の代わりに使う形（× とピン） */
   --mask-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 5.5l9 9M14.5 5.5l-9 9' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -104,23 +105,30 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{ou
 .filter-btn span{display:none}
 .filter-btn.active{color:var(--accent)}
 /* シャッフル：帯の真ん中で光る（グラデーションはここだけ）。PC は右に区切りと ▾ で、押せる場所が2つ */
+/* 光る石の1枚：面の下の方に明るいかたまり、縁は少し暗く、上の縁に細いハイライト。外の光は左右それぞれの色で斜め下に落とす。
+   シャッフルすると、光の向き（--glow-s）が半回転しながら新しい色に変わる（色は oklch で混ぜるので、どの組でも真ん中が濁らない） */
+@property --glow-a{syntax:'<color>'; inherits:true; initial-value:#7a5cff}
+@property --glow-b{syntax:'<color>'; inherits:true; initial-value:#3fe0c5}
+@property --glow-s{syntax:'<angle>'; inherits:true; initial-value:100deg}
 .sort-ctl{
   display:inline-flex; align-items:stretch; height:var(--band-btn); margin:0 4px; border-radius:var(--r-full); overflow:hidden;
-  background:linear-gradient(90deg, var(--glow-a), var(--glow-b));
-  box-shadow:0 0 16px color-mix(in srgb, var(--glow-a) 45%, transparent), 0 0 24px color-mix(in srgb, var(--glow-b) 25%, transparent);
+  background:
+    radial-gradient(60% 90% at 50% 75%, color-mix(in oklch, var(--glow-b) 50%, white) 0%, transparent 70%),
+    linear-gradient(in oklch var(--glow-s), var(--glow-a), var(--glow-b));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4), inset 0 0 14px rgba(0,0,0,.28), -10px 6px 18px -8px var(--glow-a), 10px 6px 18px -8px var(--glow-b);
 }
-.sort-ctl button{display:inline-flex; align-items:center; gap:4px; font:inherit; font-weight:700; color:var(--glow-ink); background:transparent; border:0; cursor:pointer; white-space:nowrap; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none}
-.sort-ctl button:hover{background:rgba(255,255,255,.16)}
+.sort-ctl button{display:inline-flex; align-items:center; gap:4px; font:inherit; font-weight:700; color:var(--glow-ink); background:transparent; border:0; cursor:pointer; white-space:nowrap; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; transition:color .5s}
+.sort-ctl button:hover{background:rgba(255,255,255,.12)}
 .sort-ctl button:disabled{opacity:.5; cursor:progress}
 .sort-shuffle{padding:0 20px}
 /* 長押しの手ごたえ（よくあるアプリの長押しと同じ感じ）：押している間ゆっくり縮み、開く瞬間に一度ふくらんで戻る */
-.sort-ctl{transition:scale .12s ease-out; -webkit-user-select:none; user-select:none}
-.sort-ctl.pressing{scale:.94; transition:scale .45s cubic-bezier(.2,.8,.2,1)}
+.sort-ctl{transition:scale .12s ease-out, --glow-a .5s, --glow-b .5s, --glow-s .5s cubic-bezier(.3,1.2,.5,1); -webkit-user-select:none; user-select:none}
+.sort-ctl.pressing{scale:.94; transition:scale .45s cubic-bezier(.2,.8,.2,1), --glow-a .5s, --glow-b .5s, --glow-s .5s cubic-bezier(.3,1.2,.5,1)}
 .sort-ctl.popped{animation:sortPop .32s cubic-bezier(.3,1.6,.5,1)}
 @keyframes sortPop{0%{scale:.94} 45%{scale:1.07} 100%{scale:1}}
 header .sort-menu:not([hidden]){transform-origin:50% 100%; animation:menuPop .24s cubic-bezier(.25,1.3,.5,1)}
 @keyframes menuPop{from{opacity:0; scale:.86}}
-@media (prefers-reduced-motion: reduce){ .sort-ctl, .sort-ctl.pressing{transition:none} .sort-ctl.popped, header .sort-menu:not([hidden]){animation:none} }
+@media (prefers-reduced-motion: reduce){ .sort-ctl, .sort-ctl.pressing, .sort-ctl button{transition:none} .sort-ctl.popped, header .sort-menu:not([hidden]){animation:none} }
 /* ランダム以外のときは「新しい順 · ⇆」（文字が先） */
 .sort-shuffle.alt{flex-direction:row-reverse}
 .sort-ctl .sort-btn{display:none; position:relative; padding:0 12px 0 8px}
