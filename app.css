@@ -382,12 +382,12 @@ label.set-row{cursor:pointer}
    動画の上には何も重ねない（iPhone で動画の再生ボタンが押せなくなるため） */
 .peek-dim{position:absolute; inset:0; z-index:0; background:#000; pointer-events:none; display:none}
 .peek-dim.on{display:block}
-/* 背景：今の画像を大きくぼかした色の広がり。軽くするため、画面の 1/8 の小さな要素に小さくぼかして描き、
-   scale で 8 倍に引き伸ばす（画面より少し大きく、はみ出す分は #peek の外で切れる）。
+/* 背景：今の画像を大きくぼかした色の広がり。軽くするため、CSS のぼかしは使わない。
+   preview.js の drawAmb が、画像を数十ピクセルの小さなキャンバスに縮めて描き（暗くするのもそこで）、
+   それを画面いっぱいに引き伸ばす（引き伸ばすときのなめらかさが、そのままぼかしになる）。
    2枚を交互に使い、送るときは上に重ねた方の opacity だけを動かす。明るさの黒い膜（.peek-dim）より下に置く */
-.peek-amb{position:absolute; inset:-20%; z-index:0; pointer-events:none; overflow:hidden}
-.peek-amb i{position:absolute; left:0; top:0; width:12.5%; height:12.5%; transform-origin:0 0; transform:scale(8); will-change:transform;
-  background:center/cover no-repeat; filter:blur(6px) saturate(1.4) brightness(.5); opacity:0}
+.peek-amb{position:absolute; inset:-10%; z-index:0; pointer-events:none; overflow:hidden}
+.peek-amb canvas{position:absolute; inset:0; width:100%; height:100%; opacity:0}
 /* 背景を出している間は、後ろの一覧は見えないので、透かしとぼかしをやめる */
 #peek.amb{background:rgb(10,11,13); -webkit-backdrop-filter:none; backdrop-filter:none}
 /* 明るさ：右端の細いカプセル。変えている間だけ出す。押せないようにして、右手の親指のスワイプの邪魔をしない */

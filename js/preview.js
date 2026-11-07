@@ -144,35 +144,52 @@ $('peekHq').addEventListener('click', e => {
 });
 
 // ---- 背景：今の画像を大きくぼかした色（見た目は app.css の .peek-amb）----
-// 新しく読み込まないよう、一覧のカードで読み込み済みの画像の住所を使う。カードがまだなければ、プレビューで出した小さい方の画像
+// 新しく読み込まないよう、一覧のカードで読み込み済みの画像を使う。カードがまだなければ、プレビューで出した小さい方の画像。
+// CSS のぼかしは重いので使わず、小さなキャンバスに2段で縮めて描く（drawAmb）。送るたびの仕事は数十ピクセルを描くだけ
 const peekAmb = $('peekAmb'), ambLayers = [...peekAmb.children];
 let ambUrl = '', ambTop = 0, ambAnim = null;
-function loadedSrc(m){ return m && m.tagName === 'IMG' && m.complete && m.naturalWidth ? (m.currentSrc || m.src) : ''; }
-function cardSrc(it){ const c = cardOf.get(it); return loadedSrc(c && c.querySelector('img')); }
-// url を背景にする（'' なら背景をやめて、後ろの一覧を透かす今までの見た目に戻す）。
+const ambTiny = document.createElement('canvas');
+function loadedImg(m){ return m && m.tagName === 'IMG' && m.complete && m.naturalWidth ? m : null; }
+function cardImg(it){ const c = cardOf.get(it); return loadedImg(c && c.querySelector('img')); }
+// 画像を、いったん 6 ピクセル幅に縮めてから 24 ピクセル幅に広げて描く（2段で縮めると、引き伸ばしたときに格子が出にくい）。
+// 色は少し鮮やかに、明るさは半分に（見本の saturate(1.4) brightness(.5)）。ctx.filter がない古い端末は暗くするだけ
+function drawAmb(cv, img){
+  const W = 24, H = Math.max(24, Math.min(64, Math.round(W * (peek.clientHeight || innerHeight) / (peek.clientWidth || innerWidth))));
+  const w = 6, h = Math.max(6, Math.round(H / 4));
+  ambTiny.width = w; ambTiny.height = h;
+  const t = ambTiny.getContext('2d');
+  // 画面の形に合わせて真ん中を切り取る（cover）
+  const iw = img.naturalWidth, ih = img.naturalHeight, r = Math.max(w / iw, h / ih), sw = w / r, sh = h / r;
+  t.imageSmoothingQuality = 'low';
+  t.drawImage(img, (iw - sw) / 2, (ih - sh) / 2, sw, sh, 0, 0, w, h);
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  const canFilter = 'filter' in c;
+  if(canFilter) c.filter = 'saturate(1.4) brightness(.5)';
+  c.imageSmoothingEnabled = true;
+  c.drawImage(ambTiny, 0, 0, W, H);
+  if(!canFilter){ c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(0, 0, W, H); }
+}
+// img を背景にする（null なら背景をやめて、後ろの一覧を透かす今までの見た目に戻す）。
 // 開いている間は 0.25 秒で重ねて替える。開く前・動きを減らす設定のときは一瞬で替える
-function setAmb(url){
+function setAmb(img){
+  const url = img ? (img.currentSrc || img.src) : '';
   if(url === ambUrl) return;
   ambUrl = url;
   if(ambAnim){ ambAnim.cancel(); ambAnim = null; }
   const fade = peek.open && !reduceMotion();
   const cur = ambLayers[ambTop], next = ambLayers[1 - ambTop];
-  if(!url){
+  if(!img){
     peek.classList.remove('amb');
     cur.style.opacity = '0'; next.style.opacity = '0';
-    cur.style.backgroundImage = ''; next.style.backgroundImage = '';
     return;
   }
+  try { drawAmb(next, img); } catch(e){ return; }
   ambTop = 1 - ambTop;
-  next.style.backgroundImage = `url("${url.replace(/["\\]/g, '\\$&')}")`;
   next.style.zIndex = '1'; cur.style.zIndex = '0';
   next.style.opacity = '1';
-  // 上に重ねた方が出きったら、下の古い方を片付ける（前が背景なしのときは、ここで透かしをやめる）
-  const done = () => {
-    ambAnim = null;
-    cur.style.opacity = '0'; cur.style.backgroundImage = '';
-    peek.classList.add('amb');
-  };
+  // 上に重ねた方が出きったら、下の古い方を隠す（前が背景なしのときは、ここで透かしをやめる）
+  const done = () => { ambAnim = null; cur.style.opacity = '0'; peek.classList.add('amb'); };
   if(!fade){ done(); return; }
   ambAnim = next.animate([{ opacity:0 }, { opacity:1 }], { duration:250, easing:'ease-out' });
   ambAnim.onfinish = done;
@@ -181,18 +198,18 @@ function setAmb(url){
 // 画像がない（読み込めなかった・動画だけ）ときは背景をやめる
 function ambFromPeek(it){
   if(peekItem !== it) return;
-  setAmb(cardSrc(it) || loadedSrc(zoomer.querySelector('img.thumb')));
+  setAmb(cardImg(it) || loadedImg(zoomer.querySelector('img.thumb')));
 }
 
 function showPeekMedia(it){
   resetZoom(false);
   zoomer.innerHTML = '';
   // カードで読み込み済みならすぐ替える。なければ前の背景のまま、画像が読み込めたら替える
-  const card = cardSrc(it);
+  const card = cardImg(it);
   if(card) setAmb(card);
   const yt = ytId(it.l);
   if(yt){
-    if(!card) setAmb('');
+    if(!card) setAmb(null);
     const f = document.createElement('iframe');
     f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(yt)}?autoplay=1&rel=0`;
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
@@ -292,7 +309,7 @@ function onPeekClosed(){
   viewEnd();
   const last = peekItem;
   hideCrop();
-  setAmb('');   // 次に開いたとき、前の画像の色が一瞬出ないように
+  setAmb(null);   // 次に開いたとき、前の画像の色が一瞬出ないように
   lvlHide();
   peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
   setBare(false);   // 次に開くときは、ボタンと文字が出ている状態から
