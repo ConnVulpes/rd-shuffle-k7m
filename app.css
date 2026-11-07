@@ -1,7 +1,7 @@
 /* 見た目のすべて（もとは index.html の <style> の中身。順番も中身もそのまま）。
    共通の部品（文字・丸み・色・ガラス）→ 上のバー・一覧・カード → 窓 → プレビュー → 情報の画面 → スマホ向けの順 */
 :root{
-  --bg-top:#43464b; --bg-bottom:#2e3034;
+  --bg-top:#3a3c40; --bg-bottom:#26282b;   /* 11/7：少し暗めの灰色（本人） */
   --bar:rgba(46,48,52,.82); --field:#3a3d42; --line:#55595f;
   --text:#ebecee; --muted:#a2a6ac;
   --accent:#9ec4e8; --accent-ink:#17222d;
@@ -16,22 +16,22 @@
      面はシャッフルの光の色相（--glow-h、list.js の paintGlow が起動とシャッフルのたびに変える）をうっすら吸った暗い色。
      縁は線を引かず、上の縁の細い明るさと下の縁の細い暗さで出す（--glass-line は透明のまま、大きさを変えないために残している）。
      影も真っ黒ではなく、その色相の暗い色 */
-  --glow-h:285; --bg-tint:oklch(.42 .07 var(--glow-h));
-  --glass-bg:color-mix(in oklch, oklch(.24 .04 var(--glow-h)) 62%, transparent); --glass-line:transparent; --glass-blur:blur(28px) saturate(170%);
-  --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.38), inset 0 -.5px 0 rgba(0,0,0,.25), 0 14px 32px -12px oklch(.12 .06 var(--glow-h) / .7);
+  --glow-h:285;
+  --glass-bg:color-mix(in oklch, oklch(.24 .015 var(--glow-h)) 62%, transparent); --glass-line:transparent; --glass-blur:blur(28px) saturate(140%);
+  --glass-shadow:inset 0 .5px 0 rgba(255,255,255,.38), inset 0 -.5px 0 rgba(0,0,0,.25), 0 14px 32px -12px oklch(.12 .025 var(--glow-h) / .7);
   /* 下に浮かぶ帯：ガラスの面（明るい画面では明るいガラス）、高さ、押せる大きさ（PC 36・スマホ 44）、下からの間 */
-  --band-bg:color-mix(in oklch, oklch(.24 .04 var(--glow-h)) 56%, transparent); --band-line:var(--glass-line); --band-shadow:var(--glass-shadow);
+  --band-bg:color-mix(in oklch, oklch(.24 .015 var(--glow-h)) 56%, transparent); --band-line:var(--glass-line); --band-shadow:var(--glass-shadow);
   --band-h:48px; --band-btn:36px; --band-pad:6px; --band-b:12px;
   /* 窓（帯から開くメニュー・絞り込みなどの文字の多い窓）：帯より少し濃いガラスにして文字を読みやすく。明るい画面では明るいガラス。
      丸みはメニュー 22（帯の丸みに合わせる）、大きい窓 28。
      窓の中の面（行・入力欄・セグメント）は線で区切らず、うっすら明るい面 --face で分ける。選んでいる面は --face-on */
-  --sheet-bg:color-mix(in oklch, oklch(.22 .035 var(--glow-h)) 76%, transparent); --sheet-shadow:var(--glass-shadow);
+  --sheet-bg:color-mix(in oklch, oklch(.22 .012 var(--glow-h)) 76%, transparent); --sheet-shadow:var(--glass-shadow);
   --r-menu:22px; --r-sheet:28px;
   --face:rgba(255,255,255,.06); --face-on:rgba(255,255,255,.18);
   /* 設定の画面：シャッフルの色相の空（上が少し明るく、下に行くほど暗く、途中で色相を少しずらす）と、その上に乗るカード。
      カードは空が少し見える透けた面と上の縁の細い光。ぼかしは付けない（下は動かない空なので、ぼかしても見た目が変わらず重いだけ） */
-  --sky:linear-gradient(180deg, oklch(.3 .07 var(--glow-h)), oklch(.18 .04 calc(var(--glow-h) - 40)) 60%, oklch(.13 .02 var(--glow-h)));
-  --set-card:color-mix(in oklch, oklch(.24 .04 var(--glow-h)) 55%, transparent); --set-card-shadow:inset 0 .5px 0 rgba(255,255,255,.3);
+  --sky:linear-gradient(180deg, oklch(.27 .022 var(--glow-h)), oklch(.19 .012 calc(var(--glow-h) - 40)) 60%, oklch(.15 .006 var(--glow-h)));
+  --set-card:color-mix(in oklch, oklch(.24 .012 var(--glow-h)) 55%, transparent); --set-card-shadow:inset 0 .5px 0 rgba(255,255,255,.3);
   --r-card:20px;
   /* シャッフルだけが光る：グラデーションの2色と文字の色。起動するたび・シャッフルするたびに list.js の paintGlow が色相だけ変える
      （ここの値はアイコンの色。JS が動く前に一瞬だけ出る） */
@@ -43,19 +43,19 @@
 }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
-    --bg-top:#e3e5e8; --bg-bottom:#c9ccd1; --bg-tint:oklch(.86 .05 var(--glow-h));
+    --bg-top:#e3e5e8; --bg-bottom:#c9ccd1;
     --bar:rgba(227,229,232,.85); --field:#f2f3f5; --line:#b6bac0;
     --text:#24272b; --muted:#5b6066;
     --accent:#2d6aa3; --accent-ink:#ffffff;
     --card:#f4f5f6; --ph:#dcdfe3;
     --focus:#2d6aa3;
     --heart:#e0335a;
-    --band-bg:color-mix(in oklch, oklch(.97 .012 var(--glow-h)) 62%, transparent);
-    --band-shadow:inset 0 .5px 0 rgba(255,255,255,.9), inset 0 -.5px 0 rgba(0,0,0,.08), 0 12px 30px -12px oklch(.3 .05 var(--glow-h) / .35);
-    --sheet-bg:color-mix(in oklch, oklch(.97 .012 var(--glow-h)) 78%, transparent); --sheet-shadow:var(--band-shadow);
+    --band-bg:color-mix(in oklch, oklch(.97 .005 var(--glow-h)) 62%, transparent);
+    --band-shadow:inset 0 .5px 0 rgba(255,255,255,.9), inset 0 -.5px 0 rgba(0,0,0,.08), 0 12px 30px -12px oklch(.3 .02 var(--glow-h) / .35);
+    --sheet-bg:color-mix(in oklch, oklch(.97 .005 var(--glow-h)) 78%, transparent); --sheet-shadow:var(--band-shadow);
     --face:rgba(0,0,0,.04); --face-on:rgba(0,0,0,.1);
-    --sky:linear-gradient(180deg, oklch(.95 .03 var(--glow-h)), oklch(.9 .025 calc(var(--glow-h) - 40)) 60%, oklch(.88 .02 var(--glow-h)));
-    --set-card:rgba(255,255,255,.55); --set-card-shadow:inset 0 .5px 0 rgba(255,255,255,.9), 0 1px 2px oklch(.3 .05 var(--glow-h) / .08);
+    --sky:linear-gradient(180deg, oklch(.95 .012 var(--glow-h)), oklch(.91 .008 calc(var(--glow-h) - 40)) 60%, oklch(.89 .005 var(--glow-h)));
+    --set-card:rgba(255,255,255,.55); --set-card-shadow:inset 0 .5px 0 rgba(255,255,255,.9), 0 1px 2px oklch(.3 .02 var(--glow-h) / .08);
   }
 }
 @media (hover:none), (max-width:640px){ :root{--band-h:56px; --band-btn:44px; --band-b:26px} }
@@ -64,8 +64,8 @@ html{color-scheme:light dark; scrollbar-gutter:stable}
 html.modal-open, html.modal-open body{overflow:hidden; overscroll-behavior:none}
 body{
   margin:0; min-height:100vh;
-  /* 地の色にもシャッフルの色相を 8% だけ混ぜる（画面全体がその日の1つの色の中にいるように） */
-  background:linear-gradient(180deg, color-mix(in oklch, var(--bg-top) 92%, var(--bg-tint)) 0%, color-mix(in oklch, var(--bg-bottom) 92%, var(--bg-tint)) 100%) fixed;
+  /* 地の色は色相を混ぜない灰色（11/7、本人「ホーム背景の色は灰色に戻す」） */
+  background:linear-gradient(180deg,var(--bg-top) 0%,var(--bg-bottom) 100%) fixed;
   background-color:var(--bg-bottom);
   color:var(--text);
   font-family:"Zen Kaku Gothic New",-apple-system,"Hiragino Sans",sans-serif;
@@ -674,9 +674,9 @@ body.cur-idle .hero-crop{opacity:0}
 /* 中身は1列：上が「いつもの場所」（地の上に角の丸い面を並べ、面の上に小さく薄い見出し）、下が「すべてのタグ」の帯。左の端をそろえる */
 .lb-edit{--ed-face:var(--face);
   /* 下の「すべてのタグ」の帯：少し濃いガラス。貼りつく見出しは、下を流れるタグが透けないようにもう少し濃く */
-  --ed-band:color-mix(in oklch, oklch(.14 .03 var(--glow-h)) 45%, transparent); --ed-band-head:color-mix(in oklch, oklch(.15 .03 var(--glow-h)) 88%, transparent)}
+  --ed-band:color-mix(in oklch, oklch(.14 .012 var(--glow-h)) 45%, transparent); --ed-band-head:color-mix(in oklch, oklch(.15 .012 var(--glow-h)) 88%, transparent)}
 @media (prefers-color-scheme: light){
-  :root:not([data-theme="dark"]) .lb-edit{--ed-band:color-mix(in oklch, oklch(.9 .015 var(--glow-h)) 45%, transparent); --ed-band-head:color-mix(in oklch, oklch(.9 .015 var(--glow-h)) 88%, transparent)}
+  :root:not([data-theme="dark"]) .lb-edit{--ed-band:color-mix(in oklch, oklch(.9 .006 var(--glow-h)) 45%, transparent); --ed-band-head:color-mix(in oklch, oklch(.9 .006 var(--glow-h)) 88%, transparent)}
 }
 .ed-scroll{position:relative; flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column}
 .ed-home{display:flex; flex-direction:column; gap:16px; padding:4px 16px 20px}
@@ -878,7 +878,7 @@ dialog{
   color:var(--text); width:min(460px,92vw);
 }
 /* 窓の後ろ：その色相の暗い色の薄い膜と少しのぼかし（古いブラウザで変数が届かないときのために 285 を添える） */
-dialog::backdrop{background:oklch(.12 .03 var(--glow-h, 285) / .35); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px)}
+dialog::backdrop{background:oklch(.12 .012 var(--glow-h, 285) / .35); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px)}
 /* 窓の中の入力欄（プレビューの中の編集は除く）：線のない薄い面。フォーカスすると面が少し明るくなる */
 :where(dialog:not(#peek)) input:where(:not([type=range], [type=checkbox], [type=radio])){border-color:transparent; background:var(--face); border-radius:var(--r-m)}
 :where(dialog:not(#peek)) input:where(:not([type=range], [type=checkbox], [type=radio])):focus{background:var(--face-on)}
