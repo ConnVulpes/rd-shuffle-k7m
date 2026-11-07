@@ -159,6 +159,25 @@ countSeg.addEventListener('click', e => {
   const b = e.target.closest('button'); if(!b) return;
   state.count = Number(b.dataset.n); store.set('count', state.count); applyCount();
 });
+// 背景：自動・4つの灰色・自分で選ぶ。選んだらすぐ地の色を変えて、この端末に覚えておく
+const bgSws = $('bgSws'), bgPick = $('bgPick'), bgPickSw = $('bgPickSw');
+const BG_PRESETS = [...bgSws.querySelectorAll('button[data-bg]')].map(b => b.dataset.bg);
+function applyBgUi(){
+  const v = state.bg, custom = v !== 'auto' && !BG_PRESETS.includes(v);
+  bgSws.querySelectorAll('button[data-bg]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.bg === v)));
+  bgPickSw.classList.toggle('on', custom);
+  bgPickSw.style.setProperty('--c', custom ? v : '');
+  if(custom && /^#[0-9a-f]{6}$/i.test(v)) bgPick.value = v;
+}
+function setBg(v){
+  state.bg = v; store.set('bg', v);
+  paintBg(); applyBgUi();
+}
+bgSws.addEventListener('click', e => { const b = e.target.closest('button[data-bg]'); if(b) setBg(b.dataset.bg); });
+// 端末の色の選び方：動かしている間もすぐ当てる
+bgPick.addEventListener('input', () => setBg(bgPick.value));
+bgPick.value = '#2e3034';   // 自分で選んだ色がまだないときに、色の選び方が最初に出す色
+applyBgUi();
 // メニュー（並び順・カードの大きさ・Raindrop から更新・設定…）。開くたびに最後の更新時刻を書き直す
 const viewBtn = $('viewBtn'), viewMenu = $('viewMenu');
 function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); if(open){ paintUpdTime(); if(typeof setSortMenu === 'function') setSortMenu(false); } }

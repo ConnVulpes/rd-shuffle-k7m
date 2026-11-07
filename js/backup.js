@@ -104,7 +104,7 @@ function bkPlain(v){
 async function bkAppJson(){
   const map = await mapLocalGet().catch(() => null);   // 地図が読めなくても、ほかは保存する
   const settings = {};
-  ['heatpct', 'heatimp', 'count', 'cap', 'saver', 'hidecur', 'wakepx', 'col', 'sort', 'filter', 'autonext', 'tagsort', 'sidew', 'bkauto']
+  ['heatpct', 'heatimp', 'count', 'cap', 'bg', 'saver', 'hidecur', 'wakepx', 'col', 'sort', 'filter', 'autonext', 'tagsort', 'sidew', 'bkauto']
     .forEach(k => { const v = store.get(k, undefined); if(v !== undefined) settings[k] = v; });
   settings.heatPct = state.heatPct;
   const data = { v:1, at:Date.now(), presets, pins, heat:heatPacked(), settings,

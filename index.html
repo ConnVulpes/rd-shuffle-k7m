@@ -30,7 +30,7 @@
   js/similar.js   似た画像の地図・似た画像・範囲で探す
   js/main.js      貼り付け・キー操作・起動（いちばん最後）
   ?v= は版の番号。公開の前に rd-shuffle-dev の bump.sh で上げる -->
-<link rel="stylesheet" href="app.css?v=202611071534">
+<link rel="stylesheet" href="app.css?v=202611071543">
 </head>
 <body>
 <!-- 下に浮かぶ帯（もとは上のバー。部品の id はそのまま）。PC は左端にアプリ名、右に表示の3つ -->
@@ -197,6 +197,7 @@
     <div class="set-col">
       <h3>表示</h3>
       <div class="set-group">
+        <div class="set-row bg-row"><span>背景</span><div class="bg-sws" id="bgSws" role="group" aria-label="背景"><button type="button" class="bg-sw bg-auto" data-bg="auto" title="自動（画面の明るさに合わせる）" aria-label="自動（画面の明るさに合わせる）"></button><button type="button" class="bg-sw" data-bg="#121315" style="--c:#121315" title="黒" aria-label="黒"></button><button type="button" class="bg-sw" data-bg="#1f2124" style="--c:#1f2124" title="暗い灰" aria-label="暗い灰"></button><button type="button" class="bg-sw" data-bg="#2e3034" style="--c:#2e3034" title="灰" aria-label="灰"></button><button type="button" class="bg-sw" data-bg="#43464b" style="--c:#43464b" title="明るめの灰" aria-label="明るめの灰"></button><span class="bg-sw bg-pick" id="bgPickSw"><input type="color" id="bgPick" title="自分で選ぶ" aria-label="自分で選ぶ"></span></div></div>
         <label class="set-row switch"><span>キャプション</span><input type="checkbox" id="capToggle"></label>
         <div class="set-row"><span>一度に読み込む数</span><div class="seg set-seg" id="countSeg" role="group" aria-label="一度に読み込む数"><button type="button" data-n="20">20</button><button type="button" data-n="40">40</button><button type="button" data-n="80">80</button></div></div>
         <label class="set-row switch"><span>省データモード</span><input type="checkbox" id="saverToggle"></label>
@@ -258,16 +259,16 @@
 <!-- 「?」を押している間だけ重ねるキーの一覧（PC）。中身は main.js が設定の画面のキーの一覧から写して作る -->
 <div id="keyPeek" class="key-peek" popover="manual" aria-hidden="true"></div>
 
-<script src="js/core.js?v=202611071534"></script>
-<script src="js/filter.js?v=202611071534"></script>
-<script src="js/list.js?v=202611071534"></script>
-<script src="js/preview.js?v=202611071534"></script>
-<script src="js/edit.js?v=202611071534"></script>
-<script src="js/select.js?v=202611071534"></script>
-<script src="js/settings.js?v=202611071534"></script>
-<script src="js/heat-sync.js?v=202611071534"></script>
-<script src="js/backup.js?v=202611071534"></script>
-<script src="js/similar.js?v=202611071534"></script>
-<script src="js/main.js?v=202611071534"></script>
+<script src="js/core.js?v=202611071543"></script>
+<script src="js/filter.js?v=202611071543"></script>
+<script src="js/list.js?v=202611071543"></script>
+<script src="js/preview.js?v=202611071543"></script>
+<script src="js/edit.js?v=202611071543"></script>
+<script src="js/select.js?v=202611071543"></script>
+<script src="js/settings.js?v=202611071543"></script>
+<script src="js/heat-sync.js?v=202611071543"></script>
+<script src="js/backup.js?v=202611071543"></script>
+<script src="js/similar.js?v=202611071543"></script>
+<script src="js/main.js?v=202611071543"></script>
 </body>
 </html>

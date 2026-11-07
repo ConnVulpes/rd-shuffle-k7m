@@ -21,8 +21,21 @@ const state = {
   saver: store.get('saver', false),   // 軽量モード：画像を小さく取り、プレビューの高画質や動画は押したときだけ
   hideCur: store.get('hidecur', true),
   wakePx: store.get('wakepx', 360),
-  col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250)
+  col: store.get('col', ({ s:170, m:250, l:380 })[store.get('size', 'm')] || 250),
+  bg: store.get('bg', 'auto')   // 地の色：'auto'（画面の明るさに合わせる）か色の文字列。端末ごと
 };
+// 地の色を当てる。自動のときは何も上書きしない（app.css の値がそのまま効く）。
+// 色を選んでいるときは、その色を地のいちばん下に、少し明るくしたものを上に使う（暗い画面でも明るい画面でも）
+// ブラウザの上の帯などの色（theme-color）も、選んだ背景に合わせる。自動のときは元の色に戻す
+const themeMeta = document.querySelector('meta[name="theme-color"]'), themeOrig = themeMeta ? themeMeta.content : '';
+function paintBg(){
+  const s = document.documentElement.style, c = state.bg;
+  if(typeof c !== 'string' || c === 'auto' || !CSS.supports('color', c)){ s.removeProperty('--bg-top'); s.removeProperty('--bg-bottom'); if(themeMeta) themeMeta.content = themeOrig; return; }
+  if(themeMeta) themeMeta.content = c;
+  s.setProperty('--bg-bottom', c);
+  s.setProperty('--bg-top', `color-mix(in oklch, ${c}, white 10%)`);   // 10%：今の #323438 と #1f2124 の明るさの差に近い
+}
+paintBg();   // 一覧を描く前に（前の色が一瞬見えないように）
 // cache: { savedAt, syncedAt, items:[{i:ID, t:タイトル, l:URL, c:カバー, m:添付, y:種類, d:ドメイン, k:フォルダID, g:タグ, a:保存日, u:最終変更日}], colls:[{id,label,parent}], tags:[{name,count}] }
 let cache = store.get('cache', null);
 let kids = new Map();       // フォルダID → 子フォルダのID
