@@ -30,7 +30,7 @@
   js/similar.js   似た画像の地図・似た画像・範囲で探す
   js/main.js      貼り付け・キー操作・起動（いちばん最後）
   ?v= は版の番号。公開の前に rd-shuffle-dev の bump.sh で上げる -->
-<link rel="stylesheet" href="app.css?v=202611071154">
+<link rel="stylesheet" href="app.css?v=202611071451">
 </head>
 <body>
 <!-- 下に浮かぶ帯（もとは上のバー。部品の id はそのまま）。PC は左端にアプリ名、右に表示の3つ -->
@@ -117,6 +117,7 @@
 </div>
 
 <dialog id="peek" aria-label="プレビュー">
+  <div class="peek-amb" id="peekAmb" aria-hidden="true"><i></i><i></i></div>
   <div class="lb-top">
     <button type="button" class="lb-btn lb-ic" id="peekTrash" title="ゴミ箱へ（Delete）" aria-label="ゴミ箱へ（Delete）"></button>
     <button type="button" class="lb-btn lb-ic" id="peekRot" title="右に90度回す（R・Shift+R で左）" aria-label="右に90度回す"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.5 7.5A4.5 4.5 0 1 1 8 3h3.5M9.5 1l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
@@ -130,6 +131,7 @@
   <button type="button" class="lb-nav lb-next" id="peekNext" aria-label="次へ" title="次へ（→）"><svg class="ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 4l6 6-6 6"/></svg></button>
   <div class="peek-body" id="peekBody" tabindex="-1" autofocus><div class="zoomer" id="zoomer"></div><div class="peek-dim" id="peekDim"></div></div>
   <div class="zoom-ind" id="zoomInd"></div>
+  <div class="peek-lvl" id="peekLvl" aria-hidden="true"><span id="peekLvlV"></span><div class="peek-lvl-bar"><i id="peekLvlFill"></i></div></div>
   <button type="button" class="lb-like" id="peekLike" aria-pressed="false" data-n="0"><span id="peekLikeV"></span><span class="lb-like-n" id="peekLikeN"></span></button>
   <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
   <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><button type="button" class="lb-info" id="peekInfo" title="情報（E）"><span class="lb-cap-t" id="peekCapT"></span><span class="lb-cap-d" id="peekCapD"></span></button><div class="lb-sim" id="peekSimBox"><button type="button" id="peekSim" title="似た画像（S）">似た画像</button></div></div>
@@ -256,16 +258,16 @@
 <!-- 「?」を押している間だけ重ねるキーの一覧（PC）。中身は main.js が設定の画面のキーの一覧から写して作る -->
 <div id="keyPeek" class="key-peek" popover="manual" aria-hidden="true"></div>
 
-<script src="js/core.js?v=202611071154"></script>
-<script src="js/filter.js?v=202611071154"></script>
-<script src="js/list.js?v=202611071154"></script>
-<script src="js/preview.js?v=202611071154"></script>
-<script src="js/edit.js?v=202611071154"></script>
-<script src="js/select.js?v=202611071154"></script>
-<script src="js/settings.js?v=202611071154"></script>
-<script src="js/heat-sync.js?v=202611071154"></script>
-<script src="js/backup.js?v=202611071154"></script>
-<script src="js/similar.js?v=202611071154"></script>
-<script src="js/main.js?v=202611071154"></script>
+<script src="js/core.js?v=202611071451"></script>
+<script src="js/filter.js?v=202611071451"></script>
+<script src="js/list.js?v=202611071451"></script>
+<script src="js/preview.js?v=202611071451"></script>
+<script src="js/edit.js?v=202611071451"></script>
+<script src="js/select.js?v=202611071451"></script>
+<script src="js/settings.js?v=202611071451"></script>
+<script src="js/heat-sync.js?v=202611071451"></script>
+<script src="js/backup.js?v=202611071451"></script>
+<script src="js/similar.js?v=202611071451"></script>
+<script src="js/main.js?v=202611071451"></script>
 </body>
 </html>

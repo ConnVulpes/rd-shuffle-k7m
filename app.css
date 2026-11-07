@@ -361,6 +361,25 @@ label.set-row{cursor:pointer}
    動画の上には何も重ねない（iPhone で動画の再生ボタンが押せなくなるため） */
 .peek-dim{position:absolute; inset:0; z-index:0; background:#000; pointer-events:none; display:none}
 .peek-dim.on{display:block}
+/* 背景：今の画像を大きくぼかした色の広がり。軽くするため、画面の 1/8 の小さな要素に小さくぼかして描き、
+   scale で 8 倍に引き伸ばす（画面より少し大きく、はみ出す分は #peek の外で切れる）。
+   2枚を交互に使い、送るときは上に重ねた方の opacity だけを動かす。明るさの黒い膜（.peek-dim）より下に置く */
+.peek-amb{position:absolute; inset:-20%; z-index:0; pointer-events:none; overflow:hidden}
+.peek-amb i{position:absolute; left:0; top:0; width:12.5%; height:12.5%; transform-origin:0 0; transform:scale(8); will-change:transform;
+  background:center/cover no-repeat; filter:blur(6px) saturate(1.4) brightness(.5); opacity:0}
+/* 背景を出している間は、後ろの一覧は見えないので、透かしとぼかしをやめる */
+#peek.amb{background:rgb(10,11,13); -webkit-backdrop-filter:none; backdrop-filter:none}
+/* 明るさ：右端の細いカプセル。変えている間だけ出す。押せないようにして、右手の親指のスワイプの邪魔をしない */
+.peek-lvl{position:absolute; right:14px; top:calc(var(--img-t) + (100% - var(--img-t) - var(--cap-h)) / 2); transform:translateY(-50%); z-index:2;
+  display:flex; flex-direction:column; align-items:center; gap:8px; pointer-events:none; opacity:0; transition:opacity .2s}
+.peek-lvl.show{opacity:1}
+/* PC は右端に「次へ」の矢印があるので、その内側に置く */
+@media (hover:hover){ .peek-lvl{right:76px} }
+.peek-lvl span{font-size:var(--fs-xs); line-height:1; color:rgba(255,255,255,.8); font-variant-numeric:tabular-nums}
+.peek-lvl-bar{position:relative; width:8px; height:170px; border-radius:var(--r-full); overflow:hidden;
+  background:var(--glass-bg); box-shadow:inset 0 .5px 0 rgba(255,255,255,.3); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur)}
+/* 中身：下から今の明るさの分だけ白で満たす（高さは変えず、下へずらして見せる分を決める） */
+.peek-lvl-bar i{position:absolute; inset:0; border-radius:var(--r-full); background:rgba(255,255,255,.9); transform:translateY(100%)}
 .lb-like{position:absolute; right:12px; bottom:calc(var(--row-b) + env(safe-area-inset-bottom)); z-index:3; width:var(--row-h); height:var(--row-h); border-radius:var(--r-full);
   display:flex; align-items:center; justify-content:center; gap:0; padding:0; cursor:pointer; font:inherit; line-height:1;
   color:#fff; -webkit-tap-highlight-color:transparent}

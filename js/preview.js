@@ -143,11 +143,56 @@ $('peekHq').addEventListener('click', e => {
   upgradePeek(it);
 });
 
+// ---- 背景：今の画像を大きくぼかした色（見た目は app.css の .peek-amb）----
+// 新しく読み込まないよう、一覧のカードで読み込み済みの画像の住所を使う。カードがまだなければ、プレビューで出した小さい方の画像
+const peekAmb = $('peekAmb'), ambLayers = [...peekAmb.children];
+let ambUrl = '', ambTop = 0, ambAnim = null;
+function loadedSrc(m){ return m && m.tagName === 'IMG' && m.complete && m.naturalWidth ? (m.currentSrc || m.src) : ''; }
+function cardSrc(it){ const c = cardOf.get(it); return loadedSrc(c && c.querySelector('img')); }
+// url を背景にする（'' なら背景をやめて、後ろの一覧を透かす今までの見た目に戻す）。
+// 開いている間は 0.25 秒で重ねて替える。開く前・動きを減らす設定のときは一瞬で替える
+function setAmb(url){
+  if(url === ambUrl) return;
+  ambUrl = url;
+  if(ambAnim){ ambAnim.cancel(); ambAnim = null; }
+  const fade = peek.open && !reduceMotion();
+  const cur = ambLayers[ambTop], next = ambLayers[1 - ambTop];
+  if(!url){
+    peek.classList.remove('amb');
+    cur.style.opacity = '0'; next.style.opacity = '0';
+    cur.style.backgroundImage = ''; next.style.backgroundImage = '';
+    return;
+  }
+  ambTop = 1 - ambTop;
+  next.style.backgroundImage = `url("${url.replace(/["\\]/g, '\\$&')}")`;
+  next.style.zIndex = '1'; cur.style.zIndex = '0';
+  next.style.opacity = '1';
+  // 上に重ねた方が出きったら、下の古い方を片付ける（前が背景なしのときは、ここで透かしをやめる）
+  const done = () => {
+    ambAnim = null;
+    cur.style.opacity = '0'; cur.style.backgroundImage = '';
+    peek.classList.add('amb');
+  };
+  if(!fade){ done(); return; }
+  ambAnim = next.animate([{ opacity:0 }, { opacity:1 }], { duration:250, easing:'ease-out' });
+  ambAnim.onfinish = done;
+}
+// 表示している画像が読み込めたら、その画像（カードの画像がなかったとき）を背景にする。
+// 画像がない（読み込めなかった・動画だけ）ときは背景をやめる
+function ambFromPeek(it){
+  if(peekItem !== it) return;
+  setAmb(cardSrc(it) || loadedSrc(zoomer.querySelector('img.thumb')));
+}
+
 function showPeekMedia(it){
   resetZoom(false);
   zoomer.innerHTML = '';
+  // カードで読み込み済みならすぐ替える。なければ前の背景のまま、画像が読み込めたら替える
+  const card = cardSrc(it);
+  if(card) setAmb(card);
   const yt = ytId(it.l);
   if(yt){
+    if(!card) setAmb('');
     const f = document.createElement('iframe');
     f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(yt)}?autoplay=1&rel=0`;
     f.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
@@ -160,6 +205,7 @@ function showPeekMedia(it){
   // 軽量モードでは差し替えず、「高画質で見る」を押したときだけ読み込む
   const first = mediaEl(it, thumbs(it), 0, () => {
     if(peekItem !== it) return;
+    ambFromPeek(it);
     if(!state.saver || it._hq) upgradePeek(it); else syncHq();
   }, true, 'low');
   zoomer.append(first);
@@ -246,6 +292,8 @@ function onPeekClosed(){
   viewEnd();
   const last = peekItem;
   hideCrop();
+  setAmb('');   // 次に開いたとき、前の画像の色が一瞬出ないように
+  lvlHide();
   peekItem = null; peekVideoFor = null; zoomer.innerHTML = ''; resetZoom(false); edToast.hidden = true; peek.classList.remove('editing', 'hq-loading');
   setBare(false);   // 次に開くときは、ボタンと文字が出ている状態から
   unlockScroll();
@@ -435,10 +483,20 @@ function setBright(v, quiet){
   bright = Math.abs(v - 1) < 0.03 ? 1 : Math.round(v * 100) / 100;
   applyBright();
   if(quiet) return;
-  zoomInd.textContent = `明るさ ${Math.round(bright * 100)}%`;
-  zoomInd.classList.add('show'); clearTimeout(zoomIndTimer);
-  zoomIndTimer = setTimeout(() => zoomInd.classList.remove('show'), 900);
+  showLvl();
 }
+// 右端のカプセル：10%〜140% を 0〜100% の高さで満たし、上に数字。変えるのをやめて 0.9 秒で消す
+const peekLvl = $('peekLvl'), peekLvlV = $('peekLvlV'), peekLvlFill = $('peekLvlFill');
+let lvlTimer = 0;
+function showLvl(){
+  const p = (bright - 0.1) / 1.3;
+  peekLvlFill.style.transform = `translateY(${((1 - p) * 100).toFixed(1)}%)`;
+  peekLvlV.textContent = Math.round(bright * 100);
+  peekLvl.classList.add('show');
+  clearTimeout(lvlTimer);
+  lvlTimer = setTimeout(lvlHide, 900);
+}
+function lvlHide(){ clearTimeout(lvlTimer); peekLvl.classList.remove('show'); }
 function saveBright(){ store.set('bright', bright); }
 applyBright();
 $('peekNext').addEventListener('click', () => stepPeek(1));
