@@ -28,6 +28,11 @@
   --sheet-bg:color-mix(in oklch, oklch(.22 .035 var(--glow-h)) 76%, transparent); --sheet-shadow:var(--glass-shadow);
   --r-menu:22px; --r-sheet:28px;
   --face:rgba(255,255,255,.06); --face-on:rgba(255,255,255,.18);
+  /* 設定の画面：シャッフルの色相の空（上が少し明るく、下に行くほど暗く、途中で色相を少しずらす）と、その上に乗るカード。
+     カードは空が少し見える透けた面と上の縁の細い光。ぼかしは付けない（下は動かない空なので、ぼかしても見た目が変わらず重いだけ） */
+  --sky:linear-gradient(180deg, oklch(.3 .07 var(--glow-h)), oklch(.18 .04 calc(var(--glow-h) - 40)) 60%, oklch(.13 .02 var(--glow-h)));
+  --set-card:color-mix(in oklch, oklch(.24 .04 var(--glow-h)) 55%, transparent); --set-card-shadow:inset 0 .5px 0 rgba(255,255,255,.3);
+  --r-card:20px;
   /* シャッフルだけが光る：グラデーションの2色と文字の色。起動するたび・シャッフルするたびに list.js の paintGlow が色相だけ変える
      （ここの値はアイコンの色。JS が動く前に一瞬だけ出る） */
   --glow-a:#7a5cff; --glow-b:#3fe0c5; --glow-ink:#17222d;
@@ -49,6 +54,8 @@
     --band-shadow:inset 0 .5px 0 rgba(255,255,255,.9), inset 0 -.5px 0 rgba(0,0,0,.08), 0 12px 30px -12px oklch(.3 .05 var(--glow-h) / .35);
     --sheet-bg:color-mix(in oklch, oklch(.97 .012 var(--glow-h)) 78%, transparent); --sheet-shadow:var(--band-shadow);
     --face:rgba(0,0,0,.04); --face-on:rgba(0,0,0,.1);
+    --sky:linear-gradient(180deg, oklch(.95 .03 var(--glow-h)), oklch(.9 .025 calc(var(--glow-h) - 40)) 60%, oklch(.88 .02 var(--glow-h)));
+    --set-card:rgba(255,255,255,.55); --set-card-shadow:inset 0 .5px 0 rgba(255,255,255,.9), 0 1px 2px oklch(.3 .05 var(--glow-h) / .08);
   }
 }
 @media (hover:none), (max-width:640px){ :root{--band-h:56px; --band-btn:44px; --band-b:26px} }
@@ -263,17 +270,17 @@ body.cur-idle .rd-btn{opacity:0 !important}
 @media (hover:hover){ .cur-group{display:block} }
 .cur-group.off .sub{opacity:.45}
 /* 設定の画面：PC は窓で2列、スマホは画面いっぱいで1列。iPhone の設定と同じく、角の丸いまとまりに行を並べる */
-.set-dlg{width:min(800px, 94vw); max-height:90vh; padding:0; overflow:hidden; background:var(--bg-bottom)}
+.set-dlg{width:min(800px, 94vw); max-height:90vh; padding:0; overflow:hidden; background:var(--sky); -webkit-backdrop-filter:none; backdrop-filter:none}   /* 空は窓に敷くので、中身だけが動き、空は止まったまま。空は透けないのでぼかしは外す */
 .set-dlg[open]{display:flex; flex-direction:column}
-.set-head{flex:none; display:flex; align-items:center; gap:12px; padding:12px 16px 12px 24px; border-bottom:1px solid var(--line)}
+.set-head{flex:none; display:flex; align-items:center; gap:12px; padding:12px 16px 12px 24px}
 .set-head h2{margin:0 auto 0 0; font-size:var(--fs-h)}
 .set-done{display:none; font:inherit; font-weight:700; color:var(--accent); background:transparent; border:0; padding:8px; min-height:44px; cursor:pointer}
-.set-x{display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; color:var(--muted); background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
-.set-x:hover{background:var(--field); color:var(--text)}
+.set-x{display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; padding:0; color:var(--muted); background:var(--face); border:0; border-radius:var(--r-full); cursor:pointer}
+.set-x:hover{background:var(--face-on); color:var(--text)}
 .set-body{flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:grid; grid-template-columns:1fr 1fr; gap:0 24px; padding:8px 24px 24px}
 .set-col{min-width:0}
 .set-dlg h3{margin:20px 0 8px 16px; font-size:var(--fs-s); font-weight:400; color:var(--muted)}
-.set-group{background:var(--card); border-radius:var(--r-m); overflow:hidden}
+.set-group{background:var(--set-card); box-shadow:var(--set-card-shadow); border-radius:var(--r-card); overflow:hidden}
 .set-row{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:48px; padding:8px 16px; width:100%; font:inherit; color:var(--text); text-align:left; background:transparent; border:0}
 .set-row + .set-row, .set-group:not(.set-keys) > * + *{border-top:1px solid color-mix(in srgb, var(--line) 60%, transparent)}
 .cur-group > .set-row + .set-row{border-top:1px solid color-mix(in srgb, var(--line) 60%, transparent)}
@@ -283,7 +290,7 @@ label.set-row{cursor:pointer}
 .set-val{flex:none; min-width:3.6em; text-align:right; font-size:var(--fs-s); color:var(--muted); font-variant-numeric:tabular-nums}
 .set-seg button{padding:4px 16px; font-variant-numeric:tabular-nums}
 .set-act{color:var(--accent); cursor:pointer}
-.set-act:hover{background:var(--field)}
+.set-act:hover{background:var(--face-on)}
 .set-act:disabled{opacity:.5; cursor:progress}
 /* バックアップ：名前や日時は右に寄せ、ボタンのすぐ左に。長いフォルダ名は「…」で切る */
 .bk-val{flex:1; min-width:0; text-align:right; font-size:var(--fs-s); color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-variant-numeric:tabular-nums}
@@ -318,7 +325,7 @@ label.set-row{cursor:pointer}
 .key-peek .set-keys-h{color:inherit; opacity:.7}
 .key-peek kbd{margin:0; justify-self:start; color:inherit; border-color:rgba(255,255,255,.18)}
 @media (max-width:640px){
-  .set-dlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0}
+  .set-dlg{width:100vw; max-width:100vw; height:100dvh; max-height:100dvh; border-radius:0; border:0; box-shadow:none}
   .set-dlg{animation:setUp .2s ease-out}
   @keyframes setUp{ from{ transform:translateY(100%) } }
   .set-grip{display:flex; flex:none; height:20px; padding-top:env(safe-area-inset-top); box-sizing:content-box; align-items:flex-end; justify-content:center; touch-action:none}
@@ -632,10 +639,12 @@ body.cur-idle .hero-crop{opacity:0}
 #peek.bare :is(.lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav), #peek.bare :is(.lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav) *{pointer-events:none}
 @media (prefers-reduced-motion: reduce){ .lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav, #peek.bare :is(.lb-top, .lb-cap, .lb-like, .lb-hq, .lb-nav){transition:none} }
 /* 編集パネル：PC は左から、スマホは下から（つまみを上に引くと画面いっぱい） */
-.lb-edit{position:absolute; z-index:3; display:flex; flex-direction:column; background:var(--card); color:var(--text); font-size:var(--fs)}
+.lb-edit{position:absolute; z-index:3; display:flex; flex-direction:column; color:var(--text); font-size:var(--fs);
+  /* 窓と同じガラス：後ろのぼかした画像の色が少し透ける */
+  background:var(--sheet-bg); box-shadow:var(--sheet-shadow); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur)}
 .lb-edit[hidden]{display:none}
-.lb-edit.side{left:0; top:0; bottom:0; width:var(--edit-l, 360px); border-right:1px solid var(--line); box-shadow:8px 0 30px rgba(0,0,0,.35)}
-.lb-edit.sheet{left:0; right:0; bottom:0; height:var(--edit-h, 50vh); border-radius:var(--r-m) var(--r-m) 0 0; box-shadow:0 -8px 30px rgba(0,0,0,.35); padding-bottom:env(safe-area-inset-bottom); transition:height .22s ease-out}
+.lb-edit.side{left:0; top:0; bottom:0; width:var(--edit-l, 360px)}
+.lb-edit.sheet{left:0; right:0; bottom:0; height:var(--edit-h, 50vh); border-radius:var(--r-sheet) var(--r-sheet) 0 0; padding-bottom:env(safe-area-inset-bottom); transition:height .22s ease-out}
 .lb-edit.sheet.full{border-radius:0}
 .lb-edit.drag{transition:none}
 .lb-edit.stale .ed-scroll{pointer-events:none}
@@ -647,7 +656,7 @@ body.cur-idle .hero-crop{opacity:0}
 .lb-edit.sheet .ed-resize{display:none}
 /* 見出しの行：タイトル全文と「作者 · サイト · 日付」・自動で次へ（文字ごと押せる）・閉じる。押せる範囲はスマホ 44、PC 32。
    タイトルが何行になっても、スイッチと × は1行目の高さにそろえる。下に区切りの線 */
-.ed-head{--ed-hit:32px; flex:none; display:flex; align-items:flex-start; gap:12px; padding:8px 16px; border-bottom:1px solid var(--line); margin-bottom:12px}
+.ed-head{--ed-hit:32px; flex:none; display:flex; align-items:flex-start; gap:12px; padding:8px 16px; margin-bottom:12px}   /* 下とはすき間で区切る */
 .lb-edit.sheet .ed-head{touch-action:none; padding-top:4px}
 .ed-ttl{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; padding-top:calc((var(--ed-hit) - 21px) / 2)}
 .ed-ttl-t{font-size:var(--fs); line-height:21px; overflow:hidden; overflow-wrap:anywhere; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3}
@@ -655,15 +664,20 @@ body.cur-idle .hero-crop{opacity:0}
 .ed-head{flex-wrap:wrap; row-gap:0}
 .ed-brk{flex-basis:100%; height:0}
 .ed-head .switch{margin-left:auto; flex:none; display:flex; align-items:center; gap:8px; min-height:32px; white-space:nowrap; font-size:var(--fs-s); color:var(--muted); cursor:pointer; user-select:none; -webkit-user-select:none}
-.ed-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:32px; height:32px; margin-right:-6px; border-radius:var(--r-s); border:0; background:transparent; color:var(--muted); cursor:pointer; flex:none}
-.ed-x:hover{background:var(--field); color:var(--text)}
+.ed-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:32px; height:32px; margin-right:-6px; border-radius:var(--r-full); border:0; background:transparent; color:var(--muted); cursor:pointer; flex:none}
+.ed-x:hover{background:var(--face-on); color:var(--text)}
 @media (hover:none){
   .ed-head{--ed-hit:44px}
   .ed-head .switch{min-height:44px}
   .ed-x{width:44px; height:44px; margin-right:-12px}
 }
 /* 中身は1列：上が「いつもの場所」（地の上に角の丸い面を並べ、面の上に小さく薄い見出し）、下が「すべてのタグ」の帯。左の端をそろえる */
-.lb-edit{--ed-face:color-mix(in srgb, var(--text) 6%, var(--card)); --ed-band:color-mix(in srgb, var(--bg-bottom) 85%, #000)}
+.lb-edit{--ed-face:var(--face);
+  /* 下の「すべてのタグ」の帯：少し濃いガラス。貼りつく見出しは、下を流れるタグが透けないようにもう少し濃く */
+  --ed-band:color-mix(in oklch, oklch(.14 .03 var(--glow-h)) 45%, transparent); --ed-band-head:color-mix(in oklch, oklch(.15 .03 var(--glow-h)) 88%, transparent)}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]) .lb-edit{--ed-band:color-mix(in oklch, oklch(.9 .015 var(--glow-h)) 45%, transparent); --ed-band-head:color-mix(in oklch, oklch(.9 .015 var(--glow-h)) 88%, transparent)}
+}
 .ed-scroll{position:relative; flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column}
 .ed-home{display:flex; flex-direction:column; gap:16px; padding:4px 16px 20px}
 .ed-face{display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-height:44px; padding:8px; border-radius:var(--r-m); background:var(--ed-face)}
@@ -674,8 +688,8 @@ body.cur-idle .hero-crop{opacity:0}
 .ed-h .ico{width:14px; height:14px}
 .ed-h > span:first-child{display:inline-flex; align-items:center; gap:4px}
 /* すべてのタグ：一段暗い帯。見出しと検索欄・並べ替えは上に貼りつく */
-.ed-all{flex:1 0 auto; display:flex; flex-direction:column; gap:8px; padding:0 16px 16px; background:var(--ed-band); border-top:1px solid var(--line)}
-.ed-all-head{position:sticky; top:0; z-index:2; display:flex; flex-direction:column; gap:8px; margin:0 -16px; padding:12px 16px 8px; background:var(--ed-band)}
+.ed-all{flex:1 0 auto; display:flex; flex-direction:column; gap:8px; padding:0 16px 16px; background:var(--ed-band)}
+.ed-all-head{position:sticky; top:0; z-index:2; display:flex; flex-direction:column; gap:8px; margin:0 -16px; padding:12px 16px 8px; background:var(--ed-band-head)}
 .ed-all-h{display:flex; align-items:center; gap:8px; font-size:var(--fs); font-weight:700}
 .ed-all-h .ico{color:var(--muted)}
 .ed-all-h .cnt{font-size:var(--fs-s); font-weight:400; color:var(--muted); font-variant-numeric:tabular-nums}
@@ -700,7 +714,7 @@ body.cur-idle .hero-crop{opacity:0}
   padding:4px 12px; border-radius:var(--r-m); border:0; background:var(--ed-face); color:var(--text); cursor:pointer;
 }
 @media (hover:none){ .ed-folder{min-height:44px} }
-@media (hover:hover){ .ed-folder:hover{background:color-mix(in srgb, var(--text) 10%, var(--card))} }
+@media (hover:hover){ .ed-folder:hover{background:var(--face-on)} }
 .ed-folder span{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .ed-folder .ico{flex:none; color:var(--muted)}
 /* サムネイルの行：左に小さな画像、その右に取り元（薄く）、右端に矢印 */
@@ -711,15 +725,17 @@ body.cur-idle .hero-crop{opacity:0}
 .ed-cover-src{color:var(--muted)}
 /* 文字だけのボタン（青い文字・下線なし）。押せる範囲は高さ 36 */
 .ed-link{display:inline-flex; align-items:center; min-height:36px; font:inherit; font-size:var(--fs-s); border:0; background:transparent; color:var(--accent); cursor:pointer; padding:0 8px; border-radius:var(--r-s); white-space:nowrap}
-.ed-link:hover{background:var(--field)}
+.ed-link:hover{background:var(--face-on)}
 @media (hover:none){ .ed-link{min-height:44px} .ed-h .ed-link{margin:-12px -8px -12px auto} }
-.ed-list{width:100%; max-height:260px; overflow:auto; border:1px solid var(--line); border-radius:var(--r-s)}
+.ed-list{width:100%; max-height:260px; overflow:auto; border:1px solid transparent; border-radius:var(--r-m); background:var(--face)}
 .lb-edit.side .ed-list, .lb-edit.full .ed-list{max-height:42vh}
 .ed-list button{display:flex; align-items:center; gap:8px; width:100%; font:inherit; font-size:var(--fs-s); text-align:left; padding:8px 12px; border:0; border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent); background:transparent; color:var(--text); cursor:pointer}
 .ed-list .cnt{margin-left:auto; color:var(--muted); font-size:var(--fs-xs)}
 .ed-list .path{color:var(--muted)}
 .ed-list .cur{background:color-mix(in srgb, var(--accent) 16%, transparent)}
-.ed-search{width:100%; height:32px; padding:0 12px; font-size:var(--fs-s); margin:0}
+/* 入力欄：窓の中と同じ、線のない薄い面。フォーカスすると少し明るく */
+.ed-search{width:100%; height:32px; padding:0 12px; font-size:var(--fs-s); margin:0; border-color:transparent; background:var(--face); border-radius:var(--r-m)}
+.ed-search:focus{background:var(--face-on)}
 .ed-tools{display:flex; align-items:center; gap:8px; position:sticky; top:-4px; z-index:1; padding:4px 0; margin:-4px 0; background:var(--card)}
 .ed-tools .clr{flex:1; min-width:0}
 /* 検索欄の「全部消す」×（clearable）。文字があるときだけ、欄の右端の中に出す。押せる範囲は PC 28・スマホ 44（見た目は 20）。
@@ -732,27 +748,24 @@ body.cur-idle .hero-crop{opacity:0}
 .clr > input:placeholder-shown + .clr-x{display:none}
 @media (hover:none){ .clr{--clr-w:44px} }
 /* 並べ替えの切り替え：線はボタンごとに引いて、ボタンの高さ＝見た目の高さにする */
-.ed-seg{display:flex; flex:none}
-.ed-seg button{font:inherit; font-size:var(--fs-xs); padding:0 12px; height:32px; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
-.ed-seg button:first-child{border-radius:var(--r-s) 0 0 var(--r-s)}
-.ed-seg button:last-child{border-radius:0 var(--r-s) var(--r-s) 0}
-.ed-seg button + button{border-left:0}
-.ed-seg button[aria-pressed="true"]{background:var(--field); color:var(--text)}
-@media (hover:none){ .ed-tools .ed-search, .ed-seg button{height:36px} }
+.ed-seg{display:flex; flex:none; border:1px solid transparent; border-radius:var(--r-full); background:var(--face); overflow:hidden}
+.ed-seg button{font:inherit; font-size:var(--fs-xs); padding:0 12px; height:30px; border:0; border-radius:var(--r-full); background:transparent; color:var(--muted); cursor:pointer}
+.ed-seg button[aria-pressed="true"]{background:var(--face-on); color:var(--text); font-weight:700}
+@media (hover:none){ .ed-tools .ed-search{height:36px} .ed-seg button{height:34px} }
 /* タグは1種類の形：丸いカプセル。付いている＝塗り、まだ＝枠。押すと付く／もう一度押すと外れる */
 .ed-grid{display:flex; flex-wrap:wrap; gap:8px}
 .ed-tag{
   display:inline-flex; align-items:center; gap:4px; max-width:100%; min-height:28px; font:inherit; font-size:var(--fs-s); line-height:1.5;
-  padding:0 12px; border-radius:var(--r-full); border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer;
+  padding:0 12px; border-radius:var(--r-full); border:1px solid transparent; background:var(--face); color:var(--text); cursor:pointer;   /* 枠なしの薄い面 */
 }
 @media (hover:none){ .ed-tag{min-height:36px} }
-@media (hover:hover){ .ed-tag:hover{background:var(--field)} }
+@media (hover:hover){ .ed-tag:hover{background:var(--face-on)} }
 .ed-tag > span:first-of-type{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .ed-tag .cnt{font-size:var(--fs-xs); color:var(--muted); font-variant-numeric:tabular-nums}
 .ed-tag.on{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 .ed-tag.on .cnt{color:inherit; opacity:.75}
 .ed-tag kbd{margin:0; padding:0 4px; color:inherit; border-color:currentColor; opacity:.7; font-size:var(--fs-xs)}
-.ed-tag.new{border-style:dashed; color:var(--muted)}
+.ed-tag.new{border-style:dashed; border-color:var(--line); background:transparent; color:var(--muted)}
 .ed-tag.some{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent)}
 /* 固定したタグは名前の前にピンの形 */
 .ed-tag.pin::before,
