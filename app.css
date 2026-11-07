@@ -22,6 +22,12 @@
   /* 下に浮かぶ帯：ガラスの面（明るい画面では明るいガラス）、高さ、押せる大きさ（PC 36・スマホ 44）、下からの間 */
   --band-bg:color-mix(in oklch, oklch(.24 .04 var(--glow-h)) 56%, transparent); --band-line:var(--glass-line); --band-shadow:var(--glass-shadow);
   --band-h:48px; --band-btn:36px; --band-pad:6px; --band-b:12px;
+  /* 窓（帯から開くメニュー・絞り込みなどの文字の多い窓）：帯より少し濃いガラスにして文字を読みやすく。明るい画面では明るいガラス。
+     丸みはメニュー 22（帯の丸みに合わせる）、大きい窓 28。
+     窓の中の面（行・入力欄・セグメント）は線で区切らず、うっすら明るい面 --face で分ける。選んでいる面は --face-on */
+  --sheet-bg:color-mix(in oklch, oklch(.22 .035 var(--glow-h)) 76%, transparent); --sheet-shadow:var(--glass-shadow);
+  --r-menu:22px; --r-sheet:28px;
+  --face:rgba(255,255,255,.06); --face-on:rgba(255,255,255,.18);
   /* シャッフルだけが光る：グラデーションの2色と文字の色。起動するたび・シャッフルするたびに list.js の paintGlow が色相だけ変える
      （ここの値はアイコンの色。JS が動く前に一瞬だけ出る） */
   --glow-a:#7a5cff; --glow-b:#3fe0c5; --glow-ink:#17222d;
@@ -41,6 +47,8 @@
     --heart:#e0335a;
     --band-bg:color-mix(in oklch, oklch(.97 .012 var(--glow-h)) 62%, transparent);
     --band-shadow:inset 0 .5px 0 rgba(255,255,255,.9), inset 0 -.5px 0 rgba(0,0,0,.08), 0 12px 30px -12px oklch(.3 .05 var(--glow-h) / .35);
+    --sheet-bg:color-mix(in oklch, oklch(.97 .012 var(--glow-h)) 78%, transparent); --sheet-shadow:var(--band-shadow);
+    --face:rgba(0,0,0,.04); --face-on:rgba(0,0,0,.1);
   }
 }
 @media (hover:none), (max-width:640px){ :root{--band-h:56px; --band-btn:44px; --band-b:26px} }
@@ -79,13 +87,15 @@ body::before{content:''; position:fixed; top:0; left:0; right:0; z-index:4; heig
 svg.ic, .ico{width:20px; height:20px; flex:none; display:block}
 /* 線の太さは大きさに関係なく 1.5 */
 svg.ic *, .ico *, .lb-btn svg *{vector-effect:non-scaling-stroke}
-.seg{display:inline-flex; border:1px solid var(--line); border-radius:var(--r-s); overflow:hidden}
+/* セグメント：線を引かず、うっすら明るい丸い溝の中に丸いボタン。選んでいるのは明るい面。
+   大きさを変えないよう、もとの線は透明にして残す */
+.seg{display:inline-flex; border:1px solid transparent; border-radius:var(--r-full); background:var(--face); overflow:hidden}
 .seg button{
-  font:inherit; color:var(--muted); background:transparent; border:0;
+  font:inherit; color:var(--muted); background:transparent; border:0; border-radius:var(--r-full);
   padding:8px 16px; cursor:pointer;
 }
-.seg button+button{border-left:1px solid var(--line)}
-.seg button[aria-pressed="true"]{background:var(--field); color:var(--text); font-weight:700}
+.seg button+button{border-left:1px solid transparent}
+.seg button[aria-pressed="true"]{background:var(--face-on); color:var(--text); font-weight:700}
 select,input{
   font:inherit; color:var(--text); background:var(--field);
   border:1px solid var(--line); border-radius:var(--r-s); padding:8px 12px;
@@ -94,13 +104,15 @@ select{max-width:280px}
 .spacer{flex:1}
 .shuffle{
   font:inherit; font-weight:700; color:var(--accent-ink); background:var(--accent);
-  border:0; border-radius:var(--r-s); padding:8px 20px; cursor:pointer;
+  border:0; border-radius:var(--r-full); padding:8px 20px; cursor:pointer;
 }
 .shuffle:disabled{opacity:.6; cursor:progress}
 .icon-btn{
   font:inherit; color:var(--muted); background:transparent;
-  border:1px solid var(--line); border-radius:var(--r-s); padding:8px 12px; cursor:pointer;
+  border:1px solid transparent; border-radius:var(--r-full); padding:8px 14px; cursor:pointer;
+  background:var(--face);   /* 見た目 A：枠線ではなく薄い面で */
 }
+.icon-btn:hover{background:var(--face-on)}
 button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--focus); outline-offset:2px}
 /* 帯の中：左から（PC はアプリ名）・絞り込み・シャッフル・メニュー（PC は区切り・表示の3つ）。ボタンは枠なしの丸 */
 .filter-btn, header .tool-btn, header .st-ic{
@@ -165,8 +177,9 @@ header .tool-btn[aria-expanded="true"]{background:color-mix(in srgb, var(--text)
 .menu{
   position:absolute; top:calc(100% + 8px); right:0; z-index:6; width:288px;
   display:flex; flex-direction:column; gap:4px; padding:8px;
-  background:var(--card); border:1px solid var(--line); border-radius:var(--r-m);
-  box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:var(--fs);
+  /* 窓のガラス。線は引かない（大きさを変えないよう透明で残す） */
+  background:var(--sheet-bg); border:1px solid transparent; border-radius:var(--r-menu);
+  box-shadow:var(--sheet-shadow); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur); font-size:var(--fs);
   max-height:calc(100vh - 80px); overflow:auto; overscroll-behavior:contain;
 }
 .menu[hidden]{display:none}
@@ -180,14 +193,15 @@ header .sort-menu{right:auto; left:50%; transform:translateX(-50%)}
 /* 一段奥では並び順を使わない（前の上のバーでも隠していた）ので、メニューの行も隠す */
 header.deep #sortRow{display:none}
 /* メニューの行は高さ 48 */
-.menu-item{display:flex; align-items:center; width:100%; min-height:48px; padding:0 12px; font:inherit; color:var(--text); text-align:left; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
-.menu-item:hover{background:var(--field)}
+.menu-item{display:flex; align-items:center; width:100%; min-height:48px; padding:0 12px; font:inherit; color:var(--text); text-align:left; background:transparent; border:0; border-radius:var(--r-m); cursor:pointer}
+.menu-item:hover, .menu-item:active{background:var(--face-on)}
 .menu-item:disabled{opacity:.5; cursor:progress}
 .menu-size{display:flex; flex-direction:column; gap:0; padding:8px 12px 0}
 /* スライダー：見た目は細く、押せる範囲は高さ 44 */
 input[type=range]{height:44px; margin:0; padding:0; border:0; background:transparent; accent-color:var(--accent)}
 .menu-size input{width:100%}
-.menu hr{border:0; border-top:1px solid var(--line); margin:4px 0}
+/* 区切りは線ではなくすき間（前後の 4 と合わせて 12） */
+.menu hr{border:0; height:0; margin:4px 0}
 kbd{font:inherit; font-size:var(--fs-xs); color:var(--muted); border:1px solid var(--line); border-radius:4px; padding:0 4px; margin-left:8px} /* キーの形だけは角を小さく（例外） */
 /* オン・オフのスイッチ */
 .switch input{
@@ -321,7 +335,7 @@ label.set-row{cursor:pointer}
 /* プレビュー：画像を画面いっぱいに見せるだけ */
 #peek{
   position:fixed; inset:0; width:auto; height:auto; max-width:none; max-height:none;
-  margin:0; padding:0; border:0; border-radius:0;
+  margin:0; padding:0; border:0; border-radius:0; box-shadow:none;
   /* 後ろの一覧が透けて見えるように、暗くしてぼかすだけにする */
   background:rgba(10,11,13,.62); color:#eee; overflow:hidden;
   -webkit-backdrop-filter:blur(14px) saturate(.9); backdrop-filter:blur(14px) saturate(.9);
@@ -844,11 +858,17 @@ body.selecting .lb-toast.page{bottom:calc(84px + env(safe-area-inset-bottom))}
 .empty{max-width:520px; margin:12vh auto; text-align:center; color:var(--muted)}
 .empty p{margin:0 0 8px}
 
+/* 窓：メニューと同じガラス。線は引かない（大きさを変えないよう透明で残す） */
 dialog{
-  border:1px solid var(--line); border-radius:var(--r-m); padding:24px;
-  background:var(--card); color:var(--text); width:min(460px,92vw);
+  border:1px solid transparent; border-radius:var(--r-sheet); padding:24px;
+  background:var(--sheet-bg); box-shadow:var(--sheet-shadow); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  color:var(--text); width:min(460px,92vw);
 }
-dialog::backdrop{background:rgba(0,0,0,.45)}
+/* 窓の後ろ：その色相の暗い色の薄い膜と少しのぼかし（古いブラウザで変数が届かないときのために 285 を添える） */
+dialog::backdrop{background:oklch(.12 .03 var(--glow-h, 285) / .35); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px)}
+/* 窓の中の入力欄（プレビューの中の編集は除く）：線のない薄い面。フォーカスすると面が少し明るくなる */
+:where(dialog:not(#peek)) input:where(:not([type=range], [type=checkbox], [type=radio])){border-color:transparent; background:var(--face); border-radius:var(--r-m)}
+:where(dialog:not(#peek)) input:where(:not([type=range], [type=checkbox], [type=radio])):focus{background:var(--face-on)}
 dialog h2{font-size:var(--fs-h); margin:0 0 10px}
 dialog p{font-size:var(--fs-s); color:var(--muted); margin:0 0 12px}
 dialog input{width:100%; margin-bottom:16px}
@@ -866,7 +886,7 @@ dialog input{width:100%; margin-bottom:16px}
 .fd-presets{display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:0 16px 12px}
 .fd-pre-lab{font-size:var(--fs-s); color:var(--muted)}
 .fd-pre, .fd-pre-add, .fd-pre-edit, .fd-pre-ok, .fd-pre-cancel{font:inherit; font-size:var(--fs-s); line-height:1.5; padding:4px 12px; border-radius:var(--r-full); cursor:pointer; white-space:nowrap}
-.fd-pre{border:1px solid var(--line); background:var(--field); color:var(--text); max-width:100%; overflow:hidden; text-overflow:ellipsis}
+.fd-pre{border:1px solid transparent; background:var(--face); color:var(--text); max-width:100%; overflow:hidden; text-overflow:ellipsis}
 .fd-pre[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
 .fd-pre.del{display:inline-flex; align-items:center; gap:4px; border-color:var(--text); background:transparent}
 .fd-pre.del::after{content:""; flex:none; width:12px; height:12px; background:currentColor; -webkit-mask:var(--mask-x) center/contain no-repeat; mask:var(--mask-x) center/contain no-repeat}
@@ -883,10 +903,11 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 .chip{
   display:inline-flex; align-items:center; gap:4px; font:inherit; font-size:var(--fs-s); line-height:1.5;
   padding:2px 8px; border-radius:var(--r-full); cursor:pointer;
-  color:var(--text); background:var(--field); border:1px solid var(--line);
+  color:var(--text); background:var(--face); border:1px solid transparent;
 }
 .chip::after{content:""; flex:none; width:12px; height:12px; background:var(--muted); -webkit-mask:var(--mask-x) center/contain no-repeat; mask:var(--mask-x) center/contain no-repeat}
-.chip.ex{border-style:dashed; color:var(--muted)}
+/* 除くのチップは今までどおり点線で見分ける */
+.chip.ex{border-style:dashed; border-color:var(--line); color:var(--muted)}
 .fd-tabs{margin:0 16px; align-self:flex-start}
 .fd-pane{flex:1; min-height:0; display:flex; flex-direction:column; gap:12px; padding:12px 16px}
 .fd-pane[hidden]{display:none}
@@ -894,31 +915,33 @@ dialog input.fd-pre-name{flex:1 1 160px; width:auto; min-width:0; margin:0; font
 .fd-match{display:flex; align-items:center; gap:12px; font-size:var(--fs-s); color:var(--muted)}
 .fd-match[hidden]{display:none}
 .fd-match .seg button{padding:4px 12px; font-size:var(--fs-s)}
-.fd-list{flex:1; min-height:0; overflow:auto; border:1px solid var(--line); border-radius:var(--r-s)}
-.fd-row{display:flex; align-items:center; gap:12px; padding:8px 8px 8px 12px; font-size:var(--fs); border-bottom:1px solid color-mix(in srgb, var(--line) 45%, transparent)}
-.fd-row:last-child{border-bottom:0}
+/* 一覧：箱で囲って線で区切るのをやめ、1行ずつ角の丸い薄い面をすき間 4 で並べる */
+.fd-list{flex:1; min-height:0; overflow:auto}
+.fd-row{display:flex; align-items:center; gap:12px; padding:8px 8px 8px 12px; font-size:var(--fs); background:var(--face); border-radius:var(--r-m)}
+.fd-row + .fd-row{margin-top:4px}
 .fd-row .nm{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .fd-row .nm .path{color:var(--muted)}
 .fd-row .cnt{color:var(--muted); font-size:var(--fs-xs); font-variant-numeric:tabular-nums}
 .fd-row.in{background:color-mix(in srgb, var(--accent) 14%, transparent)}
 .fd-row.ex .nm{color:var(--muted); text-decoration:line-through}
-.tri{display:inline-flex; border:1px solid var(--line); border-radius:var(--r-s); overflow:hidden; flex:none}
-.tri button{font:inherit; font-size:var(--fs-s); height:28px; padding:0 12px; border:0; background:transparent; color:var(--muted); cursor:pointer}
-.tri button+button{border-left:1px solid var(--line)}
+/* 含む／除く：セグメントと同じ丸い溝の形（色は今のまま） */
+.tri{display:inline-flex; border:1px solid transparent; border-radius:var(--r-full); background:var(--face); overflow:hidden; flex:none}
+.tri button{font:inherit; font-size:var(--fs-s); height:28px; padding:0 12px; border:0; border-radius:var(--r-full); background:transparent; color:var(--muted); cursor:pointer}
+.tri button+button{border-left:1px solid transparent}
 .tri button[aria-pressed="true"].inc{background:var(--accent); color:var(--accent-ink)}
 .tri button[aria-pressed="true"].exc{background:var(--muted); color:var(--card)}
 .fd-label{font-size:var(--fs-s); font-weight:700}
 .fd-types{display:flex; flex-wrap:wrap; gap:8px}
-.fd-types button{font:inherit; font-size:var(--fs-s); padding:4px 12px; border-radius:var(--r-full); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
+.fd-types button{font:inherit; font-size:var(--fs-s); padding:4px 12px; border-radius:var(--r-full); border:1px solid transparent; background:var(--face); color:var(--muted); cursor:pointer}
 .fd-types button[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
 .fd-note{font-size:var(--fs-s); color:var(--muted); margin:0; line-height:1.7}
 /* 「その他」のいちばん下：サムネイルが出ないものの一覧へ切り替える行（押すと窓を閉じる）。上とは線で分ける。
    文字の左端を上のラベルとそろえるため、左右に 8 はみ出させる。高さは PC 36・スマホ 44 */
-.fd-nt{border-top:1px solid var(--line); padding-top:4px}
+.fd-nt{padding-top:8px}
 .fd-nt-btn{display:flex; align-items:center; justify-content:space-between; gap:12px; width:calc(100% + 16px); min-height:36px; margin:0 -8px; padding:0 8px; font:inherit; font-size:var(--fs); color:var(--text); text-align:left; background:transparent; border:0; border-radius:var(--r-s); cursor:pointer}
-.fd-nt-btn:hover{background:var(--field)}
+.fd-nt-btn:hover{background:var(--face-on)}
 @media (hover:none){ .fd-nt-btn{min-height:44px} }
-.fd-foot{display:flex; align-items:center; gap:12px; padding:12px 16px; border-top:1px solid var(--line)}
+.fd-foot{display:flex; align-items:center; gap:12px; padding:12px 16px}
 .fd-foot button{min-height:36px}
 .fd-foot .spacer{flex:1}
 .fd-foot button{white-space:nowrap}
