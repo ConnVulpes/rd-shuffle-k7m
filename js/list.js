@@ -52,6 +52,8 @@ function paintGlow(first){
   c.style.setProperty('--glow-b', `oklch(0.85 0.11 ${(h + 290) % 360})`);
   c.style.setProperty('--glow-ink', `oklch(0.22 0.05 ${h})`);
   c.style.setProperty('--glow-s', glowS + 'deg');
+  // ガラスと地の色も同じ色相をうっすら吸う（app.css の --glass-bg・--band-bg・--bg-tint）
+  document.documentElement.style.setProperty('--glow-h', h);
   if(first){ void c.offsetWidth; c.style.transition = ''; }
 }
 // シャッフルボタン：並び順をシャッフルにして並べ直す
