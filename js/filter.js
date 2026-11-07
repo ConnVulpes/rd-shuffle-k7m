@@ -86,6 +86,7 @@ let draft = emptyFilter(), fdTab = 'folder';
 // fdFor：今開いている絞り込みの画面が、元の一覧の条件（'list'）と似た画像の条件（'sim'）のどちらを変えるか
 let fdFor = 'list';
 let fdNtCount = null;   // 「その他」に出すサムネイルが出ないものの件数（開いたときに数え直す）
+let fdDupCount = null;  // 同じく、重複して保存したものの件数
 const cloneF = f => JSON.parse(JSON.stringify(f));
 
 function toggleIn(listIn, listEx, v, which){
@@ -153,11 +154,13 @@ function renderFilterDlg(){
   $('fdMatch').hidden = fdTab !== 'tag';
   document.querySelectorAll('#fdMatchSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.match === f.tm)));
   document.querySelectorAll('#fdTypes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.type === f.type)));
-  // 「その他」のいちばん下：サムネイルが出ないものの件数（絞り込みの条件によらないので、開くたびに1回だけ数える）
+  // 「その他」のいちばん下：重複して保存したもの・サムネイルが出ないものの件数（絞り込みの条件によらないので、開くたびに1回だけ数える）
   // 似た画像の条件を変えているときは出さない（その画面を絞るためのものなので）
   $('fdNt').parentElement.hidden = fdFor === 'sim';
   if(fdTab === 'other' && fdNtCount === null) fdNtCount = ntPool().length;
   if(fdNtCount !== null) $('fdNtVal').innerHTML = `<span>${fdNtCount.toLocaleString()}件</span>` + icon('right');
+  if(fdTab === 'other' && fdFor !== 'sim' && fdDupCount === null) fdDupCount = dupPool().length;
+  if(fdDupCount !== null) $('fdDupVal').innerHTML = `<span>${fdDupCount.toLocaleString()}件</span>` + icon('right');
 
   if(fdTab !== 'other'){
     fdSearch.placeholder = fdTab === 'folder' ? 'フォルダを探す' : 'タグを探す';
@@ -263,7 +266,7 @@ function openFilter(tab){
   // 似た画像の画面では、似た画像の条件を編集する（元の一覧の条件は変えない）
   fdFor = sim ? 'sim' : 'list';
   draft = fdFor === 'sim' ? Object.assign(emptyFilter(), simF ? cloneF(simF) : {}) : cloneF(state.filter);
-  presetEdit = false; presetNaming = false; fdPickedOpen = false; fdNtCount = null;
+  presetEdit = false; presetNaming = false; fdPickedOpen = false; fdNtCount = null; fdDupCount = null;
   if(tab) fdTab = tab;
   fdSearch.value = '';
   $('fdQ').value = draft.q || '';
@@ -287,6 +290,12 @@ $('fdNt').addEventListener('click', () => {
   filterDlg.close();
   if(ntMode || !cache) return;
   enterView({ kind:'nt' });
+});
+// 重複して保存したもの：サムネイルが出ないものと同じく、条件は変えずに閉じて、その画面に切り替える
+$('fdDup').addEventListener('click', () => {
+  filterDlg.close();
+  if(dupMode || !cache) return;
+  enterView({ kind:'dup' });
 });
 function applyFilterDlg(){
   if(fdFor === 'sim'){

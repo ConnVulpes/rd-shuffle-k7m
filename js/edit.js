@@ -49,7 +49,8 @@ function afterLocalChange(items, { media = false } = {}){
   applyCache();
   clearTimeout(cacheSaveTimer);
   cacheSaveTimer = setTimeout(() => store.set('cache', cache), 800);
-  const match = makeFilter(state.filter);
+  // 一段奥の画面では元の一覧の条件で見ない（似た画像はその画面の条件だけ、サムネが出ないもの・重複は条件なし）
+  const match = !views.length ? makeFilter(state.filter) : sim && simF ? makeFilter(simF) : () => true;
   items.forEach(it => {
     const c = cardOf.get(it);
     if(!c) return;

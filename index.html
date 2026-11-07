@@ -30,7 +30,7 @@
   js/similar.js   似た画像の地図・似た画像・範囲で探す
   js/main.js      貼り付け・キー操作・起動（いちばん最後）
   ?v= は版の番号。公開の前に rd-shuffle-dev の bump.sh で上げる -->
-<link rel="stylesheet" href="app.css?v=202611071144">
+<link rel="stylesheet" href="app.css?v=202611071154">
 </head>
 <body>
 <!-- 下に浮かぶ帯（もとは上のバー。部品の id はそのまま）。PC は左端にアプリ名、右に表示の3つ -->
@@ -174,7 +174,7 @@
     <div class="fd-label">言葉で探す</div>
     <input type="search" id="fdQ" placeholder="例：背景 夜" autocomplete="off">
     <p class="fd-note">タイトル・URL・タグ名・フォルダ名の中から探します。スペースで区切ると、全部を含むものだけになります。ページの本文や Raindrop のメモは対象外です。</p>
-    <div class="fd-nt"><button type="button" class="fd-nt-btn" id="fdNt"><span>サムネイルが出ないもの</span><span class="menu-val" id="fdNtVal"></span></button></div>
+    <div class="fd-nt"><button type="button" class="fd-nt-btn" id="fdDup"><span>重複して保存したもの</span><span class="menu-val" id="fdDupVal"></span></button><button type="button" class="fd-nt-btn" id="fdNt"><span>サムネイルが出ないもの</span><span class="menu-val" id="fdNtVal"></span></button></div>
   </div>
   <div class="fd-foot">
     <button type="button" class="icon-btn" id="fdClear">すべて解除</button>
@@ -256,16 +256,16 @@
 <!-- 「?」を押している間だけ重ねるキーの一覧（PC）。中身は main.js が設定の画面のキーの一覧から写して作る -->
 <div id="keyPeek" class="key-peek" popover="manual" aria-hidden="true"></div>
 
-<script src="js/core.js?v=202611071144"></script>
-<script src="js/filter.js?v=202611071144"></script>
-<script src="js/list.js?v=202611071144"></script>
-<script src="js/preview.js?v=202611071144"></script>
-<script src="js/edit.js?v=202611071144"></script>
-<script src="js/select.js?v=202611071144"></script>
-<script src="js/settings.js?v=202611071144"></script>
-<script src="js/heat-sync.js?v=202611071144"></script>
-<script src="js/backup.js?v=202611071144"></script>
-<script src="js/similar.js?v=202611071144"></script>
-<script src="js/main.js?v=202611071144"></script>
+<script src="js/core.js?v=202611071154"></script>
+<script src="js/filter.js?v=202611071154"></script>
+<script src="js/list.js?v=202611071154"></script>
+<script src="js/preview.js?v=202611071154"></script>
+<script src="js/edit.js?v=202611071154"></script>
+<script src="js/select.js?v=202611071154"></script>
+<script src="js/settings.js?v=202611071154"></script>
+<script src="js/heat-sync.js?v=202611071154"></script>
+<script src="js/backup.js?v=202611071154"></script>
+<script src="js/similar.js?v=202611071154"></script>
+<script src="js/main.js?v=202611071154"></script>
 </body>
 </html>

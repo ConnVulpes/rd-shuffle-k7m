@@ -86,8 +86,9 @@ function render(){
   clearSelection();
   // 似ているものを並べている間は、元の一覧の絞り込みも並び順も使わず、近い順のまま（似た画像の条件があれば、合うものだけ）
   // サムネが出ないものだけのときは、絞り込みの条件はかけずに、全部のブックマークの中から
-  const pool = sim ? simPool() : ntMode ? ntPool() : cache.items.filter(makeFilter(state.filter));
-  order = sim ? pool.slice() : sortPool(pool);
+  // 重複して保存したものも同じく全部の中から。並び順の設定は見ず、dupPool の並びのまま
+  const pool = sim ? simPool() : ntMode ? ntPool() : dupMode ? dupPool() : cache.items.filter(makeFilter(state.filter));
+  order = sim || dupMode ? pool.slice() : sortPool(pool);
   poolSize = order.length;
   renderDeepBar();
   shownCount = 0;
@@ -170,6 +171,7 @@ function applyView(){
   if(!v) simF = null;   // 元の一覧に戻ったら、似た画像の条件は外れる
   sim = v && v.kind === 'sim' ? v.sim : null;
   ntMode = !!v && v.kind === 'nt';
+  dupMode = !!v && v.kind === 'dup';
   $('pressMenu').hidden = true;   // 長押しの選択肢は、段が変わったら閉じる
   renderDeepBar();
 }
@@ -280,7 +282,7 @@ function renderPath(){
     const b = el('button', 'path-item' + (i >= views.length ? ' ahead' : '')); b.type = 'button';
     const cur = i === views.length - 1, ahead = i >= views.length;
     b.setAttribute('aria-current', String(cur));
-    const name = v.kind === 'sim' ? ((v.sim.center.t || '').trim() || v.sim.center.d || '似た画像') : 'サムネイルが出ないもの';
+    const name = v.kind === 'sim' ? ((v.sim.center.t || '').trim() || v.sim.center.d || '似た画像') : deepName(v);
     b.title = cur ? name : `${name}（${i + 1}段目）${ahead ? 'へ進む' : 'に戻る'}`;
     b.setAttribute('aria-label', b.title);
     if(v.kind === 'sim' && v.thumb){ const im = el('img', 'path-thumb'); im.src = v.thumb; im.alt = ''; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.replaceWith(Object.assign(el('span', 'path-thumb'), { innerHTML:IMG_OFF })); b.append(im); }
@@ -295,10 +297,12 @@ function renderPath(){
   box.classList.toggle('more-left', box.scrollLeft > 0);
 }
 $('deepPath').addEventListener('scroll', e => e.target.classList.toggle('more-left', e.target.scrollLeft > 2), { passive:true });
+// 一段奥の決まった一覧（サムネイルが出ないもの・重複して保存したもの）の名前
+const deepName = v => v.kind === 'dup' ? '重複して保存したもの' : 'サムネイルが出ないもの';
 function renderDeepBar(){
   const v = views[views.length - 1];
   document.querySelector('header').classList.toggle('deep', !!v);
-  // 帯の中：似た画像は道すじ、サムネイルが出ないもの（だけ）は名前と件数
+  // 帯の中：似た画像は道すじ、サムネイルが出ないもの・重複して保存したもの（だけ）は名前と件数
   document.querySelector('.deep-title').hidden = !!v && v.kind === 'sim';
   $('deepPath').hidden = !!v && v.kind !== 'sim' && views.length === 1 && !fwd.length;
   // 似た画像の絞り込み：似た画像の画面だけ。かけている間は青
@@ -309,7 +313,7 @@ function renderDeepBar(){
   if(!v){ $('simNone').hidden = true; return; }
   renderPath();
   if(v.kind === 'sim'){ $('deepName').textContent = ''; $('deepSub').textContent = ''; return; }
-  $('deepName').textContent = 'サムネイルが出ないもの';
+  $('deepName').textContent = deepName(v);
   $('deepSub').textContent = `${poolSize.toLocaleString()}件`;
 }
 
@@ -828,6 +832,50 @@ const surelyNone = it => !thumbs(it).length && !canSiteThumb(it);
 function isNoThumb(it){ const s = thumbState(it); return s === null ? surelyNone(it) : !s; }
 // サムネが出ないものの一覧と件数（一覧に出したことがあって失敗したもの・候補が1つもないもの）
 const ntPool = () => cache ? cache.items.filter(isNoThumb) : [];
+
+// ---- 重複して保存したもの（絞り込みの「その他」から。サムネが出ないものと同じく、条件はかけず全部の中から）----
+var dupMode = false;
+// 追跡用でページの中身には関係ないクエリ（比べるときは外す）
+const DUP_DROP = new Set(['fbclid', 'gclid', 'igsh', 'igshid', 'si', 'ref', 'ref_src', 's', 't']);
+// リンクから「同じものかどうか」を比べるための文字を作る
+function dupKey(it){
+  const raw = (it.l || '').trim();
+  let u; try{ u = new URL(raw); }catch(e){ return raw; }   // URL として読めないものは、そのまま比べる
+  if(!/^https?:$/.test(u.protocol)) return raw;
+  let host = u.hostname.toLowerCase().replace(/^(www|m|mobile)\./, '');
+  if(host === 'twitter.com') host = 'x.com';
+  // X の投稿・pixiv の作品・YouTube の動画は、番号（ID）だけで比べる
+  const x = xId(raw) || (host === 'x.com' ? (u.pathname.match(/status(?:es)?\/(\d+)/) || [])[1] : '');   // m.x.com なども
+  if(x) return 'x:' + x;
+  if(host === 'pixiv.net'){
+    const p = (u.pathname.match(/\/artworks\/(\d+)/) || [])[1] || (/^\d+$/.test(u.searchParams.get('illust_id') || '') ? u.searchParams.get('illust_id') : '');
+    if(p) return 'pixiv:' + p;
+  }
+  if(host === 'youtube.com' || host === 'youtu.be'){
+    const y = host === 'youtu.be' ? u.pathname.slice(1).split('/')[0]
+      : u.searchParams.get('v') || (u.pathname.match(/\/shorts\/([\w-]+)/) || [])[1] || '';
+    if(y) return 'yt:' + y;
+  }
+  // それ以外：# から後ろと追跡用のクエリを外し、残りは名前順に。最後の / も外す。http と https は同じ
+  const q = [...u.searchParams].filter(([k]) => !k.startsWith('utm_') && !DUP_DROP.has(k)).sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  const path = u.pathname.replace(/\/+$/, '');
+  return host + (u.port ? ':' + u.port : '') + path + (q.length ? '?' + new URLSearchParams(q) : '');
+}
+// 重複しているものを、まとまりごとに続けて並べる。
+// まとまりの順は中でいちばん新しく保存したものが新しい順、まとまりの中は古い順
+function dupPool(){
+  if(!cache) return [];
+  const groups = new Map();
+  cache.items.forEach(it => {
+    if(it.k === -99) return;   // ゴミ箱へ送ったものは数えない（入り直したときに外れる）
+    const k = dupKey(it), g = groups.get(k);
+    if(g) g.push(it); else groups.set(k, [it]);
+  });
+  const byDate = (x, y) => (x.a || '').localeCompare(y.a || '') || x.i - y.i;
+  const list = [...groups.values()].filter(g => g.length > 1).map(g => g.sort(byDate));
+  list.sort((p, q) => byDate(q[q.length - 1], p[p.length - 1]));
+  return list.flat();
+}
 
 // 小さいサイズのサムネの URL（道すじのサムネで使う）
 const tinyUrl = u => /pbs\.twimg\.com\//.test(u) ? (u.includes('name=') ? u.replace(/([?&]name=)\w+/, '$1thumb') : u + (u.includes('?') ? '&' : '?') + 'name=thumb')
