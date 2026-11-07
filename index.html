@@ -30,7 +30,7 @@
   js/similar.js   似た画像の地図・似た画像・範囲で探す
   js/main.js      貼り付け・キー操作・起動（いちばん最後）
   ?v= は版の番号。公開の前に rd-shuffle-dev の bump.sh で上げる -->
-<link rel="stylesheet" href="app.css?v=202611071133">
+<link rel="stylesheet" href="app.css?v=202611071144">
 </head>
 <body>
 <!-- 下に浮かぶ帯（もとは上のバー。部品の id はそのまま）。PC は左端にアプリ名、右に表示の3つ -->
@@ -104,8 +104,9 @@
     <span class="sel-count" id="selCount"></span>
     <button type="button" class="sel-btn" id="selAll" title="今表示しているカードを全部選ぶ">全部選ぶ</button>
     <span class="spacer"></span>
-    <button type="button" class="sel-btn main" id="selMove" aria-pressed="false">フォルダへ移動</button>
+    <button type="button" class="sel-btn main" id="selMove" aria-pressed="false" aria-label="フォルダへ移動"><span class="sel-long">フォルダへ</span>移動</button>
     <button type="button" class="sel-btn main" id="selTag" aria-pressed="false">タグを追加</button>
+    <button type="button" class="sel-x" id="selTrash" aria-label="ゴミ箱へ" title="ゴミ箱へ（Delete）"></button>
   </div>
 </div>
 
@@ -117,7 +118,7 @@
 
 <dialog id="peek" aria-label="プレビュー">
   <div class="lb-top">
-    <span class="peek-pos" id="peekPos"></span>
+    <button type="button" class="lb-btn lb-ic" id="peekTrash" title="ゴミ箱へ（Delete）" aria-label="ゴミ箱へ（Delete）"></button>
     <button type="button" class="lb-btn lb-ic" id="peekRot" title="右に90度回す（R・Shift+R で左）" aria-label="右に90度回す"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.5 7.5A4.5 4.5 0 1 1 8 3h3.5M9.5 1l2 2-2 2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button type="button" class="lb-btn lb-ic" id="peekFlip" title="左右反転（F）" aria-label="左右反転" aria-pressed="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v13M6 4 2 12h4zM10 4l4 8h-4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
     <button type="button" class="lb-btn" id="peekEdit" aria-pressed="false" title="情報（E）">情報</button>
@@ -234,7 +235,7 @@
       </div>
       <div class="set-pc">
         <h3>キーの一覧</h3>
-        <div class="set-group set-keys"><div class="set-keys-h">一覧</div><kbd>R</kbd><span>シャッフル</span><kbd>F</kbd><span>絞り込み</span><kbd>/</kbd><span>言葉で探す</span><kbd>C</kbd><span>キャプション</span><kbd>H</kbd><span>カーソルを隠す</span><kbd>1 2 3</kbd><span>カードの大きさ</span><kbd>?</kbd><span>キーの一覧（押している間）</span><div class="set-keys-h">プレビュー</div><kbd>← →</kbd><span>前・次</span><kbd>L</kbd><span>♥</span><kbd>S</kbd><span>似た画像</span><kbd>E</kbd><span>情報</span><kbd>T</kbd><span>タグを入力</span><kbd>1〜9</kbd><span>固定タグ</span><kbd>R</kbd><span>回転</span><kbd>F</kbd><span>反転</span><kbd>+ − 0</kbd><span>拡大・縮小・戻す</span><kbd>↑ ↓</kbd><span>明るさ</span><kbd>B</kbd><span>明るさを戻す</span><kbd>Q</kbd><span>高画質</span><kbd>Esc</kbd><span>閉じる</span></div>
+        <div class="set-group set-keys"><div class="set-keys-h">一覧</div><kbd>R</kbd><span>シャッフル</span><kbd>F</kbd><span>絞り込み</span><kbd>/</kbd><span>言葉で探す</span><kbd>C</kbd><span>キャプション</span><kbd>H</kbd><span>カーソルを隠す</span><kbd>1 2 3</kbd><span>カードの大きさ</span><kbd>?</kbd><span>キーの一覧（押している間）</span><kbd>Delete</kbd><span>選んだものをゴミ箱へ</span><kbd>⌘Z</kbd><span>元に戻す</span><div class="set-keys-h">プレビュー</div><kbd>← →</kbd><span>前・次</span><kbd>L</kbd><span>♥</span><kbd>S</kbd><span>似た画像</span><kbd>E</kbd><span>情報</span><kbd>T</kbd><span>タグを入力</span><kbd>1〜9</kbd><span>固定タグ</span><kbd>R</kbd><span>回転</span><kbd>F</kbd><span>反転</span><kbd>+ − 0</kbd><span>拡大・縮小・戻す</span><kbd>↑ ↓</kbd><span>明るさ</span><kbd>B</kbd><span>明るさを戻す</span><kbd>Q</kbd><span>高画質</span><kbd>Esc</kbd><span>閉じる</span><kbd>Delete</kbd><span>ゴミ箱へ</span><kbd>⌘Z</kbd><span>元に戻す</span></div>
       </div>
       <p class="set-ver" id="setVer"></p>
     </div>
@@ -255,16 +256,16 @@
 <!-- 「?」を押している間だけ重ねるキーの一覧（PC）。中身は main.js が設定の画面のキーの一覧から写して作る -->
 <div id="keyPeek" class="key-peek" popover="manual" aria-hidden="true"></div>
 
-<script src="js/core.js?v=202611071133"></script>
-<script src="js/filter.js?v=202611071133"></script>
-<script src="js/list.js?v=202611071133"></script>
-<script src="js/preview.js?v=202611071133"></script>
-<script src="js/edit.js?v=202611071133"></script>
-<script src="js/select.js?v=202611071133"></script>
-<script src="js/settings.js?v=202611071133"></script>
-<script src="js/heat-sync.js?v=202611071133"></script>
-<script src="js/backup.js?v=202611071133"></script>
-<script src="js/similar.js?v=202611071133"></script>
-<script src="js/main.js?v=202611071133"></script>
+<script src="js/core.js?v=202611071144"></script>
+<script src="js/filter.js?v=202611071144"></script>
+<script src="js/list.js?v=202611071144"></script>
+<script src="js/preview.js?v=202611071144"></script>
+<script src="js/edit.js?v=202611071144"></script>
+<script src="js/select.js?v=202611071144"></script>
+<script src="js/settings.js?v=202611071144"></script>
+<script src="js/heat-sync.js?v=202611071144"></script>
+<script src="js/backup.js?v=202611071144"></script>
+<script src="js/similar.js?v=202611071144"></script>
+<script src="js/main.js?v=202611071144"></script>
 </body>
 </html>

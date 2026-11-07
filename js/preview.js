@@ -5,9 +5,9 @@ let peekItem = null;
 
 function updatePeekNav(it){
   const i = order.indexOf(it);
-  $('peekPos').textContent = i < 0 ? '' : `${(i + 1).toLocaleString()} / ${poolSize.toLocaleString()}`;
   $('peekPrev').disabled = i <= 0;
   $('peekNext').disabled = i < 0 || i >= poolSize - 1;
+  $('peekTrash').disabled = !canTrash(it);   // もうゴミ箱にあるもの・戻している途中のものは送らない（送ると完全に消える）
 }
 // プレビューのまま前後のブックマークへ
 function stepPeek(d){

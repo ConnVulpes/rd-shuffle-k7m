@@ -59,7 +59,8 @@ function revertFailed(failed, restore){
 }
 
 async function moveMany(items, to){
-  const list = items.filter(x => x.k !== to);
+  // ゴミ箱へ送ったもの（選んだまま残っているもの）は移さない（手元の一覧にはもう入っていないので）
+  const list = items.filter(x => x.k !== to && x.k !== -99);
   if(!list.length){ showToast(`もう「${folderShort(to)}」に入っています`, null); return; }
   const from = new Map(list.map(x => [x, x.k]));
   const groups = groupBy(list, x => x.k);
@@ -127,6 +128,163 @@ async function restoreTags(list, before){
   showToast(fails.length ? `${fails.length}件は戻せませんでした` : '元に戻しました', null);
 }
 
+// ---- ゴミ箱へ送る（プレビューの1件・選んだもの、どちらもここを通す）----
+// Raindrop では、ゴミ箱にあるものへ DELETE を送ると完全に消えてしまう。
+// なので、ゴミ箱にあるもの（k が -99）には決して送らない。手元で送ったものも k を -99 にしておく
+const TRASH = -99;
+// 元に戻している途中のもの。戻し終わる前にまた送ると、Raindrop ではゴミ箱の中のものを消すことになり、完全に消えてしまうので送らない
+const restoring = new Set();
+const canTrash = it => !!it && it.k !== TRASH && !restoring.has(it);
+// 手元から外す：cache.items と今の並び（order）から外し、カードは消さずに「ゴミ箱へ移動」の印を付ける。
+// 戻すときのために、元のフォルダと位置を返す
+function trashLocal(list){
+  const drop = new Set(list);
+  const back = list.map(x => ({ x, k:x.k, ci:cache.items.indexOf(x), oi:order.indexOf(x), ord:order }));
+  back.forEach(b => { b.shown = b.oi >= 0 && b.oi < shownCount; });
+  cache.items = cache.items.filter(x => !drop.has(x));
+  // 後ろから外す（前から外すと、あとの位置がずれる）
+  back.filter(b => b.oi >= 0).sort((a, b) => b.oi - a.oi).forEach(b => { order.splice(b.oi, 1); poolSize--; if(b.shown) shownCount--; });
+  // 似た画像の画面の奥に取っておいた一覧からも外す（戻ったときに、送ったものへ進まないように）。カードには印を付ける
+  views.forEach(v => {
+    const s = v.snap;
+    if(!s || !s.order || s.order === order) return;
+    for(let i = s.order.length - 1; i >= 0; i--){
+      if(!drop.has(s.order[i])) continue;
+      s.order.splice(i, 1); s.poolSize--; if(i < s.shownCount) s.shownCount--;
+    }
+    (s.cardEls || []).forEach(c => { if(drop.has(c._item)) setGone(c, 'ゴミ箱へ移動'); });
+  });
+  list.forEach(x => {
+    x.k = TRASH;
+    hayCache.delete(x);
+    const c = cardOf.get(x);
+    if(c) setGone(c, 'ゴミ箱へ移動');   // Raindrop 側でゴミ箱に入ったものを取り込んだときと同じ見え方
+  });
+  afterLocalChange([]);   // タグの数え直し・フォルダの件数・保存
+  syncSelection();
+  updateStatus();
+  if(peekItem) updatePeekNav(peekItem);
+  return back;
+}
+// 手元で戻す：元のフォルダ・cache.items・並びの元の位置へ。カードの印も外す
+function untrashLocal(back){
+  back.slice().sort((a, b) => a.ci - b.ci).forEach(b => {
+    b.x.k = b.k;
+    if(!cache.items.includes(b.x)) cache.items.splice(Math.min(Math.max(b.ci, 0), cache.items.length), 0, b.x);
+  });
+  // 並べ直していなければ、並びの元の位置へ戻す（並べ直したあとなら、次に並べるときに入る）
+  back.filter(b => b.oi >= 0 && b.ord === order && !order.includes(b.x)).sort((a, b) => a.oi - b.oi).forEach(b => {
+    order.splice(Math.min(b.oi, order.length), 0, b.x); poolSize++; if(b.shown) shownCount++;
+  });
+  afterLocalChange(back.map(b => b.x));   // カードは今の絞り込みに合えば印を外す（合わなければ理由を出す）
+  syncSelection();
+  updateStatus();
+  if(peekItem) updatePeekNav(peekItem);
+}
+// Raindrop へ送る。1件は DELETE /raindrop/{id}。複数は今いるフォルダごとに DELETE /raindrops/{フォルダ}（100件ずつ）。
+// まとめて送れなかったものは、1件ずつ「まだゴミ箱に入っていないか」を確かめてから送る（2回送って完全に消さないように）
+async function sendTrash(back){
+  const failed = [];
+  if(back.length === 1){
+    const b = back[0];
+    if(b.k === TRASH) return { failed, redone:0 };
+    try{ await api(`/raindrop/${b.x.i}`, { method:'DELETE' }); }
+    catch(e){ failed.push(b); failed.err = e; }
+    return { failed, redone:0 };
+  }
+  const redo = [];
+  for(const [k, part] of groupBy(back, b => b.k)){
+    if(k === TRASH || !part.length) continue;   // 念のため（ids が空だと、フォルダの中身が全部ゴミ箱へ行く）
+    let ok = true;
+    for(let i = 0; i < part.length && ok; i += 100){
+      try{ await api(`/raindrops/${k}`, { method:'DELETE', body:{ ids:part.slice(i, i + 100).map(b => b.x.i) } }); }
+      catch(e){ ok = false; }
+    }
+    // そのうち1件を読み直して、本当にゴミ箱に入ったか確かめる
+    if(ok){
+      try{ const r = await api(`/raindrop/${part[0].x.i}`); ok = !!(r && r.item && r.item.collection && r.item.collection.$id === TRASH); }
+      catch(e){ /* 確かめられないときは送れたものとして扱う */ }
+    }
+    if(!ok) redo.push(...part);
+  }
+  let done = 0;
+  await runLimited(redo, 2, async b => {
+    for(let t = 0; ; t++){
+      try{
+        const r = await api(`/raindrop/${b.x.i}`);
+        const now = r && r.item && r.item.collection ? r.item.collection.$id : null;
+        if(now !== TRASH) await api(`/raindrop/${b.x.i}`, { method:'DELETE' });   // もう入っていれば送らない
+        break;
+      }catch(e){
+        if(e.message === 'rate' && t < 4){ await sleep(15000); continue; }
+        failed.push(b); failed.err = e; break;
+      }
+    }
+    done++;
+    if(redo.length > 3) showToast(`ゴミ箱へ移しています… ${done}/${redo.length}`, null);
+  });
+  return { failed, redone:redo.length };
+}
+// ゴミ箱へ送る：画面はすぐ変え、Raindrop へは後ろで送る。送れなかったものは手元を元に戻す
+async function trashItems(items){
+  const list = items.filter(canTrash);   // もうゴミ箱にあるもの・戻している途中のものは外す
+  if(!list.length) return;
+  const back = trashLocal(list);
+  const { failed, redone } = await sendTrash(back);
+  if(failed.length) untrashLocal(failed);
+  const ok = back.filter(b => !failed.includes(b));
+  if(!ok.length){ showToast(`保存できませんでした（${whyText(failed.err)}）`, null); return; }
+  bkAdd(ok.length);
+  // 元に戻すは 5 秒（ほかの元に戻すの 6 秒より短く）
+  showToast((ok.length === 1 ? 'ゴミ箱へ移動' : `${ok.length}件をゴミ箱へ移動`) + resultNote(failed, redone), () => untrash(ok));
+}
+// 元に戻す：元のフォルダへ。1件は PUT /raindrop/{id}、複数は「フォルダへ移動」の戻しと同じ流れ
+async function untrash(back){
+  back.forEach(b => restoring.add(b.x));
+  untrashLocal(back);
+  const fails = [];
+  if(back.length === 1){
+    const b = back[0];
+    try{ await api(`/raindrop/${b.x.i}`, { method:'PUT', body:{ collection:{ $id:b.k } } }); }
+    catch(e){ fails.push(b); }
+  }else{
+    for(const [k, part] of groupBy(back, b => b.k)){
+      const xs = part.map(b => b.x);
+      const r = await sendMany(new Map([[TRASH, xs]]), { collection:{ $id:k } }, () => ({ collection:{ $id:k } }),
+        srv => srv.collection && srv.collection.$id === k, '戻しています');
+      fails.push(...part.filter(b => r.failed.includes(b.x)));
+    }
+  }
+  back.forEach(b => restoring.delete(b.x));
+  // 戻せなかったものは、手元もゴミ箱に入った見え方に戻す
+  if(fails.length) trashLocal(fails.map(b => b.x));
+  syncSelection();
+  if(peekItem) updatePeekNav(peekItem);   // 戻し終わったので、ゴミ箱のボタンを押せるように
+  showToast(fails.length ? `${fails.length}件は戻せませんでした` : '元に戻しました', null);
+}
+// プレビュー：見ている1件を送って、次へ進む。いちばん最後の1件なら、プレビューを閉じて一覧に戻す
+function trashPeek(){
+  const it = peekItem;
+  if(!canTrash(it)) return;
+  const i = order.indexOf(it);
+  if(i < 0 || i >= poolSize - 1) closePeek(); else stepPeek(1);
+  trashItems([it]);   // 進んだあとに山から外す（位置の表示はそこで合わせ直す）
+}
+// 選んでいるものをまとめて送る（開いている画面を閉じ、送ったものは選択から外す）
+function trashSelected(){
+  if(!selected.size) return;
+  const items = [...selected];
+  // 送ったものは選択から外す（ゴミ箱のものが選ばれたまま残って、タグなどが送られないように）
+  popKind = '';
+  items.forEach(x => setPicked(x, false));
+  syncSelection();
+  trashItems(items);
+}
+$('peekTrash').innerHTML = icon('trash');
+$('selTrash').innerHTML = icon('trash');
+$('peekTrash').addEventListener('click', trashPeek);
+$('selTrash').addEventListener('click', trashSelected);
+
 // ---- 複数選択：カード左上のチェックで選び、下のバーからまとめて移動・タグ付け ----
 const selected = new Set();
 let lastPick = null;
@@ -159,6 +317,7 @@ function syncSelection(){
   selBar.hidden = !n;
   $('selSpacer').hidden = !n;   // 下のバーに最後のカードが隠れないように（一覧全体の並べ直しは起こさない）
   $('selCount').textContent = `${n.toLocaleString()}件`;
+  $('selTrash').disabled = ![...selected].some(canTrash);   // 全部がゴミ箱のもの（か戻している途中）なら押せない
   if(!n){ popKind = ''; }
   renderSelPop();
 }

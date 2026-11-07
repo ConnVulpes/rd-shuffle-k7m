@@ -69,7 +69,8 @@ function afterLocalChange(items, { media = false } = {}){
 const whyText = e => ({ auth:'トークンが無効です', network:'ネットにつながっていません', rate:'少し待ってからもう一度' })[e && e.message] || 'もう一度試してください';
 // 下に出るお知らせ（「元に戻す」付き）。プレビュー中はプレビューの中に、そうでなければページの下に出す
 // label を渡すと、ボタンの文字を「元に戻す」から変える（バックアップの「バックアップを続ける」など）
-function showToast(msg, undo, label){
+// ms を渡すと、出しておく長さを変える（渡さなければ「元に戻す」付きは 6 秒、それ以外は 4.5 秒）
+function showToast(msg, undo, label, ms){
   // 設定の画面が開いているときは、その中に出す（画面の後ろに隠れないように）
   const sd = document.getElementById('setDlg'), host = peek.open ? peek : sd.open ? sd : cropOpen ? $('crop') : document.body;
   if(edToast.parentNode !== host) host.append(edToast);
@@ -78,9 +79,10 @@ function showToast(msg, undo, label){
   $('edUndo').hidden = !undo;
   $('edUndo').textContent = label || '元に戻す';
   $('edUndo').onclick = () => { edToast.hidden = true; if(undo) undo(); };
+  edToast._undo = !!undo && !label;   // ⌘Z で押せるのは「元に戻す」のときだけ（「バックアップを続ける」などは押さない）
   edToast.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { edToast.hidden = true; }, undo ? 6000 : 4500);
+  toastTimer = setTimeout(() => { edToast.hidden = true; }, ms || (undo ? 6000 : 4500));
 }
 // 1件の変更：すぐ画面に反映し、Raindrop には後ろで送る。失敗したら元に戻す。
 // patch に使えるのは g（タグ）・k（フォルダ）・c（サムネ）

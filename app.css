@@ -390,10 +390,9 @@ label.set-row{cursor:pointer}
 .peek-body .ph-text .ph-title{-webkit-line-clamp:14}
 .lb-top{
   position:absolute; top:0; left:0; right:0; z-index:2;
-  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:8px 12px;
   background:linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0));
 }
-.peek-pos{margin-right:auto; color:rgba(255,255,255,.6); font-size:var(--fs-s); font-variant-numeric:tabular-nums; padding-left:4px}
 .lb-btn{
   display:inline-flex; align-items:center; justify-content:center; height:var(--btn-h, 34px); padding:0 12px;
   font:inherit; font-size:var(--fs-s); color:#fff; text-decoration:none; cursor:pointer;
@@ -404,6 +403,19 @@ label.set-row{cursor:pointer}
 #peekClose .lbl{display:none}
 .lb-ic{width:var(--btn-h); padding:0}
 .lb-ic svg{width:20px; height:20px}
+/* ゴミ箱へ：スマホは上の段の左端。見るための道具とは別の種類なので、ほかのボタン（右寄せ）から離して置く */
+#peekTrash{margin-right:auto}
+#peekTrash:disabled{opacity:.4; cursor:default}
+/* PC は左下（♥ と左右で向き合う、同じ丸）。情報の画面を開いている間はその画面に隠れる位置なので出さない */
+@media (hover:hover){
+  #peek .lb-top > #peekTrash{
+    position:fixed; left:12px; bottom:calc(var(--row-b) + env(safe-area-inset-bottom)); z-index:3; margin:0;
+    width:var(--row-h); height:var(--row-h); border-radius:var(--r-full);
+    background:var(--glass-bg); border:1px solid var(--glass-line); box-shadow:var(--glass-shadow);
+    -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur)}
+  #peek .lb-top > #peekTrash:not(:disabled):hover{background:rgba(255,255,255,.22)}
+  #peek.editing #peekTrash{display:none}
+}
 .lb-rd-ic{display:none}
 .lb-rd-ic svg{display:block}
 /* 回転・反転：中の画像だけを回す（拡大・移動は外側で行う） */
@@ -787,6 +799,7 @@ body.selecting .badge{left:42px}
 .sel-btn{font:inherit; font-size:var(--fs-s); white-space:nowrap; height:36px; padding:0 12px; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer}
 .sel-btn.main[aria-pressed="true"]{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
 .sel-x{display:inline-flex; align-items:center; justify-content:center; padding:0; width:36px; height:36px; flex:none; border-radius:var(--r-s); border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer}
+.sel-x:disabled{opacity:.4; cursor:default}
 .sel-pop{
   max-height:min(60vh, 520px); overflow:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:12px; padding:16px;
   background:var(--card); border:1px solid var(--line); border-radius:var(--r-m); box-shadow:0 10px 30px rgba(0,0,0,.4); font-size:var(--fs);
@@ -805,6 +818,7 @@ body.selecting .lb-toast.page{bottom:calc(84px + env(safe-area-inset-bottom))}
   .sel-row{padding:8px}
   .sel-btn{padding:0 12px}
   #selAll{display:none}
+  .sel-long{display:none}   /* スマホは「移動」だけ（ゴミ箱のボタンまで1行に収めるため） */
 }
 @media (hover:none){ .sel-btn{height:44px} .sel-x{width:44px; height:44px} }
 

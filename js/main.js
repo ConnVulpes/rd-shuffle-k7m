@@ -21,11 +21,19 @@ document.addEventListener('keydown', e => {
     else if(e.key === 'Enter' && cropRect){ e.preventDefault(); cropSearch(); }
     return;
   }
-  if(e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target.tagName || '').toLowerCase();
-  const typing = ['input', 'select', 'textarea'].includes(tag);
+  const typing = ['input', 'select', 'textarea'].includes(tag) || !!e.target.isContentEditable;
+  // ⌘Z／Ctrl+Z：「元に戻す」が出ているときだけ、それを押したのと同じ。文字の入力欄では横取りしない
+  if((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')){
+    if(typing || edToast.hidden || $('edUndo').hidden || !edToast._undo) return;
+    e.preventDefault(); $('edUndo').click(); return;
+  }
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  // Delete と Backspace（Mac の delete キー）：ゴミ箱へ。押しっぱなしで続けて送らないように、押し続けた分は無視する
+  const del = e.key === 'Delete' || e.key === 'Backspace';
   if(peek.open){
     if(typing) return;
+    if(del){ e.preventDefault(); if(!e.repeat && peekItem) trashPeek(); return; }
     // キーを押したら、消していたボタンと文字を戻す（ズームのキーと Shift だけのときは戻さない）
     if(!/^[+=-]$/.test(e.key) && e.key !== 'Shift') setBare(false);
     if(e.key === 'ArrowLeft' || e.key === 'ArrowRight'){ e.preventDefault(); stepPeek(e.key === 'ArrowLeft' ? -1 : 1); return; }
@@ -49,6 +57,7 @@ document.addEventListener('keydown', e => {
     return;
   }
   if(typing || dlg.open || filterDlg.open || setDlg.open) return;
+  if(del && selected.size){ e.preventDefault(); if(!e.repeat) trashSelected(); return; }
   if(e.key === 'Escape' && selected.size){ e.preventDefault(); if(popKind){ popKind = ''; renderSelPop(); } else clearSelection(); return; }
   if(e.key === 'Escape' && views.length){ e.preventDefault(); backUI(); return; }
   // 一段奥の画面では並び順は使わない。絞り込みは似た画像の画面だけ（似た画像の条件を編集する）

@@ -114,9 +114,10 @@ function render(){
 }
 // 似た画像の並び：押した画像を先頭に、条件に合うものだけを似ている順に（押した画像は条件に関係なく出す）
 function simPool(){
-  if(!simF) return sim.list;
+  // ゴミ箱へ送ったもの（k が -99）は並べない（押した画像だけは今までどおり出す）
+  if(!simF) return sim.list.filter(x => x === sim.center || x.k !== -99);
   const f = makeFilter(simF);
-  return [sim.center, ...sim.list.filter(x => x !== sim.center && f(x))];
+  return [sim.center, ...sim.list.filter(x => x !== sim.center && x.k !== -99 && f(x))];
 }
 // 似た画像を絞り込んで合うものがないとき：「合うものがありません」［絞り込みを変える］
 function paintSimNone(){
@@ -668,6 +669,7 @@ const ICONS = {
   expand:'<path d="M3.5 8V3.5H8M12 3.5h4.5V8M16.5 12v4.5H12M8 16.5H3.5V12"/>',
   crop:'<path d="M5.5 2.5v12h12M2.5 5.5h12v12"/>',
   heart:'<path d="M10 16.5C4.6 12.9 2.5 10.1 2.5 7.4c0-2.2 1.7-3.9 3.8-3.9 1.5 0 2.8.8 3.7 2.1.9-1.3 2.2-2.1 3.7-2.1 2.1 0 3.8 1.7 3.8 3.9 0 2.7-2.1 5.5-7.5 9.1z"/>',
+  trash:'<path d="M3.5 5.5h13M8 5.5v-2h4v2M5 5.5l.8 11h8.4l.8-11M8.5 8.5v5M11.5 8.5v5"/>',
 };
 const icon = (name, cls = '') => `<svg class="ico${cls ? ' ' + cls : ''}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 const CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
