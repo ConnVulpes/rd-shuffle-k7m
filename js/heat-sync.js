@@ -214,8 +214,7 @@ function pullSettings(){
     }else if(!syncAt){ syncAt = Date.now(); store.set('syncat', syncAt); }
     const text = JSON.stringify({ v:1, at:syncAt, presets, pins, heat:heatPacked(), ...(mapKnownAt ? { mapAt:mapKnownAt } : {}), ...(xs ? { xs } : {}) });
     if(text !== parts.map(x => x.note).join('')) await writeSettings(parts, text);
-    // 変更分を取れない端末（diffbroken）は、ほかの端末が前からある分を分けたあと、1回だけ全部を読み直す
-    if(xs && xs.bulkAt && store.get('diffbroken', false) && cache && xs.bulkAt > (cache.savedAt || 0)) refreshAll();
+    if(xs && xs.bulkAt && cache && xs.bulkAt > (cache.savedAt || 0)) refreshAll();   // ほかの端末が前からある分をまとめて分けたら、1回だけ全部を読み直す（分けたものは保存日が古いので、変更分の確認では取りこぼすことがある）
   })().then(() => true, () => false).then(ok => {
     syncing = null;
     if(syncAgain){ syncAgain = false; scheduleSync(1000); }
