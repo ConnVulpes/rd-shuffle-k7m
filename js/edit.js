@@ -487,6 +487,8 @@ function srcOf(it){
 }
 function buildSugIndex(){
   const byAuthor = new Map(), bySite = new Map(), tagItems = new Map();
+  const seenPost = new Set();   // 分けた X の投稿は、タグの組が同じものを1回だけ数える（投稿ID|並べたタグ）
+  let tagged = 0;               // タグが付いているものの数（同じ投稿で組が同じものは1つ）
   const bump = (map, key, tags) => {
     if(!key) return;
     let e = map.get(key); if(!e){ e = { n:0, tags:new Map() }; map.set(key, e); }
@@ -496,6 +498,9 @@ function buildSugIndex(){
   cache.items.forEach(it => {
     const g = it.g || [];
     if(!g.length) return;
+    const pid = postId(it);
+    if(pid){ const key = pid + '|' + g.slice().sort().join('\u0001'); if(seenPost.has(key)) return; seenPost.add(key); }
+    tagged++;
     const { a, s } = srcOf(it);
     bump(byAuthor, a, g);
     bump(bySite, s, g);
@@ -515,14 +520,19 @@ function buildSugIndex(){
     let top = '', max = 0; c.forEach((v, a) => { if(v > max){ max = v; top = a; } });
     if(max / authors.length >= 0.8 && max / byAuthor.get(top).n >= 0.5) authorTags.add(t);
   });
-  const tagged = cache.items.reduce((n, it) => n + ((it.g || []).length ? 1 : 0), 0);   // タグが付いているものの数
   sugIndex = { items:cache.items, len:cache.items.length, byAuthor, bySite, tagItems, authorTags, tagged, co:new Map() };
 }
 // あるタグと一緒に付いているタグの数（必要になったタグだけ数える）
 function coCounts(t){
   if(sugIndex.co.has(t)) return sugIndex.co.get(t);
-  const m = new Map();
-  cache.items.forEach(it => { const g = it.g || []; if(g.includes(t)) g.forEach(s => { if(s !== t) m.set(s, (m.get(s) || 0) + 1); }); });
+  const m = new Map(), seenPost = new Set();
+  cache.items.forEach(it => {
+    const g = it.g || [];
+    if(!g.includes(t)) return;
+    const pid = postId(it);
+    if(pid){ const key = pid + '|' + g.slice().sort().join('\u0001'); if(seenPost.has(key)) return; seenPost.add(key); }   // buildSugIndex と同じく、同じ投稿で組が同じものは1回
+    g.forEach(s => { if(s !== t) m.set(s, (m.get(s) || 0) + 1); });
+  });
   sugIndex.co.set(t, m);
   return m;
 }
@@ -658,15 +668,22 @@ function aiTags(it){
   const byId = new Map(cache.items.map(x => [x.i, x]));
   const d = m.dims, V = m.V, o0 = r0 * d;
   // タグが付いている画像のうち、近い順に AI_NEAR 枚（作者名のタグしかないものは数えない）
-  const near = [];   // [近さ, タグ] を近い順に
+  const near = [];   // [近さ, タグ, 投稿ID] を近い順に
+  const mine = postId(it);   // 同じ投稿の画像は数えない。ほかの投稿は1投稿につき1件（いちばん近いもの）まで
   for(let r = 0; r < m.n; r++){
     if(r === r0) continue;
     let s = 0; const o = r * d; for(let j = 0; j < d; j++) s += V[o0 + j] * V[o + j];
     if(near.length === AI_NEAR && s <= near[AI_NEAR - 1][0]) continue;
     const x = byId.get(m.ids[r]); if(!x || x === it) continue;
     const g = (x.g || []).filter(t => !sugIndex.authorTags.has(t)); if(!g.length) continue;
+    const pid = postId(x);
+    if(pid){
+      if(pid === mine) continue;
+      const at = near.findIndex(e => e[2] === pid);
+      if(at >= 0){ if(near[at][0] >= s) continue; near.splice(at, 1); }
+    }
     let k = near.length; while(k > 0 && near[k - 1][0] < s) k--;
-    near.splice(k, 0, [s, g]); if(near.length > AI_NEAR) near.pop();
+    near.splice(k, 0, [s, g, pid]); if(near.length > AI_NEAR) near.pop();
   }
   if(!near.length) return [];
   // 近いほど重く。いちばん近いものを基準にして数字が大きくなりすぎないようにする（並びは変わらない）

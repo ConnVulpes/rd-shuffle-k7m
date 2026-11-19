@@ -424,7 +424,8 @@ function nearestSim(it){
   }
   idx.sort((a, b) => sc[b] - sc[a] || a - b);
   const byId = new Map(cache.items.map(x => [x.i, x])), out = [];
-  for(const r of idx){ const x = byId.get(m.ids[r]); if(x) out.push(x); }
+  const mine = postId(it);   // 同じ投稿の画像（分けたもの）は入れない
+  for(const r of idx){ const x = byId.get(m.ids[r]); if(x && !(mine && postId(x) === mine)) out.push(x); }
   return out;
 }
 

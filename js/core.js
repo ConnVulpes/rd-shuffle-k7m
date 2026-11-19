@@ -152,7 +152,31 @@ async function loadMeta(){
   };
 }
 
-// ブックマークを全部、数ページずつ並行して読み込み、軽くした形でこのブラウザに保存する
+// ブックマークを全部、数ページずつ並行して読み込む（Raindrop の生のまま、ページの順につなげた配列を返す。
+// refreshAll と、X の投稿を分けるとき（xsplit.js の splitRun）で使う）
+async function fetchAllRaw(){
+  const first = await api(`/raindrops/0?perpage=${PER}&page=0`);
+  const total = first.count || 0;
+  const pages = Math.ceil(total / PER);
+  const out = new Array(pages);
+  out[0] = first.items || [];
+  let done = out[0].length;
+  const progress = () => { statusEl.textContent = `読み込み中 ${done.toLocaleString()} / ${total.toLocaleString()}件`; };
+  progress();
+  let next = 1;
+  const worker = async () => {
+    while(next < pages){
+      const p = next++;
+      const r = await api(`/raindrops/0?perpage=${PER}&page=${p}`);
+      out[p] = r.items || [];
+      done += out[p].length;
+      progress();
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+  return out.flatMap(list => list || []);
+}
+// ブックマークを全部読み込み、軽くした形でこのブラウザに保存する
 async function refreshAll(manual = false){
   if(!state.token){ openToken(); return; }
   if(refreshing) return;
@@ -161,32 +185,14 @@ async function refreshAll(manual = false){
   if(!cache) setShuffleBusy(true);
   try{
     const meta = await loadMeta();
-    const first = await api(`/raindrops/0?perpage=${PER}&page=0`);
-    const total = first.count || 0;
-    const pages = Math.ceil(total / PER);
-    const out = new Array(pages);
-    out[0] = first.items || [];
-    let done = out[0].length;
-    const progress = () => { statusEl.textContent = `読み込み中 ${done.toLocaleString()} / ${total.toLocaleString()}件`; };
-    progress();
-    let next = 1;
-    const worker = async () => {
-      while(next < pages){
-        const p = next++;
-        const r = await api(`/raindrops/0?perpage=${PER}&page=${p}`);
-        out[p] = r.items || [];
-        done += out[p].length;
-        progress();
-      }
-    };
-    await Promise.all([worker(), worker(), worker()]);
+    const raw = await fetchAllRaw();
 
     const seen = new Set(), items = [];
-    out.forEach(list => (list || []).forEach(it => {
+    raw.forEach(it => {
       if(!it || seen.has(it._id) || isSettingsRaw(it)) return;
       seen.add(it._id);
       items.push(compact(it));
-    }));
+    });
     // 前と比べて、新着・更新・削除の数を知らせる（初めて読み込んだときは知らせない）
     const before = cache ? new Map(cache.items.map(x => [x.i, JSON.stringify(x)])) : null;
     cache = { v:2, savedAt:Date.now(), syncedAt:Date.now(), items, colls:meta.colls, tags:meta.tags };
@@ -276,7 +282,8 @@ async function syncNew(manual = false){
   try{
     const known = new Set(cache.items.map(x => x.i));
     const fresh = [];
-    for(let p = 0; p < 5; p++){
+    let lastPage = -1;   // 知っているものに当たったページの、次の1ページまで読む（X の分けたものは元より created が古く、ページの終わりをまたぐことがあるため）
+    for(let p = 0; p < 6; p++){
       const r = await api(`/raindrops/0?perpage=${PER}&page=${p}&sort=-created`);
       const list = r.items || [];
       let reached = false;
@@ -286,8 +293,9 @@ async function syncNew(manual = false){
         known.add(it._id);
         fresh.push(compact(it));
       });
-      if(reached || list.length < PER) break;
-      if(p === 4){ handoff = true; refreshing = false; refreshAll(); return; }  // 多すぎるときは全部読み直す
+      if(reached && lastPage < 0) lastPage = p + 1;
+      if(list.length < PER || (lastPage >= 0 && p >= lastPage)) break;
+      if(p >= 4 && lastPage < 0){ handoff = true; refreshing = false; refreshAll(); return; }  // 多すぎるときは全部読み直す
     }
     if(!fresh.length){ if(manual) showToast('新着はありません', null); return; }
     if(refreshing && !manual) return;
@@ -312,7 +320,11 @@ function showNewNote(text, added){
 }
 
 // 変更分：Raindrop の検索「lastUpdate:日付」で、前回の取り込み以降に変わった日を1日ずつ調べる
-function autoSync(){ if(store.get('diffbroken', false)) syncNew(); else syncChanged(true); }
+// 新着・変更分を取り込んだあとに、X の投稿を分ける確認（xsplit.js の splitAuto）をする
+async function autoSync(){
+  try{ if(store.get('diffbroken', false)) await syncNew(); else await syncChanged(true); }catch(e){}
+  splitAuto();
+}
 async function syncChanged(quiet = false){
   if(!cache || refreshing || !state.token) return;
   lastSync = Date.now();

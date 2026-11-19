@@ -1,5 +1,6 @@
 /* 一覧の並べ方（並び順・シャッフル・render・appendMore・続きの読み込み）、石積み・カード・サムネ・
-   画像がないときの代わり、一段奥の画面（似た画像・サムネが出ないもの）、戻る（pushLayer） */
+   画像がないときの代わり、一段奥の画面（似た画像・サムネが出ないもの・同じ投稿の画像）、戻る（pushLayer）、
+   X の投稿ごとのまとまり（postIndex postOf postPool）・X の画像の取得（fxMedia） */
 function shuffleArray(a){
   for(let i = a.length - 1; i > 0; i--){
     const j = Math.floor(Math.random() * (i + 1));
@@ -26,10 +27,21 @@ function hayOf(x){
 }
 function sortPool(pool){
   const a = pool.slice();
-  const byDate = (x, y) => (x.a || '').localeCompare(y.a || '') || x.i - y.i;
-  if(state.sort === 'new') return a.sort((x, y) => byDate(y, x));
-  if(state.sort === 'old') return a.sort(byDate);
-  if(state.sort === 'title') return a.sort((x, y) => jaCmp((x.t || x.l), y.t || y.l));
+  if(state.sort === 'new' || state.sort === 'old' || state.sort === 'title'){
+    // 分けた X の投稿（2件以上）は、元（n がいちばん小さいもの）の日付・ID・n の順で比べる。
+    // n は新しい順でも古い順でも常に 1→N（全体を逆にすると n も逆になるので、分けて書く）
+    const kk = new Map(a.map(it => {
+      const L = postOf(it);
+      return [it, L.length >= 2 && L.includes(it) ? { o:L[0], n:xIndex(it.l) } : { o:it, n:1 }];
+    }));
+    const byDate = (x, y, dir) => {
+      const p = kk.get(x), q = kk.get(y);
+      return dir * ((p.o.a || '').localeCompare(q.o.a || '') || p.o.i - q.o.i) || p.n - q.n || x.i - y.i;
+    };
+    if(state.sort === 'new') return a.sort((x, y) => byDate(x, y, -1));
+    if(state.sort === 'old') return a.sort((x, y) => byDate(x, y, 1));
+    return a.sort((x, y) => jaCmp((x.t || x.l), y.t || y.l) || kk.get(x).n - kk.get(y).n);
+  }
   // ♥ した順：♥ したものだけを、最後に ♥ した順に
   if(state.sort === 'liked') return a.filter(x => likesOf(x)).sort((x, y) => heat.get(y.i).tl - heat.get(x.i).tl || likesOf(y) - likesOf(x));
   // ランダム：熱いものほどくじが当たりやすい（並び全体に散らばって、少し多めに前の方に来る）
@@ -86,9 +98,11 @@ function render(){
   clearSelection();
   // 似ているものを並べている間は、元の一覧の絞り込みも並び順も使わず、近い順のまま（似た画像の条件があれば、合うものだけ）
   // サムネが出ないものだけのときは、絞り込みの条件はかけずに、全部のブックマークの中から
-  // 重複して保存したものも同じく全部の中から。並び順の設定は見ず、dupPool の並びのまま
-  const pool = sim ? simPool() : ntMode ? ntPool() : dupMode ? dupPool() : cache.items.filter(makeFilter(state.filter));
-  order = sim || dupMode ? pool.slice() : sortPool(pool);
+  // 重複して保存したもの・同じ投稿の画像も同じく全部の中から。並び順の設定は見ず、dupPool・postPool の並びのまま
+  const pool = sim ? simPool() : ntMode ? ntPool() : dupMode ? dupPool() : postMode ? postPool(postMode) : cache.items.filter(makeFilter(state.filter));
+  order = sim || dupMode || postMode ? pool.slice() : sortPool(pool);
+  stackOf = new Map();
+  if(!views.length) order = stackPosts(order);   // 元の一覧だけ：同じ投稿の2枚目以降は、1枚目の後ろに重ねる
   poolSize = order.length;
   renderDeepBar();
   shownCount = 0;
@@ -112,6 +126,32 @@ function render(){
   }
   appendMore();
   paintSimNone();
+}
+// 同じ投稿（postId）の画像をまとめる：n（xIndex）がいちばん小さいものを表のカードにして、仲間のうち最初に出てくる位置に置く。
+// 残りは order から外し、stackOf（表のカード → 後ろの仲間を n の小さい順）に入れる。1件だけの投稿は何もしない
+var stackOf = new Map();
+function stackPosts(list){
+  const groups = new Map();
+  list.forEach(it => {
+    const id = postId(it); if(!id) return;
+    const g = groups.get(id); if(g) g.push(it); else groups.set(id, [it]);
+  });
+  const front = new Map();   // 投稿 → 表のカード
+  groups.forEach((g, id) => {
+    if(g.length < 2) return;
+    const s = g.slice().sort((a, b) => xIndex(a.l) - xIndex(b.l));
+    front.set(id, s[0]);
+    stackOf.set(s[0], s.slice(1));
+  });
+  if(!front.size) return list;
+  const done = new Set(), out = [];
+  list.forEach(it => {
+    const id = postId(it), f = id && front.get(id);
+    if(!f){ out.push(it); return; }
+    if(done.has(id)) return;   // 仲間のどれかが最初に出てきた位置に、表のカードを1回だけ
+    done.add(id); out.push(f);
+  });
+  return out;
 }
 // 似た画像の並び：押した画像を先頭に、条件に合うものだけを似ている順に（押した画像は条件に関係なく出す）
 function simPool(){
@@ -172,6 +212,7 @@ function applyView(){
   sim = v && v.kind === 'sim' ? v.sim : null;
   ntMode = !!v && v.kind === 'nt';
   dupMode = !!v && v.kind === 'dup';
+  postMode = v && v.kind === 'post' ? v.id : '';
   $('pressMenu').hidden = true;   // 長押しの選択肢は、段が変わったら閉じる
   renderDeepBar();
 }
@@ -192,13 +233,14 @@ function takeSnap(){
   const frag = document.createDocumentFragment();
   while(grid.firstChild) frag.append(grid.firstChild);
   placeGen++; placeQueue = Promise.resolve(); placing = 0;
-  return { order, shownCount, poolSize, cardEls, cols, colCount, frag, y, fk:simKey() };
+  return { order, shownCount, poolSize, cardEls, cols, colCount, frag, y, fk:simKey(), stackOf };
 }
 // 似た画像の条件（元の一覧に戻るまで、段をまたいで続く。保存はしない）
 var simF = null;
 const simKey = () => simF ? normF(simF) : '';
 function enterView(v){
   if(v.kind === 'sim') v.thumb = v.sim.crop || pathThumbOf(v.sim.center);   // 範囲で探したときは切り抜いた部分
+  if(v.kind === 'post') v.thumb = pathThumbOf(postPool(v.id)[0] || v.from);   // 元の画像
   setMenu(false); setSortMenu(false); clearSelection();
   fwd = [];   // 新しくたどり始めたら、先の段は消える（ブラウザの「進む」と同じ）
   v.snap = takeSnap();
@@ -243,6 +285,7 @@ function restoreView(quiet){
   placeGen++;
   grid.innerHTML = ''; grid.append(sn.frag);
   ({ order, shownCount, poolSize, cardEls, cols, colCount } = sn);
+  if(sn.stackOf) stackOf = sn.stackOf;
   allCards().forEach(c => { if(c._item) cardOf.set(c._item, c); });
   // 入る前にまだ並べ終わっていなかったカードを、続きから並べる
   const pending = cardEls.filter(c => !c._placed), gen = placeGen;
@@ -285,7 +328,7 @@ function renderPath(){
     const name = v.kind === 'sim' ? ((v.sim.center.t || '').trim() || v.sim.center.d || '似た画像') : deepName(v);
     b.title = cur ? name : `${name}（${i + 1}段目）${ahead ? 'へ進む' : 'に戻る'}`;
     b.setAttribute('aria-label', b.title);
-    if(v.kind === 'sim' && v.thumb){ const im = el('img', 'path-thumb'); im.src = v.thumb; im.alt = ''; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.replaceWith(Object.assign(el('span', 'path-thumb'), { innerHTML:IMG_OFF })); b.append(im); }
+    if((v.kind === 'sim' || v.kind === 'post') && v.thumb){ const im = el('img', 'path-thumb'); im.src = v.thumb; im.alt = ''; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.replaceWith(Object.assign(el('span', 'path-thumb'), { innerHTML:IMG_OFF })); b.append(im); }
     else{ const t = el('span', 'path-thumb'); t.innerHTML = IMG_OFF; b.append(t); }
     // 今の段を押すと、一覧のいちばん上へ
     b.addEventListener('click', () => { if(cur) window.scrollTo({ top:0, behavior:'smooth' }); else if(ahead) goForward(i - views.length + 1); else backTo(i + 1); });
@@ -297,8 +340,8 @@ function renderPath(){
   box.classList.toggle('more-left', box.scrollLeft > 0);
 }
 $('deepPath').addEventListener('scroll', e => e.target.classList.toggle('more-left', e.target.scrollLeft > 2), { passive:true });
-// 一段奥の決まった一覧（サムネイルが出ないもの・重複して保存したもの）の名前
-const deepName = v => v.kind === 'dup' ? '重複して保存したもの' : 'サムネイルが出ないもの';
+// 一段奥の決まった一覧（サムネイルが出ないもの・重複して保存したもの・同じ投稿の画像）の名前
+const deepName = v => v.kind === 'post' ? '同じ投稿の画像' : v.kind === 'dup' ? '重複して保存したもの' : 'サムネイルが出ないもの';
 function renderDeepBar(){
   const v = views[views.length - 1];
   document.querySelector('header').classList.toggle('deep', !!v);
@@ -507,19 +550,87 @@ async function siteThumbs(it){
   // '-' = 確認済みで画像なし
   const hit = thumbCache[it.l];
   if(hit === '-') return [];
-  if(hit) return [hit];
+  if(hit) return [xSmall(hit)];   // 前に覚えた値が元の大きさ（name=orig）でも、小さいサイズで返す
   const { tweet, sure } = await fxTweet(id);
   const t = tweet || {};
   const first = (list, key) => list && list[0] && list[0][key];
   const media = t.media || {}, qm = (t.quote && t.quote.media) || {};
-  let url = first(media.photos, 'url') || first(media.videos, 'thumbnail_url')
-    || (media.mosaic && media.mosaic.formats && media.mosaic.formats.jpeg)
-    || first(qm.photos, 'url') || first(qm.videos, 'thumbnail_url')
-    || (t.card && t.card.image && t.card.image.url) || '';
-  if(url && /pbs\.twimg\.com\/media\//.test(url) && !url.includes('?')) url += '?name=small';
+  let url;
+  if(xStrict(it)){
+    // リンクに番号がある・分けた投稿：その番号の1枚だけ（写真は url、動画・GIF は thumbnail_url）。引用・カードの画像は使わない
+    const m = fxAll(t)[xIndex(it.l) - 1];
+    url = m ? (m.type === 'photo' ? m.url : m.thumbnail_url) || '' : '';
+  }else{
+    url = first(media.photos, 'url') || first(media.videos, 'thumbnail_url')
+      || (media.mosaic && media.mosaic.formats && media.mosaic.formats.jpeg)
+      || first(qm.photos, 'url') || first(qm.videos, 'thumbnail_url')
+      || (t.card && t.card.image && t.card.image.url) || '';
+  }
+  url = xSmall(url);
   if(sure) rememberThumb(it.l, url || '-');
   return url ? [url] : [];
 }
+// X の写真の URL を小さいサイズにする（name=orig を small に。クエリがなければ ?name=small を足す。X の写真以外はそのまま）
+function xSmall(u){
+  if(!u || !/pbs\.twimg\.com\/media\//.test(u)) return u;
+  if(/[?&]name=/.test(u)) return u.replace(/([?&]name=)orig\b/, '$1small');
+  return u + (u.includes('?') ? '&' : '?') + 'name=small';
+}
+// 投稿の自分の画像・動画の並び（引用・カード・リプライは含めない）：media.all、なければ photos と videos をつないだもの。
+// [{ type:'photo'|'video'|'gif', url, thumbnail_url }]
+function fxAll(t){
+  const m = (t && t.media) || {};
+  if(Array.isArray(m.all) && m.all.length) return m.all.map(x => ({ ...x, type:x.type || 'photo' }));
+  return [...(m.photos || []).map(x => ({ ...x, type:'photo' })), ...(m.videos || []).map(x => ({ ...x, type:x.type === 'gif' ? 'gif' : 'video' }))];
+}
+// 投稿の画像・動画の一覧だけを調べる（fxCache は通さない）。X の投稿を1枚ずつに分けるときに使う
+// st：'ok'（items に k:'p' 写真・'v' 動画・'g' GIF と、u:写真の url／動画・GIF の thumbnail_url）／'gone'（404・401：0件で確定）／'later'（読めない・5xx・429・通信の失敗：あとでやり直す）
+// user：投稿した人のアカウント名（リンクを作るのに使う。取れなければ空）
+async function fxMedia(id){
+  let r;
+  try{ r = await fetch(`https://api.fxtwitter.com/status/${id}`); }catch(e){ return { st:'later', items:[], user:'' }; }
+  if(r.status === 404 || r.status === 401) return { st:'gone', items:[], user:'' };
+  if(!r.ok) return { st:'later', items:[], user:'' };
+  let j; try{ j = await r.json(); }catch(e){ return { st:'later', items:[], user:'' }; }
+  const t = j && j.tweet;
+  if(!t) return { st:'later', items:[], user:'' };
+  const items = fxAll(t).map(x => ({ k:x.type === 'photo' ? 'p' : x.type === 'gif' ? 'g' : 'v', u:(x.type === 'photo' ? x.url : x.thumbnail_url) || '' })).filter(x => x.u);
+  return { st:'ok', items, user:(t.author && t.author.screen_name) || '' };
+}
+
+// ---- X の投稿ごとのまとまり（1つの投稿の画像を1枚ずつ別のブックマークにしたもの）----
+// ゴミ箱（k が -99）のものは入れない。cache.items が変わったら作り直す
+const postIds = new WeakMap();
+function postId(it){
+  let r = postIds.get(it);
+  if(!r || r.l !== it.l){ r = { l:it.l, id:/(?:x|twitter)\.com/i.test(it.l || '') ? xId(it.l) : '' }; postIds.set(it, r); }
+  return r.id;
+}
+var postIdx = null;   // 起動中に先に触られることがあるので var
+function postIndex(){
+  if(!cache) return new Map();
+  if(!postIdx || postIdx.items !== cache.items || postIdx.len !== cache.items.length){
+    const map = new Map();
+    cache.items.forEach(it => {
+      if(it.k === -99) return;
+      const id = postId(it); if(!id) return;
+      const a = map.get(id); if(a) a.push(it); else map.set(id, [it]);
+    });
+    map.forEach(a => { if(a.length > 1) a.sort((x, y) => xIndex(x.l) - xIndex(y.l) || x.i - y.i); });   // n の小さい順、同じなら ID 順
+    postIdx = { items:cache.items, len:cache.items.length, map };
+  }
+  return postIdx.map;
+}
+// その投稿の仲間（自分も入る。1件なら長さ1）
+function postOf(it){
+  const id = postId(it); if(!id) return [it];
+  const L = postIndex().get(id);
+  return L && L.includes(it) ? L : [it];
+}
+// 投稿 ID から、その投稿のブックマークを n の小さい順に
+function postPool(id){ return (postIndex().get(id) || []).slice(); }
+// リンクに番号がある、または分けた投稿のとき真（画像は media.all の n 番目だけを見る）
+const xStrict = it => X_IDX.test(it.l || '') || postOf(it).length >= 2;
 
 // 大きく見せるときは X の画像を大きいサイズで取る
 const bigUrl = u => u.replace(/([?&]name=)(small|medium|thumb|\w+x\w+)/, '$1large');
@@ -733,8 +844,29 @@ function card(it, top = false){
     wrap.append(rd, pv, box);
   }else wrap.append(rd, box);
   if(selected.has(it)) wrap.classList.add('picked');
+  stackLayers(wrap, it, top);
   cardOf.set(it, wrap);
   return wrap;
+}
+
+// 元の一覧で、同じ投稿の仲間がいるカードの後ろに、2枚目・3枚目を重ねる（最大2枚。4枚目以降は見せない）
+// 小さい画像だけ・遅れて読み込む。読めなければ --face の面だけ。押せない（見た目だけ）
+function stackLayers(wrap, it, top){
+  const mates = !top && !sim && !views.length ? (stackOf.get(it) || []).slice(0, 2) : [];
+  if(!mates.length) return;
+  wrap.classList.add('stacked', 'stack' + mates.length);
+  mates.forEach((m, k) => {
+    const lay = el('div', 'stack-lay s' + (k + 1));
+    const t = thumbs(m)[0];
+    if(t && !t.video){
+      const im = new Image();
+      im.loading = 'lazy'; im.decoding = 'async'; im.alt = ''; im.referrerPolicy = 'no-referrer';
+      im.addEventListener('error', () => im.remove(), { once:true });
+      im.src = sizedUrl(t.url, 'card');
+      lay.append(im);
+    }
+    wrap.append(lay);
+  });
 }
 
 // 画像がないときの代わり：タイトルを文字で見せる（タイトルもなければサイトの頭文字）
@@ -835,6 +967,7 @@ const ntPool = () => cache ? cache.items.filter(isNoThumb) : [];
 
 // ---- 重複して保存したもの（絞り込みの「その他」から。サムネが出ないものと同じく、条件はかけず全部の中から）----
 var dupMode = false;
+var postMode = '';   // 同じ投稿の画像の画面にいるとき、その投稿の ID
 // 追跡用でページの中身には関係ないクエリ（比べるときは外す）
 const DUP_DROP = new Set(['fbclid', 'gclid', 'igsh', 'igshid', 'si', 'ref', 'ref_src', 's', 't']);
 // リンクから「同じものかどうか」を比べるための文字を作る
@@ -846,7 +979,7 @@ function dupKey(it){
   if(host === 'twitter.com') host = 'x.com';
   // X の投稿・pixiv の作品・YouTube の動画は、番号（ID）だけで比べる
   const x = xId(raw) || (host === 'x.com' ? (u.pathname.match(/status(?:es)?\/(\d+)/) || [])[1] : '');   // m.x.com なども
-  if(x) return 'x:' + x;
+  if(x) return 'x:' + x + (xIndex(raw) >= 2 ? '/' + xIndex(raw) : '');   // 分けた投稿は2枚目以降を別のものとして数える
   if(host === 'pixiv.net'){
     const p = (u.pathname.match(/\/artworks\/(\d+)/) || [])[1] || (/^\d+$/.test(u.searchParams.get('illust_id') || '') ? u.searchParams.get('illust_id') : '');
     if(p) return 'pixiv:' + p;

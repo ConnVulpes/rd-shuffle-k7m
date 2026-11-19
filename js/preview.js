@@ -65,10 +65,24 @@ function xId(url){
   if(host !== 'x.com' && host !== 'twitter.com') return '';
   return (u.pathname.match(/status(?:es)?\/(\d+)/) || [])[1] || '';
 }
-async function xVideo(id){
+// リンクの「何枚目か」：/status/ID/photo/2 や /video/2 なら 2、ついていなければ 1
+const X_IDX = /\/status(?:es)?\/\d+\/(photo|video)\/(\d+)/;
+function xIndex(url){
+  const m = String(url || '').match(X_IDX);
+  return m ? Math.max(1, Number(m[2])) : 1;
+}
+// strict（リンクに番号がある、または分けた投稿）のときは、その番号の1件だけを見る：動画・GIF のときだけ返し、写真なら null。引用の動画は見ない
+async function xVideo(id, n, strict){
   const t = (await fxTweet(id)).tweet || {};
-  const vids = (t.media && t.media.videos) || (t.quote && t.quote.media && t.quote.media.videos) || [];
-  const x = vids[0];
+  let x;
+  if(strict){
+    const m = fxAll(t)[(n || 1) - 1];
+    if(!m || (m.type !== 'video' && m.type !== 'gif')) return null;
+    x = m;
+  }else{
+    const vids = (t.media && t.media.videos) || (t.quote && t.quote.media && t.quote.media.videos) || [];
+    x = vids[0];
+  }
   if(!x || !x.url) return null;
   // どのブラウザでも再生できる H.264 の mp4 を選ぶ（m3u8 や HEVC は避ける）
   const mp4 = (x.formats || x.variants || []).filter(f => f.url && (f.container === 'mp4' || /\.mp4/.test(f.url)) && (!f.codec || /264|avc/i.test(f.codec)))
@@ -235,7 +249,7 @@ function showPeekMedia(it){
       if(/(tweet_video|amplify_video|ext_tw_video)_thumb/.test(it.c || '') || it.y === 'video'){ peekVideoFor = it; syncHq(); }
       return;
     }
-    xVideo(xid).then(v => {
+    xVideo(xid, xIndex(it.l), xStrict(it)).then(v => {
       if(!v || peekItem !== it) return;
       const vid = document.createElement('video');
       vid.className = 'thumb';
@@ -288,6 +302,7 @@ function openPeek(it, stepping){
   $('peekCapD').textContent = [siteName(it), saveDate(it.a)].filter(Boolean).join(' · ');
   $('peekRd').href = raindropUrl(it);
   paintLike();
+  paintPeekPost(it);
   showPeekMedia(it);
   resetOrient();
   edView = '';

@@ -68,12 +68,15 @@ capBtn.addEventListener('change', toggleCap);
 const saverBtn = $('saverToggle');
 saverBtn.checked = state.saver;
 function setSaver(v){
-  state.saver = v; saverBtn.checked = v;
+  state.saver = v; saverBtn.checked = v; $('saverMenu').checked = v;
   store.set('saver', state.saver);
   paintStIcons();
   allCards().forEach(c => refreshCardMedia(c, c._item));
 }
 saverBtn.addEventListener('change', () => setSaver(saverBtn.checked));
+// スマホはメニューの中でも切り替える（PC は帯のアイコン）
+$('saverMenu').checked = state.saver;
+$('saverMenu').addEventListener('change', e => setSaver(e.target.checked));
 
 // マウスを止めて少したつとカーソルを隠す。隠れている間はカードに反応しない
 const curBtn = $('curToggle');
@@ -191,7 +194,7 @@ document.addEventListener('click', e => {
   if(!sortMenu.hidden && !e.target.closest('#sortMenu, #sortBtn')){ e.preventDefault(); e.stopPropagation(); if(sortHeld) sortHeld = false; else setSortMenu(false); }
 }, true);
 refreshBtn.addEventListener('click', () => { setDlg.close(); refreshAll(true); });
-$('updDiff').addEventListener('click', () => { setMenu(false); syncChanged(); });
+$('updDiff').addEventListener('click', async () => { setMenu(false); try{ await syncChanged(); }catch(e){} splitAuto(); });
 $('settings').addEventListener('click', openSettings);
 $('cancel').addEventListener('click', () => dlg.close());
 $('tokenForm').addEventListener('submit', () => {

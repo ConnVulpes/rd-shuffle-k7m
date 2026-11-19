@@ -1,4 +1,4 @@
-/* ♥ と熱（cycleLike heatWeight）、設定の同期（pullSettings） */
+/* ♥ と熱（cycleLike heatWeight）、設定の同期（pullSettings）・X の投稿を分ける設定（xs）の同期 */
 // ---- ♥ と熱：今「いいな」と思っているものを、シャッフルで少し多めに出す ----
 // ♥（1〜3回）と、プレビューで見た動き（長く見た・拡大・高画質・サイトを開いた）が熱になる。
 // 熱は2週間で半分に冷める。♥ したものは冷めきっても、普通より少しだけ出やすいまま残る
@@ -108,6 +108,29 @@ let syncRef = store.get('syncref', null);   // { coll:フォルダID }
 let syncAt = store.get('syncat', 0);        // 手元のプリセット・固定タグがいつのものか（0 = まだ一度も同期していない）
 let lastPull = 0, syncTimer = 0, syncing = null, syncAgain = false;
 const CHUNK = 9000;
+// X の投稿を1枚ずつに分ける設定（xsplit.js）：{ on:自動で分けるか, upto:ここまでの ID は見終わった, at:on を変えた時刻, bulkAt:前からある分をまとめて分けた時刻 }。
+// 合わせ方：upto と bulkAt は大きい方、on は at が新しい方。settings JSON の xs に入れる
+let xs = store.get('xs', null);
+function xsMerge(r){
+  if(!r || typeof r !== 'object') return;
+  const l = xs || { on:false, upto:0, at:0, bulkAt:0 };
+  const n = {
+    on: (r.at || 0) > (l.at || 0) ? !!r.on : !!l.on,
+    upto: Math.max(l.upto || 0, r.upto || 0),
+    at: Math.max(l.at || 0, r.at || 0),
+    bulkAt: Math.max(l.bulkAt || 0, r.bulkAt || 0)
+  };
+  xs = n; store.set('xs', xs);
+}
+// 手元で変える：on を変えたときは at を今にする（ほかの端末より新しい方になる）。変えたら同期する
+function xsSet(patch){
+  const l = xs || { on:false, upto:0, at:0, bulkAt:0 };
+  const n = { ...l, ...patch };
+  if('on' in patch && patch.on !== l.on) n.at = Date.now();
+  n.upto = Math.max(l.upto || 0, n.upto || 0);
+  xs = n; store.set('xs', xs);
+  scheduleSync(1500);
+}
 function settingsChanged(){
   syncAt = Date.now(); store.set('syncat', syncAt);
   scheduleSync(1500);
@@ -185,14 +208,18 @@ function pullSettings(){
       else if((data.at || 0) > syncAt) applyRemote(data);
       mergeHeat(heatUnpack(data.heat));
       store.set('heat', heatPacked());
-    }else if(!presets.length && !pins.length && !heat.size && !mapKnownAt){
+      if(data.xs) xsMerge(data.xs);   // applyRemote とは別に、upto・bulkAt・on を個別に合わせる
+    }else if(!presets.length && !pins.length && !heat.size && !mapKnownAt && !xs){
       return;   // どちらにも何もない：フォルダも作らない
     }else if(!syncAt){ syncAt = Date.now(); store.set('syncat', syncAt); }
-    const text = JSON.stringify({ v:1, at:syncAt, presets, pins, heat:heatPacked(), ...(mapKnownAt ? { mapAt:mapKnownAt } : {}) });
+    const text = JSON.stringify({ v:1, at:syncAt, presets, pins, heat:heatPacked(), ...(mapKnownAt ? { mapAt:mapKnownAt } : {}), ...(xs ? { xs } : {}) });
     if(text !== parts.map(x => x.note).join('')) await writeSettings(parts, text);
-  })().catch(() => {}).finally(() => {
+    // 変更分を取れない端末（diffbroken）は、ほかの端末が前からある分を分けたあと、1回だけ全部を読み直す
+    if(xs && xs.bulkAt && store.get('diffbroken', false) && cache && xs.bulkAt > (cache.savedAt || 0)) refreshAll();
+  })().then(() => true, () => false).then(ok => {
     syncing = null;
     if(syncAgain){ syncAgain = false; scheduleSync(1000); }
+    if(ok) splitAuto();   // 設定をそろえたあとに、X の投稿を分ける確認（読めなかったときは、設定が分からないのでしない）
   });
   return syncing;
 }
