@@ -506,6 +506,9 @@ function thumbs(it){
     list.push({ url, video: type === 'video' || VIDEO_EXT.test(url) });
   };
   const px = u => u.replace('://i.pximg.net/', '://i.pixiv.re/');
+  // 分けた X の投稿の元（リンクに番号がないもの）は、Raindrop のサムネが全部の画像を並べた1枚になっていることがあるので、
+  // サムネも添付も使わず、siteThumbs でその番号の1枚だけを取る
+  if(cache && /(?:x|twitter)\.com/i.test(it.l || '') && !X_IDX.test(it.l || '') && postOf(it).length >= 2) return list;
   add(px(it.c || ''), '');
   (it.m || []).forEach(x => add(px(x.l), x.t));
   return list;
