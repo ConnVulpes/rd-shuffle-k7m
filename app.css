@@ -233,16 +233,6 @@ main{padding:calc(20px + env(safe-area-inset-top)) 20px calc(var(--band-h) + var
   background:var(--card); border-radius:var(--r-m); overflow:hidden;
   color:inherit; text-decoration:none;
 }
-/* 同じ投稿の2枚目以降を後ろに重ねる（元の一覧）：重ねたぶん上に余白。層は見た目だけで押せない */
-.card.stacked{overflow:visible; isolation:isolate}
-.card.stack1{margin-top:6px}
-.card.stack2{margin-top:12px}
-.card.stacked > .card-link{border-radius:inherit; overflow:hidden}
-.stack-lay{position:absolute; z-index:-1; pointer-events:none; border-radius:var(--r-m); overflow:hidden; background:var(--face)}
-.stack-lay img{display:block; width:100%; height:100%; object-fit:cover}
-/* 後ろの層は上の縁だけ見えればよいので、高さは上の 48px だけ（下まで伸ばすと、キャプションの地の上に出てしまう） */
-.stack-lay.s1{top:-6px; left:6px; right:6px; height:48px; filter:brightness(.7)}
-.stack-lay.s2{top:-12px; left:12px; right:12px; height:48px; filter:brightness(.5); z-index:-2}
 .card .thumb{display:block; width:100%; height:auto; background:var(--ph)}
 .badge{
   position:absolute; top:8px; left:8px;

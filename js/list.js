@@ -1,14 +1,6 @@
 /* 一覧の並べ方（並び順・シャッフル・render・appendMore・続きの読み込み）、石積み・カード・サムネ・
    画像がないときの代わり、一段奥の画面（似た画像・サムネが出ないもの・同じ投稿の画像）、戻る（pushLayer）、
    X の投稿ごとのまとまり（postIndex postOf postPool）・X の画像の取得（fxMedia） */
-function shuffleArray(a){
-  for(let i = a.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 // 並べ替えはすべてブラウザの中で行う（Raindrop には問い合わせない）。
 // 条件に合う全件を一度に並べ、スクロールに合わせて少しずつカードを足していく
 let order = [];
@@ -44,11 +36,11 @@ function sortPool(pool){
   }
   // ♥ した順：♥ したものだけを、最後に ♥ した順に
   if(state.sort === 'liked') return a.filter(x => likesOf(x)).sort((x, y) => heat.get(y.i).tl - heat.get(x.i).tl || likesOf(y) - likesOf(x));
-  // ランダム：熱いものほどくじが当たりやすい（並び全体に散らばって、少し多めに前の方に来る）
-  const s = heatStrength();
-  if(!s || !heat.size) return shuffleArray(a);
-  const now = Date.now();
-  return a.map(x => [x, -Math.log(1 - Math.random()) / heatWeight(x.i, now, s)]).sort((p, q) => p[1] - q[1]).map(p => p[0]);
+  // ランダム：熱いものほどくじが当たりやすい（並び全体に散らばって、少し多めに前の方に来る）。
+  // 分けた X の投稿は、重みを画像の枚数 N で割る（投稿まるごとで、1枚だけの投稿と同じくらいの出やすさにする。20枚の投稿が20倍出ないように）
+  const s = heatStrength(), now = Date.now(), useHeat = s && heat.size;
+  const weight = x => (useHeat ? heatWeight(x.i, now, s) : 1) / postOf(x).length;
+  return a.map(x => [x, -Math.log(1 - Math.random()) / weight(x)]).sort((p, q) => p[1] - q[1]).map(p => p[0]);
 }
 // シャッフルの光の色：起動するたびとシャッフルするたびに色相だけ変える。明るさと鮮やかさは同じなので、どの色でも文字が読める。
 // 落ち着いて見えるように、鮮やかさは控えめ、2色目は 70° だけずらす（1つの光の中の色の揺れに見える間）。
@@ -101,8 +93,6 @@ function render(){
   // 重複して保存したもの・同じ投稿の画像も同じく全部の中から。並び順の設定は見ず、dupPool・postPool の並びのまま
   const pool = sim ? simPool() : ntMode ? ntPool() : dupMode ? dupPool() : postMode ? postPool(postMode) : cache.items.filter(makeFilter(state.filter));
   order = sim || dupMode || postMode ? pool.slice() : sortPool(pool);
-  stackOf = new Map();
-  if(!views.length) order = stackPosts(order);   // 元の一覧だけ：同じ投稿の2枚目以降は、1枚目の後ろに重ねる
   poolSize = order.length;
   renderDeepBar();
   shownCount = 0;
@@ -126,32 +116,6 @@ function render(){
   }
   appendMore();
   paintSimNone();
-}
-// 同じ投稿（postId）の画像をまとめる：n（xIndex）がいちばん小さいものを表のカードにして、仲間のうち最初に出てくる位置に置く。
-// 残りは order から外し、stackOf（表のカード → 後ろの仲間を n の小さい順）に入れる。1件だけの投稿は何もしない
-var stackOf = new Map();
-function stackPosts(list){
-  const groups = new Map();
-  list.forEach(it => {
-    const id = postId(it); if(!id) return;
-    const g = groups.get(id); if(g) g.push(it); else groups.set(id, [it]);
-  });
-  const front = new Map();   // 投稿 → 表のカード
-  groups.forEach((g, id) => {
-    if(g.length < 2) return;
-    const s = g.slice().sort((a, b) => xIndex(a.l) - xIndex(b.l));
-    front.set(id, s[0]);
-    stackOf.set(s[0], s.slice(1));
-  });
-  if(!front.size) return list;
-  const done = new Set(), out = [];
-  list.forEach(it => {
-    const id = postId(it), f = id && front.get(id);
-    if(!f){ out.push(it); return; }
-    if(done.has(id)) return;   // 仲間のどれかが最初に出てきた位置に、表のカードを1回だけ
-    done.add(id); out.push(f);
-  });
-  return out;
 }
 // 似た画像の並び：押した画像を先頭に、条件に合うものだけを似ている順に（押した画像は条件に関係なく出す）
 function simPool(){
@@ -233,7 +197,7 @@ function takeSnap(){
   const frag = document.createDocumentFragment();
   while(grid.firstChild) frag.append(grid.firstChild);
   placeGen++; placeQueue = Promise.resolve(); placing = 0;
-  return { order, shownCount, poolSize, cardEls, cols, colCount, frag, y, fk:simKey(), stackOf };
+  return { order, shownCount, poolSize, cardEls, cols, colCount, frag, y, fk:simKey() };
 }
 // 似た画像の条件（元の一覧に戻るまで、段をまたいで続く。保存はしない）
 var simF = null;
@@ -285,7 +249,6 @@ function restoreView(quiet){
   placeGen++;
   grid.innerHTML = ''; grid.append(sn.frag);
   ({ order, shownCount, poolSize, cardEls, cols, colCount } = sn);
-  if(sn.stackOf) stackOf = sn.stackOf;
   allCards().forEach(c => { if(c._item) cardOf.set(c._item, c); });
   // 入る前にまだ並べ終わっていなかったカードを、続きから並べる
   const pending = cardEls.filter(c => !c._placed), gen = placeGen;
@@ -847,29 +810,8 @@ function card(it, top = false){
     wrap.append(rd, pv, box);
   }else wrap.append(rd, box);
   if(selected.has(it)) wrap.classList.add('picked');
-  stackLayers(wrap, it, top);
   cardOf.set(it, wrap);
   return wrap;
-}
-
-// 元の一覧で、同じ投稿の仲間がいるカードの後ろに、2枚目・3枚目を重ねる（最大2枚。4枚目以降は見せない）
-// 小さい画像だけ・遅れて読み込む。読めなければ --face の面だけ。押せない（見た目だけ）
-function stackLayers(wrap, it, top){
-  const mates = !top && !sim && !views.length ? (stackOf.get(it) || []).slice(0, 2) : [];
-  if(!mates.length) return;
-  wrap.classList.add('stacked', 'stack' + mates.length);
-  mates.forEach((m, k) => {
-    const lay = el('div', 'stack-lay s' + (k + 1));
-    const t = thumbs(m)[0];
-    if(t && !t.video){
-      const im = new Image();
-      im.loading = 'lazy'; im.decoding = 'async'; im.alt = ''; im.referrerPolicy = 'no-referrer';
-      im.addEventListener('error', () => im.remove(), { once:true });
-      im.src = sizedUrl(t.url, 'card');
-      lay.append(im);
-    }
-    wrap.append(lay);
-  });
 }
 
 // 画像がないときの代わり：タイトルを文字で見せる（タイトルもなければサイトの頭文字）
