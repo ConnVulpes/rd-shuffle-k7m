@@ -44,32 +44,47 @@ function sortPool(pool){
   return a.map(x => [x, -Math.log(1 - Math.random()) / weight(x)]).sort((p, q) => p[1] - q[1]).map(p => p[0]);
 }
 // ---- スタック ----
-// 分けた X の投稿のうち、元の一覧では1枚目だけを表示するもの（カードの長押しのメニューで切り替える）。中身は投稿 ID。
-// 設定の同期（heat-sync.js の fold）で端末どうしそろえる
-var folded = new Set(store.get('folded', []));
+// 分けた X の投稿のうち、元の一覧では1枚だけを表示するもの（カードの右クリック・長押しのメニューで切り替える）。
+// 中身は 投稿 ID → 表に出す画像の番号（スタックにしたときに右クリック・長押ししたカードの番号）。
+// 設定の同期（heat-sync.js の fold）で端末どうしそろえる。前の形（投稿 ID の配列）は、表を1枚目として読む
+const foldMap = v => new Map(Array.isArray(v) ? v.map(id => [String(id), 1]) : Object.entries(v && typeof v === 'object' ? v : {}).map(([id, n]) => [id, Number(n) || 1]));
+var folded = foldMap(store.get('folded', {}));
+const foldObj = () => Object.fromEntries(folded);
 const isFolded = it => { const id = postId(it); return !!id && folded.has(id) && postOf(it).length >= 2; };
-// スタックにした投稿は、条件に合うもののうち番号のいちばん小さい1枚だけを残す
+// スタックにした投稿は、条件に合うもののうち1枚だけを残す：覚えた番号の画像、なければ番号のいちばん小さいもの
 function onePerPost(pool){
+  const rank = it => { const n = xIndex(it.l); return n === folded.get(postId(it)) ? 0 : n; };
   const best = new Map();
   pool.forEach(it => {
     if(!isFolded(it)) return;
     const id = postId(it), b = best.get(id);
-    if(!b || xIndex(it.l) < xIndex(b.l) || (xIndex(it.l) === xIndex(b.l) && it.i < b.i)) best.set(id, it);
+    if(!b || rank(it) < rank(b) || (rank(it) === rank(b) && it.i < b.i)) best.set(id, it);
   });
   if(!best.size) return pool;
   return pool.filter(it => !isFolded(it) || best.get(postId(it)) === it);
 }
-// 切り替える：並べ直さずに、今の一覧からその投稿のほかの画像を外す・後ろに足す（スクロールの位置はそのまま）
+// 切り替える：it の画像を表にしてスタックにする・解除する。
+// 元の一覧なら並べ直さずにその場で外す・戻す。一段奥（同じ投稿の画像の ≡ メニュー）からは、元の一覧に戻ったときに当てる
+const pendingFolds = new Map();   // 投稿 ID → on
 function setFold(it, on){
   const id = postId(it); if(!id) return;
-  if(on) folded.add(id); else folded.delete(id);
-  store.set('folded', [...folded]);
+  if(on) folded.set(id, xIndex(it.l)); else folded.delete(id);
+  store.set('folded', foldObj());
   settingsChanged();
-  if(views.length) return;
+  if(views.length){ pendingFolds.set(id, on); return; }
+  applyFold(id, on);
+}
+function flushFolds(){
+  if(views.length || !pendingFolds.size) return;
+  const list = [...pendingFolds]; pendingFolds.clear();
+  list.forEach(([id, on]) => applyFold(id, on));
+}
+// 今の一覧に当てる（スクロールの位置はそのまま）
+function applyFold(id, on){
   const y = window.scrollY;
   if(on){
     const mine = order.filter(x => postId(x) === id);
-    const keep = onePerPost(mine)[0];
+    const keep = onePerPost(mine)[0];   // 押したカードの画像（今の一覧にあれば）
     const drop = new Set(mine.filter(x => x !== keep));
     for(let i = order.length - 1; i >= 0; i--){
       if(!drop.has(order[i])) continue;
@@ -80,21 +95,22 @@ function setFold(it, on){
     layout(true);
     const kc = cardOf.get(keep); if(kc) paintBadge(kc, keep, false);
   }else{
+    // 表のカードの場所に、その投稿の画像を 1→N で並べ直す
     const keep = order.find(x => postId(x) === id); if(!keep) return;
     const f = makeFilter(state.filter);
-    const add = postOf(keep).filter(x => x !== keep && f(x));
+    const group = postOf(keep).filter(x => x === keep || f(x));
     const ki = order.indexOf(keep);
-    order.splice(ki + 1, 0, ...add); poolSize += add.length;
+    order.splice(ki, 1, ...group); poolSize += group.length - 1;
     const kc = cardOf.get(keep); if(kc) paintBadge(kc, keep, false);
     if(ki < shownCount && kc){
-      // 足した画像は、読み込んで高さが決まってから、表のカードのすぐあとに並べ直す
-      shownCount += add.length;
-      const els = add.map(x => card(x)), gen = placeGen;
-      cardEls.splice(cardEls.indexOf(kc) + 1, 0, ...els);
-      Promise.all(els.map(c => Promise.race([c._ready, sleep(3000)]))).then(() => {
+      // 足した画像は、読み込んで高さが決まってから並べ直す
+      shownCount += group.length - 1;
+      const els = group.map(x => x === keep ? kc : card(x)), fresh = els.filter(c => c !== kc), gen = placeGen;
+      cardEls.splice(cardEls.indexOf(kc), 1, ...els);
+      Promise.all(fresh.map(c => Promise.race([c._ready, sleep(3000)]))).then(() => {
         if(gen !== placeGen) return;
         const y2 = window.scrollY;
-        els.forEach(c => { c._placed = true; });
+        fresh.forEach(c => { c._placed = true; });
         layout(true);
         window.scrollTo({ top:y2, behavior:'instant' });
       });
@@ -155,6 +171,7 @@ function render(){
   let pool = sim ? simPool() : ntMode ? ntPool() : dupMode ? dupPool() : postMode ? postPool(postMode) : cache.items.filter(makeFilter(state.filter));
   if(!views.length && folded.size) pool = onePerPost(pool);
   order = sim || dupMode || postMode ? pool.slice() : sortPool(pool);
+  if(!views.length) pendingFolds.clear();   // 並べ直したので、スタックの切り替えはもう入っている
   poolSize = order.length;
   renderDeepBar();
   shownCount = 0;
@@ -316,7 +333,7 @@ function restoreView(quiet){
   // 入る前にまだ並べ終わっていなかったカードを、続きから並べる
   const pending = cardEls.filter(c => !c._placed), gen = placeGen;
   placing = pending.length;
-  placeQueue = (async () => { for(const c of pending){ await Promise.race([c._ready, sleep(3000)]); if(gen !== placeGen) return; c._placed = true; placeCard(c); placing--; } })();
+  placeQueue = (async () => { for(const c of pending){ await Promise.race([c._ready, sleep(3000)]); if(gen !== placeGen) return; if(c._dropped){ placing--; continue; } c._placed = true; placeCard(c); placing--; } })();
   applyView();
   layout(false);
   watchHero();
@@ -326,6 +343,7 @@ function restoreView(quiet){
   if(quiet) return;   // 途中の段は、元に戻すだけ
   window.scrollTo({ top:sn.y, behavior:'instant' });
   slideGrid('view-back');
+  flushFolds();   // 一段奥で切り替えたスタックを、元の一覧に当てる
   // 一度に戻ったときは、いちばん最初に来た画像を光らせる
   if(v.from) revealCard(v.from);
 }
@@ -370,6 +388,9 @@ $('deepPath').addEventListener('scroll', e => e.target.classList.toggle('more-le
 const deepName = v => v.kind === 'post' ? '同じ投稿の画像' : v.kind === 'dup' ? '重複して保存したもの' : 'サムネイルが出ないもの';
 function renderDeepBar(){
   const v = views[views.length - 1];
+  // ≡ メニューの「同じツイートの画像をスタック」：同じ投稿の画像の画面だけ
+  $('foldMenu').closest('label').hidden = !postMode;
+  if(postMode) $('foldMenu').checked = folded.has(postMode);
   document.querySelector('header').classList.toggle('deep', !!v);
   // 帯の中：類似画像は道すじ、サムネイルが出ないもの・重複して保存したもの（だけ）は名前と件数
   document.querySelector('.deep-title').hidden = !!v && v.kind === 'sim';

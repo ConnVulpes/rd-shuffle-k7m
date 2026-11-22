@@ -77,6 +77,13 @@ saverBtn.addEventListener('change', () => setSaver(saverBtn.checked));
 // スマホはメニューの中でも切り替える（PC は帯のアイコン）
 $('saverMenu').checked = state.saver;
 $('saverMenu').addEventListener('change', e => setSaver(e.target.checked));
+// 同じ投稿の画像の画面の ≡ メニュー：入ってきたときの画像（なければ1枚目）を表にしてスタックにする・解除する
+$('foldMenu').addEventListener('change', e => {
+  const v = views[views.length - 1];
+  if(!postMode || !v) return;
+  const from = v.from && postId(v.from) === postMode ? v.from : postPool(postMode)[0];
+  if(from) setFold(from, e.target.checked);
+});
 
 // マウスを止めて少したつとカーソルを隠す。隠れている間はカードに反応しない
 const curBtn = $('curToggle');
