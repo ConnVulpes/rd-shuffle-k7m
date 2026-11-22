@@ -359,15 +359,17 @@ $('selClose').addEventListener('click', clearSelection);
 
 // スマホ：カードを長押しで選択を始める
 // 似た画像の画面では、長押しでカードの近くに［プレビュー］［選択］を出す（PC のマウスでも）。選んでいる最中は、今どおり選択の切り替え
+// 元の一覧の分けた X の投稿は、長押しで［選択］［スタックにする］（スタックにしてあるときは［スタックを解除］）を出す（PC のマウスでも）
+const canFold = it => !sim && !views.length && postOf(it).length >= 2;
 let press = null;
 grid.addEventListener('pointerdown', e => {
   const c = e.target.closest('.card');
   if(!c || c._hero || e.target.closest('.rd-btn, .sel-box')) return;
-  if(e.pointerType !== 'touch' && !(sim && e.pointerType === 'mouse' && e.button === 0)) return;
+  if(e.pointerType !== 'touch' && !((sim || canFold(c._item)) && e.pointerType === 'mouse' && e.button === 0)) return;
   c._long = false;
   const x = e.clientX, y = e.clientY;
   press = { c, x, y, t:setTimeout(() => {
-    if(sim && !selected.size){ c._long = true; openPressMenu(c, x, y); return; }
+    if((sim || canFold(c._item)) && !selected.size){ c._long = true; openPressMenu(c, x, y); return; }
     if(e.pointerType !== 'touch') return;
     c._long = true;
     pickCard(c._item, false);
@@ -377,6 +379,10 @@ grid.addEventListener('pointerdown', e => {
 const pressMenu = $('pressMenu');
 function openPressMenu(c, x, y){
   pressMenu._card = c;
+  $('pressPeek').hidden = !sim;   // 元の一覧では押せばプレビューなので出さない
+  const fb = $('pressFold'), it = c._item;
+  fb.hidden = !canFold(it);
+  if(!fb.hidden) fb.textContent = isFolded(it) ? 'スタックを解除' : 'スタックにする';
   pressMenu.hidden = false;
   const w = pressMenu.offsetWidth, h = pressMenu.offsetHeight;
   const left = Math.max(12, Math.min(x - w / 2, innerWidth - w - 12));
@@ -389,6 +395,7 @@ function openPressMenu(c, x, y){
 function closePressMenu(){ pressMenu.hidden = true; pressMenu._card = null; }
 $('pressPeek').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) openPeek(c._item); });
 $('pressPick').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) pickCard(c._item, false); });
+$('pressFold').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) setFold(c._item, !isFolded(c._item)); });
 // 外を押したら閉じるだけ（後ろのカードは開かない）。長押しを離したときのクリックは、カードの方で無視する
 document.addEventListener('click', e => {
   if(pressMenu.hidden || e.target.closest('#pressMenu')) return;

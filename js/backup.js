@@ -107,7 +107,7 @@ async function bkAppJson(){
   ['heatpct', 'heatimp', 'count', 'cap', 'bg', 'saver', 'hidecur', 'wakepx', 'col', 'sort', 'filter', 'autonext', 'tagsort', 'sidew', 'bkauto']
     .forEach(k => { const v = store.get(k, undefined); if(v !== undefined) settings[k] = v; });
   settings.heatPct = state.heatPct;
-  const data = { v:1, at:Date.now(), presets, pins, heat:heatPacked(), settings,
+  const data = { v:1, at:Date.now(), presets, pins, fold:[...folded], heat:heatPacked(), settings,
     items:cache.items, colls:cache.colls, tags:cache.tags, map:map ? bkPlain(map) : null };
   // 大きな文字に変えるのは手が空いているときに（一覧やプレビューの反応を遅らせない）
   await new Promise(r => (window.requestIdleCallback || (f => setTimeout(f, 0)))(r, { timeout:2000 }));

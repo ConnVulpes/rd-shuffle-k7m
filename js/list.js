@@ -37,10 +37,71 @@ function sortPool(pool){
   // ♥ した順：♥ したものだけを、最後に ♥ した順に
   if(state.sort === 'liked') return a.filter(x => likesOf(x)).sort((x, y) => heat.get(y.i).tl - heat.get(x.i).tl || likesOf(y) - likesOf(x));
   // ランダム：熱いものほどくじが当たりやすい（並び全体に散らばって、少し多めに前の方に来る）。
-  // 分けた X の投稿は、重みを画像の枚数 N で割る（投稿まるごとで、1枚だけの投稿と同じくらいの出やすさにする。20枚の投稿が20倍出ないように）
+  // 分けた X の投稿は、重みを画像の枚数 N で割る（投稿まるごとで、1枚だけの投稿と同じくらいの出やすさにする。20枚の投稿が20倍出ないように）。
+  // スタックにした投稿は、もともと1投稿1枚なので割らない
   const s = heatStrength(), now = Date.now(), useHeat = s && heat.size;
-  const weight = x => (useHeat ? heatWeight(x.i, now, s) : 1) / postOf(x).length;
+  const weight = x => (useHeat ? heatWeight(x.i, now, s) : 1) / (isFolded(x) ? 1 : postOf(x).length);
   return a.map(x => [x, -Math.log(1 - Math.random()) / weight(x)]).sort((p, q) => p[1] - q[1]).map(p => p[0]);
+}
+// ---- スタック ----
+// 分けた X の投稿のうち、元の一覧では1枚目だけを表示するもの（カードの長押しのメニューで切り替える）。中身は投稿 ID。
+// 設定の同期（heat-sync.js の fold）で端末どうしそろえる
+var folded = new Set(store.get('folded', []));
+const isFolded = it => { const id = postId(it); return !!id && folded.has(id) && postOf(it).length >= 2; };
+// スタックにした投稿は、条件に合うもののうち番号のいちばん小さい1枚だけを残す
+function onePerPost(pool){
+  const best = new Map();
+  pool.forEach(it => {
+    if(!isFolded(it)) return;
+    const id = postId(it), b = best.get(id);
+    if(!b || xIndex(it.l) < xIndex(b.l) || (xIndex(it.l) === xIndex(b.l) && it.i < b.i)) best.set(id, it);
+  });
+  if(!best.size) return pool;
+  return pool.filter(it => !isFolded(it) || best.get(postId(it)) === it);
+}
+// 切り替える：並べ直さずに、今の一覧からその投稿のほかの画像を外す・後ろに足す（スクロールの位置はそのまま）
+function setFold(it, on){
+  const id = postId(it); if(!id) return;
+  if(on) folded.add(id); else folded.delete(id);
+  store.set('folded', [...folded]);
+  settingsChanged();
+  if(views.length) return;
+  const y = window.scrollY;
+  if(on){
+    const mine = order.filter(x => postId(x) === id);
+    const keep = onePerPost(mine)[0];
+    const drop = new Set(mine.filter(x => x !== keep));
+    for(let i = order.length - 1; i >= 0; i--){
+      if(!drop.has(order[i])) continue;
+      if(i < shownCount) shownCount--;
+      order.splice(i, 1); poolSize--;
+    }
+    cardEls = cardEls.filter(c => { if(!drop.has(c._item)) return true; c._dropped = true; c.remove(); return false; });
+    layout(true);
+    const kc = cardOf.get(keep); if(kc) paintBadge(kc, keep, false);
+  }else{
+    const keep = order.find(x => postId(x) === id); if(!keep) return;
+    const f = makeFilter(state.filter);
+    const add = postOf(keep).filter(x => x !== keep && f(x));
+    const ki = order.indexOf(keep);
+    order.splice(ki + 1, 0, ...add); poolSize += add.length;
+    const kc = cardOf.get(keep); if(kc) paintBadge(kc, keep, false);
+    if(ki < shownCount && kc){
+      // 足した画像は、読み込んで高さが決まってから、表のカードのすぐあとに並べ直す
+      shownCount += add.length;
+      const els = add.map(x => card(x)), gen = placeGen;
+      cardEls.splice(cardEls.indexOf(kc) + 1, 0, ...els);
+      Promise.all(els.map(c => Promise.race([c._ready, sleep(3000)]))).then(() => {
+        if(gen !== placeGen) return;
+        const y2 = window.scrollY;
+        els.forEach(c => { c._placed = true; });
+        layout(true);
+        window.scrollTo({ top:y2, behavior:'instant' });
+      });
+    }
+  }
+  window.scrollTo({ top:y, behavior:'instant' });
+  updateStatus();
 }
 // シャッフルの光の色：起動するたびとシャッフルするたびに色相だけ変える。明るさと鮮やかさは同じなので、どの色でも文字が読める。
 // 落ち着いて見えるように、鮮やかさは控えめ、2色目は 70° だけずらす（1つの光の中の色の揺れに見える間）。
@@ -91,7 +152,8 @@ function render(){
   // 似ているものを並べている間は、元の一覧の絞り込みも並び順も使わず、近い順のまま（似た画像の条件があれば、合うものだけ）
   // サムネが出ないものだけのときは、絞り込みの条件はかけずに、全部のブックマークの中から
   // 重複して保存したもの・同じ投稿の画像も同じく全部の中から。並び順の設定は見ず、dupPool・postPool の並びのまま
-  const pool = sim ? simPool() : ntMode ? ntPool() : dupMode ? dupPool() : postMode ? postPool(postMode) : cache.items.filter(makeFilter(state.filter));
+  let pool = sim ? simPool() : ntMode ? ntPool() : dupMode ? dupPool() : postMode ? postPool(postMode) : cache.items.filter(makeFilter(state.filter));
+  if(!views.length && folded.size) pool = onePerPost(pool);
   order = sim || dupMode || postMode ? pool.slice() : sortPool(pool);
   poolSize = order.length;
   renderDeepBar();
@@ -158,6 +220,7 @@ function appendMore(){
       if(gen !== placeGen) return;
       await Promise.race([c._ready, sleep(3000)]);
       if(gen !== placeGen) return;
+      if(c._dropped){ placing--; continue; }   // スタックにして外したカード
       c._placed = true;
       placeCard(c);
       placing--;
@@ -783,11 +846,7 @@ function card(it, top = false){
   wrap.append(a);
   wrap._item = it;
   wrap._was = snapOf(it);
-  // X の GIF はサムネイルの URL で見分けられる
-  const isGif = /tweet_video_thumb/.test(it.c || '');
-  if(isGif || it.y === 'video' || list.some(x => x.video) || /(amplify|ext_tw)_video_thumb/.test(it.c || '')){
-    wrap.append(el('span', 'badge' + (isGif ? ' gif' : ''), isGif ? 'GIF' : '動画'));
-  }
+  paintBadge(wrap, it, top, list);
   const rd = el('a', 'rd-btn');
   rd.href = raindropUrl(it);
   rd.target = '_blank';
@@ -814,6 +873,18 @@ function card(it, top = false){
   return wrap;
 }
 
+// 左上の札：動画・GIF と、スタックにした投稿の枚数（「3枚」）を1つの札に並べる
+function paintBadge(wrap, it, top, list){
+  const old = wrap.querySelector(':scope > .badge'); if(old) old.remove();
+  list = list || thumbs(it);
+  // X の GIF はサムネイルの URL で見分けられる
+  const isGif = /tweet_video_thumb/.test(it.c || '');
+  const isVideo = isGif || it.y === 'video' || list.some(x => x.video) || /(amplify|ext_tw)_video_thumb/.test(it.c || '');
+  const n = !top && !sim && !views.length && isFolded(it) ? postOf(it).length : 0;
+  if(!isVideo && !n) return;
+  const b = el('span', 'badge' + (isGif ? ' gif' : ''), [isVideo ? (isGif ? 'GIF' : '動画') : '', n ? n + '枚' : ''].filter(Boolean).join(' · '));
+  wrap.querySelector(':scope > .card-link').after(b);
+}
 // 画像がないときの代わり：タイトルを文字で見せる（タイトルもなければサイトの頭文字）
 function placeholder(it){
   const title = (it.t || '').trim();

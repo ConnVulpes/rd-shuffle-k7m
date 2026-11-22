@@ -143,6 +143,7 @@ function applyRemote(r){
   presets = Array.isArray(r.presets) ? r.presets : [];
   pins = Array.isArray(r.pins) ? r.pins.slice(0, 9) : [];
   store.set('presets', presets); store.set('pins', pins);
+  folded = new Set(Array.isArray(r.fold) ? r.fold : []); store.set('folded', [...folded]);   // 一覧には次に並べ直したときから
   syncAt = r.at || Date.now(); store.set('syncat', syncAt);
   syncFilter();
   if(filterDlg.open && !presetNaming) renderPresets();
@@ -153,6 +154,7 @@ function mergeFirst(r){
   const names = new Set(presets.map(p => p.name));
   presets = presets.concat((r.presets || []).filter(p => !names.has(p.name)));
   pins = [...new Set([...pins, ...(r.pins || [])])].slice(0, 9);
+  folded = new Set([...folded, ...(Array.isArray(r.fold) ? r.fold : [])]); store.set('folded', [...folded]);
 }
 // 熱は1件ずつ、最後に変わった方を取る
 function mergeHeat(remote){
@@ -209,10 +211,10 @@ function pullSettings(){
       mergeHeat(heatUnpack(data.heat));
       store.set('heat', heatPacked());
       if(data.xs) xsMerge(data.xs);   // applyRemote とは別に、upto・bulkAt・on を個別に合わせる
-    }else if(!presets.length && !pins.length && !heat.size && !mapKnownAt && !xs){
+    }else if(!presets.length && !pins.length && !folded.size && !heat.size && !mapKnownAt && !xs){
       return;   // どちらにも何もない：フォルダも作らない
     }else if(!syncAt){ syncAt = Date.now(); store.set('syncat', syncAt); }
-    const text = JSON.stringify({ v:1, at:syncAt, presets, pins, heat:heatPacked(), ...(mapKnownAt ? { mapAt:mapKnownAt } : {}), ...(xs ? { xs } : {}) });
+    const text = JSON.stringify({ v:1, at:syncAt, presets, pins, ...(folded.size ? { fold:[...folded] } : {}), heat:heatPacked(), ...(mapKnownAt ? { mapAt:mapKnownAt } : {}), ...(xs ? { xs } : {}) });
     if(text !== parts.map(x => x.note).join('')) await writeSettings(parts, text);
     if(xs && xs.bulkAt && cache && xs.bulkAt > (cache.savedAt || 0)) refreshAll();   // ほかの端末が前からある分をまとめて分けたら、1回だけ全部を読み直す（分けたものは保存日が古いので、変更分の確認では取りこぼすことがある）
   })().then(() => true, () => false).then(ok => {

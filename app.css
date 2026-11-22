@@ -608,8 +608,9 @@ header.deep > .deep-bar{display:flex}
 .hero-crop:hover{background:rgba(20,22,25,.85)}
 @media (hover:none){ .hero-crop{width:44px; height:44px} }
 body.cur-idle .hero-crop{opacity:0}
-/* 似た画像の画面の長押しで出す選択肢（カードの近くに） */
+/* 長押しで出す選択肢（似た画像の画面と、元の一覧の分けた X の投稿。カードの近くに） */
 .menu.press-menu{position:absolute; top:0; left:0; right:auto; width:160px; max-height:none}
+.press-menu .menu-item[hidden]{display:none}   /* 元の一覧では［プレビュー］を、分けた X の投稿でなければ［スタックにする］を出さない（.menu-item の display より強く） */
 /* 入るときは右から、戻るときは左へ */
 @keyframes viewIn{ from{ transform:translateX(32px); opacity:.3 } }
 @keyframes viewBack{ from{ transform:translateX(-32px); opacity:.3 } }
