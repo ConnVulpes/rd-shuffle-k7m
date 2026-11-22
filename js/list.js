@@ -393,6 +393,7 @@ function renderDeepBar(){
   if(postMode) $('foldMenu').checked = folded.has(postMode);
   // ≡ メニューの「重複をゴミ箱へ」：重複して保存したものの画面だけ（件数はメニューを開くときに数える）
   $('dupTrash').hidden = !dupMode;
+  $('ntFetch').hidden = !ntMode;   // 「リンク先の画像を付ける」：サムネイルが出ないものの画面だけ
   document.querySelector('header').classList.toggle('deep', !!v);
   // 帯の中：類似画像は道すじ、サムネイルが出ないもの・重複して保存したもの（だけ）は名前と件数
   document.querySelector('.deep-title').hidden = !!v && v.kind === 'sim';

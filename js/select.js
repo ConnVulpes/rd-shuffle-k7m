@@ -322,6 +322,66 @@ async function trashDups(){
 }
 $('dupTrash').addEventListener('click', trashDups);
 
+// ---- サムネイルが出ないものに、リンク先のページの画像をまとめて付ける（その画面の ≡ メニュー。本人、11/22）----
+// よそのサイトのページはブラウザからは読めないので、Raindrop にリンク先を読んでもらう（GET /import/url/parse）。
+// 返ってきた画像（media の最初の画像）のアドレスを、そのまま表紙にする（画像そのものは上げない）。
+// 読めなかったときの media は "<screenshot>" という文字だけなので、http で始まるものだけを使う。今の表紙と同じものは付けない
+let ntBusy = false;
+function paintNtFetch(){
+  const n = ntPool().filter(it => it.k !== TRASH).length;
+  $('ntFetchVal').textContent = ntBusy ? '探しています…' : n ? `${n}件` : 'なし';
+  $('ntFetch').disabled = ntBusy || !n;
+}
+async function pageImage(it){
+  for(let t = 0; ; t++){
+    try{
+      const r = await api(`/import/url/parse?url=${encodeURIComponent(it.l)}`);
+      const x = (r && r.item) || {};
+      const list = [x.cover, ...(x.media || []).filter(m => m && (!m.type || m.type === 'image')).map(m => m.link)];
+      return list.find(u => /^https?:\/\//.test(u || '') && u !== it.c) || '';
+    }catch(e){
+      if(e.message === 'rate' && t < 4){ await sleep(15000); continue; }
+      return '';
+    }
+  }
+}
+async function fetchNtCovers(){
+  setMenu(false);
+  if(ntBusy) return;
+  const list = ntPool().filter(it => it.k !== TRASH && /^https?:\/\//.test(it.l || ''));
+  if(!list.length) return;
+  ntBusy = true;
+  const found = new Map();
+  let done = 0;
+  await runLimited(list, 2, async it => {
+    const u = await pageImage(it);
+    if(u) found.set(it, u);
+    done++;
+    showToast(`リンク先の画像を探しています… ${done}/${list.length}`, null);
+  });
+  const items = [...found.keys()];
+  const before = new Map(items.map(x => [x, x.c]));
+  items.forEach(x => { x.c = found.get(x); });
+  afterLocalChange(items, { media:true });
+  const failed = items.length ? await putEach(items, x => ({ cover:x.c }), '画像を付けています') : [];
+  if(failed.length){ failed.forEach(x => { x.c = before.get(x); }); afterLocalChange(failed, { media:true }); }
+  ntBusy = false;
+  const ok = items.filter(x => !failed.includes(x));
+  if(ok.length) bkAdd(ok.length);
+  const miss = list.length - items.length;
+  if(!ok.length){ showToast(failed.length ? `付けられませんでした（${whyText(failed.err)}）` : 'リンク先に画像が見つかりませんでした', null); return; }
+  showToast(`${ok.length}件にリンク先の画像を付けました` + (miss ? `（${miss}件は見つかりませんでした）` : '') + (failed.length ? `・${failed.length}件は保存できませんでした` : ''),
+    () => restoreCovers(ok, before));
+}
+// 元に戻す：前の表紙に戻す
+async function restoreCovers(list, before){
+  list.forEach(x => { x.c = before.get(x); });
+  afterLocalChange(list, { media:true });
+  const failed = await putEach(list, x => ({ cover:x.c || '' }), '戻しています');
+  showToast(failed.length ? `${failed.length}件は戻せませんでした` : '元に戻しました', null);
+}
+$('ntFetch').addEventListener('click', fetchNtCovers);
+
 $('peekTrash').innerHTML = icon('trash');
 $('selTrash').innerHTML = icon('trash');
 $('peekTrash').addEventListener('click', trashPeek);
