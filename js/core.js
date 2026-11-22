@@ -4,7 +4,7 @@ const API = 'https://api.raindrop.io/rest/v1';
 // 端末間で共有する設定（プリセット・固定タグ）は、Raindrop の専用フォルダの1件のメモ欄に入れておく
 const SET_TITLE = 'rd-shuffle 設定';
 const SET_LINK = 'https://connvulpes.github.io/rd-shuffle-k7m/#settings';
-const isSettingsRaw = it => !!it && typeof it.link === 'string' && (it.link.startsWith(SET_LINK) || it.link.startsWith('https://connvulpes.github.io/rd-shuffle-k7m/#map'));   // 一覧には出さない（設定と、似ているものの地図。長いときは #settings-2…／#map-2… に分けて入れる）
+const isSettingsRaw = it => !!it && typeof it.link === 'string' && (it.link.startsWith(SET_LINK) || it.link.startsWith('https://connvulpes.github.io/rd-shuffle-k7m/#map') || it.link.startsWith('https://connvulpes.github.io/rd-shuffle-k7m/#savepresets'));   // 一覧には出さない（設定と、似ているものの地図と、保存の拡張機能のプリセット。長いときは #settings-2…／#map-2…／#savepresets-2… に分けて入れる）
 const PER = 50;
 const DAY = 24 * 60 * 60 * 1000;
 const store = {
