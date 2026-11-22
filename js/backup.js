@@ -26,6 +26,10 @@ function bkPaint(){
   now.disabled = bkBusy;
   // 自動バックアップは、フォルダを選べる端末（Mac）だけ
   $('bkAutoSec').hidden = !bkCanPick;
+  // 「前回」と「保存していない変更」は、Mac では自動バックアップのまとまりの下に置く（本人、11/22。説明の一文の代わり）。
+  // iPhone は自動バックアップがないので、バックアップのまとまりに残す
+  if(bkCanPick && $('bkAt').parentNode.parentNode !== $('bkAutoGroup'))
+    $('bkAutoGroup').append($('bkAt').parentNode, $('bkCount').parentNode);
   $('bkAutoToggle').checked = bkAutoOn();
   $('bkDir').textContent = bkDirH ? bkDirH.name : '';
   $('bkPick').textContent = bkDirH ? '変更' : '選ぶ';
