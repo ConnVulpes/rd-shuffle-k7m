@@ -391,6 +391,8 @@ function renderDeepBar(){
   // ≡ メニューの「同じツイートの画像をスタック」：同じ投稿の画像の画面だけ
   $('foldMenu').closest('label').hidden = !postMode;
   if(postMode) $('foldMenu').checked = folded.has(postMode);
+  // ≡ メニューの「重複をゴミ箱へ」：重複して保存したものの画面だけ（件数はメニューを開くときに数える）
+  $('dupTrash').hidden = !dupMode;
   document.querySelector('header').classList.toggle('deep', !!v);
   // 帯の中：類似画像は道すじ、サムネイルが出ないもの・重複して保存したもの（だけ）は名前と件数
   document.querySelector('.deep-title').hidden = !!v && v.kind === 'sim';

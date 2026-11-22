@@ -31,7 +31,7 @@
   js/similar.js   類似画像の地図・類似画像・範囲で探す
   js/main.js      貼り付け・キー操作・起動（いちばん最後）
   ?v= は版の番号。公開の前に rd-shuffle-dev の bump.sh で上げる -->
-<link rel="stylesheet" href="app.css?v=202611221942">
+<link rel="stylesheet" href="app.css?v=202611221945">
 </head>
 <body>
 <!-- 下に浮かぶ帯（もとは上のバー。部品の id はそのまま）。PC は左端にアプリ名、右に表示の3つ -->
@@ -70,6 +70,7 @@
       <div class="menu-size"><label for="size">カードの大きさ</label><input type="range" id="size" min="90" max="380" step="5"></div>
       <label class="menu-item menu-row switch menu-saver"><span>省データモード</span><input type="checkbox" id="saverMenu"></label>
       <label class="menu-item menu-row switch menu-fold" hidden><span>同じツイートの画像をスタック</span><input type="checkbox" id="foldMenu"></label>
+      <button type="button" class="menu-item menu-row menu-dup" id="dupTrash" hidden><span>重複をゴミ箱へ</span><span class="menu-val" id="dupTrashVal"></span></button>
       <button type="button" class="menu-item menu-row" id="updDiff"><span>Raindrop から更新</span><span class="menu-val" id="updDiffVal"></span></button>
       <hr>
       <button type="button" class="menu-item" id="settings">設定…</button>
@@ -259,17 +260,17 @@
 <!-- 「?」を押している間だけ重ねるキーの一覧（PC）。中身は main.js が設定の画面のキーの一覧から写して作る -->
 <div id="keyPeek" class="key-peek" popover="manual" aria-hidden="true"></div>
 
-<script src="js/core.js?v=202611221942"></script>
-<script src="js/filter.js?v=202611221942"></script>
-<script src="js/list.js?v=202611221942"></script>
-<script src="js/preview.js?v=202611221942"></script>
-<script src="js/edit.js?v=202611221942"></script>
-<script src="js/select.js?v=202611221942"></script>
-<script src="js/settings.js?v=202611221942"></script>
-<script src="js/heat-sync.js?v=202611221942"></script>
-<script src="js/backup.js?v=202611221942"></script>
-<script src="js/xsplit.js?v=202611221942"></script>
-<script src="js/similar.js?v=202611221942"></script>
-<script src="js/main.js?v=202611221942"></script>
+<script src="js/core.js?v=202611221945"></script>
+<script src="js/filter.js?v=202611221945"></script>
+<script src="js/list.js?v=202611221945"></script>
+<script src="js/preview.js?v=202611221945"></script>
+<script src="js/edit.js?v=202611221945"></script>
+<script src="js/select.js?v=202611221945"></script>
+<script src="js/settings.js?v=202611221945"></script>
+<script src="js/heat-sync.js?v=202611221945"></script>
+<script src="js/backup.js?v=202611221945"></script>
+<script src="js/xsplit.js?v=202611221945"></script>
+<script src="js/similar.js?v=202611221945"></script>
+<script src="js/main.js?v=202611221945"></script>
 </body>
 </html>

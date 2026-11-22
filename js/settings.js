@@ -208,7 +208,7 @@ bgPick.value = '#2e3034';   // 自分で選んだ色がまだないときに、�
 applyBgUi();
 // メニュー（並び順・カードの大きさ・Raindrop から更新・設定…）。開くたびに最後の更新時刻を書き直す
 const viewBtn = $('viewBtn'), viewMenu = $('viewMenu');
-function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); if(open){ paintUpdTime(); if(typeof setSortMenu === 'function') setSortMenu(false); } }
+function setMenu(open){ viewMenu.hidden = !open; viewBtn.setAttribute('aria-expanded', String(open)); if(open){ paintUpdTime(); if(dupMode) paintDupTrash(); if(typeof setSortMenu === 'function') setSortMenu(false); } }
 viewBtn.addEventListener('click', e => { e.stopPropagation(); setMenu(viewMenu.hidden); });
 // メニューのいちばん上の「並び順」：シャッフルの長押しと同じ並び順の選択肢を開く（メニューは閉じる）
 $('sortRow').addEventListener('click', e => { e.stopPropagation(); setSortMenu(true); });

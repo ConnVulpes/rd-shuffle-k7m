@@ -280,6 +280,48 @@ function trashSelected(){
   syncSelection();
   trashItems(items);
 }
+// ---- 重複をまとめてゴミ箱へ（重複して保存したものの画面の ≡ メニュー。本人、11/22）----
+// まとまりごとに1件だけ残し、ほかを送る。残すのはタグがいちばん多いもの、同じ数なら最初に保存したもの（dupPool はまとまりの中が古い順）。
+// 送るほうにしか付いていないタグは、送る前に残すほうへ足す（タグが消えないように）
+function dupPlan(){
+  const groups = new Map();
+  dupPool().forEach(it => { const k = dupKey(it), g = groups.get(k); if(g) g.push(it); else groups.set(k, [it]); });
+  const plan = [];
+  groups.forEach(g => {
+    const keep = g.reduce((a, b) => (b.g || []).length > (a.g || []).length ? b : a);
+    const drop = g.filter(x => x !== keep && canTrash(x));
+    if(!drop.length) return;
+    const have = new Set(keep.g || []);
+    const miss = [...new Set(drop.flatMap(x => x.g || []))].filter(t => !have.has(t));
+    plan.push({ keep, drop, miss });
+  });
+  return plan;
+}
+function paintDupTrash(){
+  const n = dupPlan().reduce((s, p) => s + p.drop.length, 0);
+  $('dupTrashVal').textContent = n ? `${n}件` : 'なし';
+  $('dupTrash').disabled = !n;
+}
+async function trashDups(){
+  setMenu(false);
+  const plan = dupPlan();
+  if(!plan.length) return;
+  const add = plan.filter(p => p.miss.length);
+  let bad = new Set();
+  if(add.length){
+    const keeps = add.map(p => p.keep), before = new Map(keeps.map(x => [x, (x.g || []).slice()]));
+    add.forEach(p => { p.keep.g = [...(p.keep.g || []), ...p.miss]; });
+    afterLocalChange(keeps);
+    const failed = await putEach(keeps, x => ({ tags:x.g }), 'タグをまとめています');
+    revertFailed(failed, x => { x.g = before.get(x); });
+    bad = new Set(failed);
+    if(keeps.length > failed.length) bkAdd(keeps.length - failed.length);
+  }
+  // タグを足せなかったまとまりは送らない（タグが消えるので）。元に戻すはゴミ箱から戻すだけで、足したタグはそのまま
+  trashItems(plan.filter(p => !bad.has(p.keep)).flatMap(p => p.drop));
+}
+$('dupTrash').addEventListener('click', trashDups);
+
 $('peekTrash').innerHTML = icon('trash');
 $('selTrash').innerHTML = icon('trash');
 $('peekTrash').addEventListener('click', trashPeek);
