@@ -325,7 +325,11 @@ label.set-row{cursor:pointer}
 .map-state{flex:1; min-width:0; font-size:var(--fs-s); color:var(--muted); line-height:1.5}
 .set-note{margin:8px 16px 0; font-size:var(--fs-s); color:var(--muted); line-height:1.6}
 /* 設定のいちばん下：今の版（公開した日時。読み込みの ?v= から） */
-.set-ver{margin:24px 16px 4px; font-size:var(--fs-xs); color:var(--muted); text-align:center}
+.set-ver{margin:24px 16px 4px; font-size:var(--fs-xs); color:var(--muted); text-align:center; display:flex; flex-direction:column; align-items:center; gap:2px}
+/* アップデートを確認：版の表記の下に、文字だけのボタン。押せる高さはスマホ 44・PC 28 */
+.set-upd{min-height:44px; padding:0 12px; font:inherit; font-size:var(--fs-s); color:var(--accent); background:transparent; border:0; border-radius:var(--r-full); cursor:pointer}
+.set-upd:disabled{color:var(--muted); cursor:default}
+@media (hover:hover) and (pointer:fine){ .set-upd{min-height:28px} .set-upd:hover:not(:disabled){background:var(--face)} }
 .set-grip{display:none}
 .set-dlg{transition:transform .2s ease-out}
 .set-dlg.drag{transition:none}

@@ -8,6 +8,24 @@ function paintVersion(){
   const m = l && l.getAttribute('href').match(/v=(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})/);
   $('setVer').textContent = m ? `v${m[1]}.${m[2]}.${m[3]} · ${m[4]}:${m[5]}` : '';
 }
+// アップデートを確認：公開されている index.html を読み直し、版の番号（app.css?v=）が今より新しければ、そのまま読み直す。
+// GitHub Pages はページを 10 分ほど覚えさせるので、ブラウザが覚えている index.html も入れ替えてから読み直す
+const verOf = html => (String(html).match(/app\.css\?v=(\d{12})/) || [])[1] || '';
+$('setUpd').addEventListener('click', async () => {
+  const b = $('setUpd');
+  if(b.disabled) return;
+  b.disabled = true; b.textContent = '確認中…';
+  let msg = '確認できませんでした';
+  try{
+    const r = await fetch(location.href.split('#')[0], { cache:'reload' });
+    const v = r.ok ? verOf(await r.text()) : '';
+    const now = verOf(document.head.innerHTML);
+    if(v && now && v > now){ b.textContent = '更新しています…'; location.reload(); return; }
+    if(v) msg = '最新のバージョンです';
+  }catch(e){}
+  b.textContent = msg;
+  setTimeout(() => { b.textContent = 'アップデートを確認'; b.disabled = false; }, 3000);
+});
 function openSettings(){ setMenu(false); updateMapState(); bkPaint(); paintVersion(); setDlg.style.transform = ''; setDlg.showModal(); syncModal(); }
 // 設定・絞り込み・トークンの窓を開いている間は、後ろの一覧がスクロールしないようにする
 // （本体を固定する方法はプレビューだけ。窓では、iPhone で中の操作が効かなくなることがあるので使わない）
