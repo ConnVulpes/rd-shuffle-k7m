@@ -83,7 +83,7 @@ function syncFilter(){
 // ---- 絞り込み画面 ----
 const filterDlg = $('filterDlg'), fdList = $('fdList'), fdSearch = $('fdSearch');
 let draft = emptyFilter(), fdTab = 'folder';
-// fdFor：今開いている絞り込みの画面が、元の一覧の条件（'list'）と似た画像の条件（'sim'）のどちらを変えるか
+// fdFor：今開いている絞り込みの画面が、元の一覧の条件（'list'）と類似画像の条件（'sim'）のどちらを変えるか
 let fdFor = 'list';
 let fdNtCount = null;   // 「その他」に出すサムネイルが出ないものの件数（開いたときに数え直す）
 let fdDupCount = null;  // 同じく、重複して保存したものの件数
@@ -155,7 +155,7 @@ function renderFilterDlg(){
   document.querySelectorAll('#fdMatchSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.match === f.tm)));
   document.querySelectorAll('#fdTypes button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.type === f.type)));
   // 「その他」のいちばん下：重複して保存したもの・サムネイルが出ないものの件数（絞り込みの条件によらないので、開くたびに1回だけ数える）
-  // 似た画像の条件を変えているときは出さない（その画面を絞るためのものなので）
+  // 類似画像の条件を変えているときは出さない（その画面を絞るためのものなので）
   $('fdNt').parentElement.hidden = fdFor === 'sim';
   if(fdTab === 'other' && fdNtCount === null) fdNtCount = ntPool().length;
   if(fdNtCount !== null) $('fdNtVal').innerHTML = `<span>${fdNtCount.toLocaleString()}件</span>` + icon('right');
@@ -193,7 +193,7 @@ function renderFilterDlg(){
     if(!fdList.children.length){ const n = el('div', 'none', '見つかりません'); n.style.padding = '10px 12px'; fdList.append(n); }
     fdList.scrollTop = y;
   }
-  // 似た画像の条件のときは、今の似た画像の並び（押した画像を除く）の中で数える
+  // 類似画像の条件のときは、今の類似画像の並び（押した画像を除く）の中で数える
   const hit = !cache ? 0 : fdFor === 'sim' && sim ? sim.list.filter(x => x !== sim.center).filter(makeFilter(f)).length : cache.items.filter(makeFilter(f)).length;
   $('fdHit').textContent = `該当 ${hit.toLocaleString()}件`;
   if(!presetNaming) renderPresets();   // 名前を入れている途中は作り直さない（入力が消えないように）
@@ -263,7 +263,7 @@ function renderPresets(){
   }
 }
 function openFilter(tab){
-  // 似た画像の画面では、似た画像の条件を編集する（元の一覧の条件は変えない）
+  // 類似画像の画面では、類似画像の条件を編集する（元の一覧の条件は変えない）
   fdFor = sim ? 'sim' : 'list';
   draft = fdFor === 'sim' ? Object.assign(emptyFilter(), simF ? cloneF(simF) : {}) : cloneF(state.filter);
   presetEdit = false; presetNaming = false; fdPickedOpen = false; fdNtCount = null; fdDupCount = null;
@@ -299,7 +299,7 @@ $('fdDup').addEventListener('click', () => {
 });
 function applyFilterDlg(){
   if(fdFor === 'sim'){
-    // 似た画像の条件：今の段の並びだけ変える（段は増やさない。元の一覧の条件はそのまま）
+    // 類似画像の条件：今の段の並びだけ変える（段は増やさない。元の一覧の条件はそのまま）
     simF = filterSummary(draft) ? cloneF(draft) : null;
     filterDlg.close();
     if(sim && cache) render();

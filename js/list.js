@@ -1,5 +1,5 @@
 /* 一覧の並べ方（並び順・シャッフル・render・appendMore・続きの読み込み）、石積み・カード・サムネ・
-   画像がないときの代わり、一段奥の画面（似た画像・サムネが出ないもの・同じ投稿の画像）、戻る（pushLayer）、
+   画像がないときの代わり、一段奥の画面（類似画像・サムネが出ないもの・同じ投稿の画像）、戻る（pushLayer）、
    X の投稿ごとのまとまり（postIndex postOf postPool）・X の画像の取得（fxMedia） */
 // 並べ替えはすべてブラウザの中で行う（Raindrop には問い合わせない）。
 // 条件に合う全件を一度に並べ、スクロールに合わせて少しずつカードを足していく
@@ -149,7 +149,7 @@ function setSort(v){
 function render(){
   if(!cache){ refreshAll(); return; }
   clearSelection();
-  // 似ているものを並べている間は、元の一覧の絞り込みも並び順も使わず、近い順のまま（似た画像の条件があれば、合うものだけ）
+  // 似ているものを並べている間は、元の一覧の絞り込みも並び順も使わず、近い順のまま（類似画像の条件があれば、合うものだけ）
   // サムネが出ないものだけのときは、絞り込みの条件はかけずに、全部のブックマークの中から
   // 重複して保存したもの・同じ投稿の画像も同じく全部の中から。並び順の設定は見ず、dupPool・postPool の並びのまま
   let pool = sim ? simPool() : ntMode ? ntPool() : dupMode ? dupPool() : postMode ? postPool(postMode) : cache.items.filter(makeFilter(state.filter));
@@ -179,14 +179,14 @@ function render(){
   appendMore();
   paintSimNone();
 }
-// 似た画像の並び：押した画像を先頭に、条件に合うものだけを似ている順に（押した画像は条件に関係なく出す）
+// 類似画像の並び：押した画像を先頭に、条件に合うものだけを似ている順に（押した画像は条件に関係なく出す）
 function simPool(){
   // ゴミ箱へ送ったもの（k が -99）は並べない（押した画像だけは今までどおり出す）
   if(!simF) return sim.list.filter(x => x === sim.center || x.k !== -99);
   const f = makeFilter(simF);
   return [sim.center, ...sim.list.filter(x => x !== sim.center && x.k !== -99 && f(x))];
 }
-// 似た画像を絞り込んで合うものがないとき：「合うものがありません」［絞り込みを変える］
+// 類似画像を絞り込んで合うものがないとき：「合うものがありません」［絞り込みを変える］
 function paintSimNone(){
   const box = $('simNone');
   const on = !!(sim && simF && poolSize <= 1);
@@ -211,7 +211,7 @@ let placeGen = 0, placeQueue = Promise.resolve(), placing = 0;
 function appendMore(){
   const next = order.slice(shownCount, shownCount + state.count);
   const gen = placeGen;
-  // 似た画像の画面では、押した画像（いちばん上に置いたもの）は一覧に入れない
+  // 類似画像の画面では、押した画像（いちばん上に置いたもの）は一覧に入れない
   const els = next.filter(it => !(sim && it === sim.center)).map(it => { const c = card(it); cardEls.push(c); return c; });
   shownCount += next.length;
   placing += els.length;
@@ -229,13 +229,13 @@ function appendMore(){
   updateStatus();
 }
 
-// ---- 一段奥の画面（似た画像・サムネイルが出ないもの）----
+// ---- 一段奥の画面（類似画像・サムネイルが出ないもの）----
 // 入るときに今の一覧（並び・カード・スクロール位置）をそのまま取っておき、戻ったら元に戻す。
-// 似た画像の中でさらに似た画像を開くと、もう一段奥へ。戻るは一段ずつ
+// 類似画像の中でさらに類似画像を開くと、もう一段奥へ。戻るは一段ずつ
 var views = [], fwd = [];   // fwd：戻ったあとの先の段（道すじに薄く残し、押すとまた進める）
 function applyView(){
   const v = views[views.length - 1];
-  if(!v) simF = null;   // 元の一覧に戻ったら、似た画像の条件は外れる
+  if(!v) simF = null;   // 元の一覧に戻ったら、類似画像の条件は外れる
   sim = v && v.kind === 'sim' ? v.sim : null;
   ntMode = !!v && v.kind === 'nt';
   dupMode = !!v && v.kind === 'dup';
@@ -262,7 +262,7 @@ function takeSnap(){
   placeGen++; placeQueue = Promise.resolve(); placing = 0;
   return { order, shownCount, poolSize, cardEls, cols, colCount, frag, y, fk:simKey() };
 }
-// 似た画像の条件（元の一覧に戻るまで、段をまたいで続く。保存はしない）
+// 類似画像の条件（元の一覧に戻るまで、段をまたいで続く。保存はしない）
 var simF = null;
 const simKey = () => simF ? normF(simF) : '';
 function enterView(v){
@@ -276,7 +276,7 @@ function enterView(v){
   applyView();
   colCount = 0;
   render();
-  if(peek.open) lockedY = 0;   // プレビューを閉じたら、似た画像の一覧の上から
+  if(peek.open) lockedY = 0;   // プレビューを閉じたら、類似画像の一覧の上から
   slideGrid('view-in');
 }
 // 先の段へまた進む（n 段）。途中の段は並べずに、最後の段だけ並べる（途中へ戻るときに並べ直す）
@@ -299,7 +299,7 @@ function restoreView(quiet){
   clearSelection();
   const sn = v.snap; delete v.snap;
   fwd.unshift(v);
-  // 戻る先が似た画像で、取っておいたときと条件が変わっていたら、今の条件で並べ直す
+  // 戻る先が類似画像で、取っておいたときと条件が変わっていたら、今の条件で並べ直す
   const to = views[views.length - 1];
   if(sn.lazy || (to && to.kind === 'sim' && sn.fk !== simKey())){
     // まだ並べていない段へ戻るとき：その場で並べる
@@ -351,7 +351,7 @@ function renderPath(){
     const b = el('button', 'path-item' + (i >= views.length ? ' ahead' : '')); b.type = 'button';
     const cur = i === views.length - 1, ahead = i >= views.length;
     b.setAttribute('aria-current', String(cur));
-    const name = v.kind === 'sim' ? ((v.sim.center.t || '').trim() || v.sim.center.d || '似た画像') : deepName(v);
+    const name = v.kind === 'sim' ? ((v.sim.center.t || '').trim() || v.sim.center.d || '類似画像') : deepName(v);
     b.title = cur ? name : `${name}（${i + 1}段目）${ahead ? 'へ進む' : 'に戻る'}`;
     b.setAttribute('aria-label', b.title);
     if((v.kind === 'sim' || v.kind === 'post') && v.thumb){ const im = el('img', 'path-thumb'); im.src = v.thumb; im.alt = ''; im.referrerPolicy = 'no-referrer'; im.onerror = () => im.replaceWith(Object.assign(el('span', 'path-thumb'), { innerHTML:IMG_OFF })); b.append(im); }
@@ -371,10 +371,10 @@ const deepName = v => v.kind === 'post' ? '同じ投稿の画像' : v.kind === '
 function renderDeepBar(){
   const v = views[views.length - 1];
   document.querySelector('header').classList.toggle('deep', !!v);
-  // 帯の中：似た画像は道すじ、サムネイルが出ないもの・重複して保存したもの（だけ）は名前と件数
+  // 帯の中：類似画像は道すじ、サムネイルが出ないもの・重複して保存したもの（だけ）は名前と件数
   document.querySelector('.deep-title').hidden = !!v && v.kind === 'sim';
   $('deepPath').hidden = !!v && v.kind !== 'sim' && views.length === 1 && !fwd.length;
-  // 似た画像の絞り込み：似た画像の画面だけ。かけている間は青
+  // 類似画像の絞り込み：類似画像の画面だけ。かけている間は青
   const fb = $('simFilterBtn'), sum = simF ? filterSummary(simF) : '';
   fb.hidden = !(v && v.kind === 'sim');
   fb.classList.toggle('active', !!sum);
@@ -475,7 +475,7 @@ function layout(force){
   paintSimNone();
 }
 
-// 似た画像の画面の、上の画像（1列目の先頭）と、2列目の先頭に置く同じ高さの空き
+// 類似画像の画面の、上の画像（1列目の先頭）と、2列目の先頭に置く同じ高さの空き
 const heroOf = () => grid.querySelector('.col > .sim-hero');
 const allCards = () => { const h = heroOf(); return h ? [h, ...cardEls] : cardEls; };
 function putHero(h){
@@ -675,7 +675,7 @@ function smallUrl(u, w){
 function sizedUrl(u, size){
   if(size === 'full') return bigUrl(u);
   if(size === 'low') return state.saver ? smallUrl(u, 1000) : u;   // 普段は一覧と同じ（読み込み済みなのですぐ出る）
-  if(size === 'hero') return state.saver ? smallUrl(u, 1000) : u;  // 似た画像の画面の上の画像（プレビューの最初と同じ画像）
+  if(size === 'hero') return state.saver ? smallUrl(u, 1000) : u;  // 類似画像の画面の上の画像（プレビューの最初と同じ画像）
   return state.saver ? smallUrl(u, Math.min(800, Math.round(state.col * Math.min(2, devicePixelRatio || 1)))) : u;
 }
 // プレビューで次（と前）に見そうな画像を先に読み込んでおく。送ったときにすぐ出るように
@@ -817,7 +817,7 @@ const ICONS = {
 };
 const icon = (name, cls = '') => `<svg class="ico${cls ? ' ' + cls : ''}" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
 const CHECK_SVG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-// top：似た画像の画面のいちばん上に置く、押した画像（sim.center）
+// top：類似画像の画面のいちばん上に置く、押した画像（sim.center）
 function card(it, top = false){
   const wrap = el('div', 'card' + (top ? ' sim-hero is-base' : ''));
   const a = el('a', 'card-link');
@@ -833,7 +833,7 @@ function card(it, top = false){
     // 普通のクリックはプレビュー。⌘クリックや中ボタンはサイトを開く
     if(e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    // 似た画像の画面では、押した画像の似た画像へ一段下がる（上に置いた画像はプレビュー）
+    // 類似画像の画面では、押した画像の類似画像へ一段下がる（上に置いた画像はプレビュー）
     if(sim && !top){ showSimilar(it); return; }
     openPeek(it);
   });
@@ -861,7 +861,7 @@ function card(it, top = false){
   box.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); pickCard(it, e.shiftKey); });
   if(top){ wrap._hero = true; wrap.append(rd, heroCropBtn(wrap)); }
   else if(sim){
-    // 似た画像の画面では、押すと一段下がるので、そのままプレビューするボタンを水滴の隣に
+    // 類似画像の画面では、押すと一段下がるので、そのままプレビューするボタンを水滴の隣に
     const pv = el('button', 'rd-btn pv-btn'); pv.type = 'button';
     pv.title = 'プレビュー'; pv.setAttribute('aria-label', 'プレビュー');
     pv.innerHTML = icon('expand');

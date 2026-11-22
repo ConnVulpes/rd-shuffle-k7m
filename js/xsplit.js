@@ -300,7 +300,7 @@ function paintPeekPost(it){
   b.hidden = L.length < 2;
   if(L.length >= 2) b.textContent = `${xIndex(it.l)}/${Math.max(...L.map(x => xIndex(x.l)))}`;
 }
-// 押すと、プレビューを閉じて一段奥へ（「似た画像」と同じ）。今いる段がその投稿の画面なら何もしない
+// 押すと、プレビューを閉じて一段奥へ（「類似画像」と同じ）。今いる段がその投稿の画面なら何もしない
 $('peekPost').addEventListener('click', () => {
   const it = peekItem; if(!it) return;
   const id = postId(it);

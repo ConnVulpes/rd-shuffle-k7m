@@ -87,6 +87,11 @@ header::before{
 }
 /* 選んでいる間（下に複数選択のバーが出る）は帯を隠す */
 body.selecting header{display:none}
+/* 下にスクロールしている間とスペースキーで、帯を画面の下へ隠す（上にスクロールすると戻る）。
+   出ている間は transform を付けない（付けると、中のメニューの position:fixed が帯の中に閉じこめられるため） */
+header{transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+body.band-off header{transform:translateY(calc(100% + var(--band-b) + env(safe-area-inset-bottom) + 24px)); pointer-events:none}
+@media (prefers-reduced-motion:reduce){ header{transition:none} }
 /* アプリ名：PC だけ、帯の左端に小さく薄く */
 h1{display:none; font-size:var(--fs-s); font-weight:400; color:var(--muted); margin:0; padding:0 8px 0 12px; white-space:nowrap}
 /* 画面のいちばん上：時計や電池の表示が画像の上でも読めるよう、ごく薄い暗いぼかし（上の安全な余白があるときだけ） */
@@ -367,7 +372,7 @@ label.set-row{cursor:pointer}
   overscroll-behavior:contain;
 }
 #peek[open]{display:block}
-/* プレビューの大きさ：上のボタン（--btn-h）、下の段（閉じる・♥ は --row-h、似た画像は --sim-h。高さの真ん中をそろえる）。
+/* プレビューの大きさ：上のボタン（--btn-h）、下の段（閉じる・♥ は --row-h、類似画像は --sim-h。高さの真ん中をそろえる）。
    下の段の上に2行（タイトル1行と「サイト · 日付」。高さ --txt-h、上下のすき間 --txt-g）。
    画像は上のボタンの 2px 下（--img-t）から2行の上までを使い、文字を重ねない */
 #peek{--btn-h:36px; --top-h:calc(var(--btn-h) + 16px); --img-t:calc(var(--btn-h) + 10px); --row-h:44px; --sim-h:36px; --row-b:12px;
@@ -375,8 +380,8 @@ label.set-row{cursor:pointer}
   --txt-h:29px; --txt-g:6px;
   --cap-h:calc(var(--row-b) + var(--row-h) + var(--txt-g) * 2 + var(--txt-h))}
 @media (hover:none){ #peek{--btn-h:44px; --row-h:52px; --sim-h:44px; --txt-g:2px} }
-/* 情報の画面を開いている間：スマホは2行と似た画像・♥ を隠して、画像をシートの上までいっぱいに。
-   PC は画像の横に出るので、似た画像・♥ は残し、2行だけ隠す */
+/* 情報の画面を開いている間：スマホは2行と類似画像・♥ を隠して、画像をシートの上までいっぱいに。
+   PC は画像の横に出るので、類似画像・♥ は残し、2行だけ隠す */
 @media (max-width:759px){
   #peek.editing{--cap-h:0px}
   #peek.editing .lb-info, #peek.editing .lb-sim, #peek.editing .lb-like{display:none}
@@ -510,13 +515,13 @@ label.set-row{cursor:pointer}
 .lb-info{--pad-t:0px; --pad-b:0px; flex:none; display:block; width:fit-content; max-width:min(900px, 100%); margin:calc(-1 * var(--pad-t)) auto calc(-1 * var(--pad-b));
   padding:var(--pad-t) 12px var(--pad-b); font:inherit; color:#fff; text-align:center; background:transparent; border:0; border-radius:var(--r-s);
   cursor:pointer; pointer-events:auto; -webkit-tap-highlight-color:transparent}
-@media (hover:none){ .lb-info{--pad-t:9px; --pad-b:6px} }   /* 下は似た画像とのすき間 6 まで、残りを上に */
+@media (hover:none){ .lb-info{--pad-t:9px; --pad-b:6px} }   /* 下は類似画像とのすき間 6 まで、残りを上に */
 @media (hover:hover){ .lb-info:hover{background:rgba(255,255,255,.1)} }
 .lb-info > span{display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .lb-cap-t{font-size:var(--fs-s); line-height:16px}
 .lb-cap-d{font-size:var(--fs-xs); line-height:13px; color:rgba(255,255,255,.6)}
 #peek.zoomed .lb-info{pointer-events:none}
-/* 「似た画像」：画面の真ん中。高さは --sim-h で、閉じる・♥ と高さの真ん中をそろえる。
+/* 「類似画像」：画面の真ん中。高さは --sim-h で、閉じる・♥ と高さの真ん中をそろえる。
    2行とのすき間は、閉じる・♥ の上の端から --txt-g */
 .lb-cap > .lb-sim{
   flex:none; display:flex; align-items:stretch; width:max-content; max-width:none; height:var(--sim-h); margin:calc((var(--row-h) - var(--sim-h)) / 2 + var(--txt-g)) auto 0; pointer-events:auto;
@@ -528,14 +533,14 @@ label.set-row{cursor:pointer}
 }
 .lb-sim > button:hover{background:rgba(255,255,255,.12)}
 #peek.zoomed .lb-sim{pointer-events:none}
-/* 同じ投稿の画像「n/N」：「似た画像」の左。同じガラスの中に並べる（hidden のときは出さない） */
+/* 同じ投稿の画像「n/N」：「類似画像」の左。同じガラスの中に並べる（hidden のときは出さない） */
 #peekPost{font-variant-numeric:tabular-nums}
 #peekPost[hidden]{display:none}
 /* スマホ：見た目も押せる範囲も高さ 44（縁の 1px も押せる） */
 @media (hover:none){
   .lb-sim > button::after{content:""; position:absolute; left:0; right:0; top:-1px; bottom:-1px}
 }
-/* 範囲を選ぶ画面：似た画像の画面の上に重ねる。左上の画像を画面に収まる大きさで。選んだ四角の外は暗く */
+/* 範囲を選ぶ画面：類似画像の画面の上に重ねる。左上の画像を画面に収まる大きさで。選んだ四角の外は暗く */
 .crop{position:fixed; inset:0; z-index:8; display:flex; flex-direction:column; background:#0a0b0d; color:#eee; touch-action:manipulation;
   padding-top:env(safe-area-inset-top); -webkit-user-select:none; user-select:none}
 .crop[hidden]{display:none}
@@ -556,7 +561,7 @@ label.set-row{cursor:pointer}
 .crop-go{border:0; font-weight:700; color:#16181b; background:var(--accent-on-dark)}
 .crop-go:disabled{opacity:.4; cursor:default}
 @media (hover:none){ .crop-btn{height:44px} }
-/* 一段奥の画面（似た画像・サムネイルが出ないもの）：帯の中身を「‹ 一覧」・道すじ（または名前）・絞り込み・≡ に入れ替え、帯をうっすら青みにする */
+/* 一段奥の画面（類似画像・サムネイルが出ないもの）：帯の中身を「‹ 一覧」・道すじ（または名前）・絞り込み・≡ に入れ替え、帯をうっすら青みにする */
 .deep-bar{display:none; flex:1 1 auto; min-width:0; align-items:center; gap:4px}
 header.deep::before{background:color-mix(in srgb, var(--accent) 22%, var(--band-bg))}
 header.deep > h1, header.deep > .filter-btn, header.deep > .band-sep, header.deep > .st-icons, header.deep > .sort-wrap{display:none}
@@ -586,16 +591,16 @@ header.deep > .deep-bar{display:flex}
 .deep-right{margin-left:auto; flex:none; display:flex; align-items:center}
 #simFilterBtn[hidden]{display:none}
 .deep-right{gap:8px}
-/* 似た画像の絞り込み：かけている間は一覧の絞り込み中と同じ青 */
+/* 類似画像の絞り込み：かけている間は一覧の絞り込み中と同じ青 */
 #simFilterBtn.active{color:var(--accent); border-color:var(--accent)}
-/* 似た画像を絞り込んで 0 件のとき。列が3本以上なら上の画像の右の空きの真ん中、それより少なければ上の画像の下 */
+/* 類似画像を絞り込んで 0 件のとき。列が3本以上なら上の画像の右の空きの真ん中、それより少なければ上の画像の下 */
 .sim-none{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:32px 16px; text-align:center; color:var(--muted); box-sizing:border-box}
 .sim-none.beside{position:absolute; padding:16px}
 .sim-none[hidden]{display:none}
 .sim-none p{margin:0}
-/* 来た画像（似た画像の元）を枠で示す */
+/* 来た画像（類似画像の元）を枠で示す */
 .card.is-base{box-shadow:0 0 0 2px var(--accent)}
-/* 似た画像の画面：押した画像を1列目の先頭に置く。列が2本以上なら2列ぶんの幅で右へはみ出させ、
+/* 類似画像の画面：押した画像を1列目の先頭に置く。列が2本以上なら2列ぶんの幅で右へはみ出させ、
    2列目の先頭には同じ高さの空きを置く。高さは画面の 70% まで（それより縦長なら、画像は縮めて真ん中に） */
 .sim-hero{flex:none; z-index:1}
 .sim-hero .card-link > .thumb{max-height:70vh; object-fit:contain; background:none}
@@ -608,9 +613,14 @@ header.deep > .deep-bar{display:flex}
 .hero-crop:hover{background:rgba(20,22,25,.85)}
 @media (hover:none){ .hero-crop{width:44px; height:44px} }
 body.cur-idle .hero-crop{opacity:0}
-/* 長押しで出す選択肢（似た画像の画面と、元の一覧の分けた X の投稿。カードの近くに） */
-.menu.press-menu{position:absolute; top:0; left:0; right:auto; width:160px; max-height:none}
-.press-menu .menu-item[hidden]{display:none}   /* 元の一覧では［プレビュー］を、分けた X の投稿でなければ［スタックにする］を出さない（.menu-item の display より強く） */
+/* 長押しで出す選択肢（類似画像の画面と、元の一覧の分けた X の投稿。カードの近くに） */
+.menu.press-menu{position:absolute; top:0; left:0; right:auto; width:max-content; min-width:160px; max-height:none}
+/* すき間のあとはオン・オフの設定（同じツイートの画像をスタック）。オンなら右に青いチェック */
+.press-menu .menu-gap{height:12px}
+.press-menu .menu-item{gap:16px; justify-content:space-between; white-space:nowrap}
+.press-menu .menu-item[aria-checked="true"]::after{content:''; flex:none; width:16px; height:16px; background:var(--accent); -webkit-mask:var(--mask-check) center/contain no-repeat; mask:var(--mask-check) center/contain no-repeat}
+/* PC の右クリックは項目が多いので、行を低く（押せる大きさは PC 28 以上） */
+@media (hover:hover) and (pointer:fine){ .press-menu.ctx .menu-item{min-height:34px} }
 /* 入るときは右から、戻るときは左へ */
 @keyframes viewIn{ from{ transform:translateX(32px); opacity:.3 } }
 @keyframes viewBack{ from{ transform:translateX(-32px); opacity:.3 } }
@@ -706,7 +716,7 @@ body.cur-idle .hero-crop{opacity:0}
 @media (hover:none){ .ed-face{min-height:52px} }   /* タグ1行と同じ高さ（「なし」からタグが付いても高さが変わらない） */
 .ed-face > .ed-note{padding:0 4px}
 /* AI の候補の印：青い細い枠の小さな文字 */
-/* おすすめ：見出しに電球。似た画像からの候補は、面の中で小見出しを付けて分ける */
+/* おすすめ：見出しに電球。類似画像からの候補は、面の中で小見出しを付けて分ける */
 .ed-h .ico{width:14px; height:14px}
 .ed-h > span:first-child{display:inline-flex; align-items:center; gap:4px}
 /* すべてのタグ：一段暗い帯。見出しと検索欄・並べ替えは上に貼りつく */
@@ -820,7 +830,7 @@ body.cur-idle .hero-crop{opacity:0}
   .rd-btn{opacity:0}
   .card:hover .rd-btn,.rd-btn:focus-visible{opacity:.9}
 }
-/* 似た画像の画面だけ：水滴の隣の「プレビュー」（PC でカードに乗せると出る） */
+/* 類似画像の画面だけ：水滴の隣の「プレビュー」（PC でカードに乗せると出る） */
 .pv-btn{right:48px; padding:0; border:0; cursor:pointer; font:inherit}
 @media (hover:none){ .pv-btn{display:none} }
 

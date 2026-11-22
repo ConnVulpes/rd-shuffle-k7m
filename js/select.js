@@ -144,7 +144,7 @@ function trashLocal(list){
   cache.items = cache.items.filter(x => !drop.has(x));
   // 後ろから外す（前から外すと、あとの位置がずれる）
   back.filter(b => b.oi >= 0).sort((a, b) => b.oi - a.oi).forEach(b => { order.splice(b.oi, 1); poolSize--; if(b.shown) shownCount--; });
-  // 似た画像の画面の奥に取っておいた一覧からも外す（戻ったときに、送ったものへ進まないように）。カードには印を付ける
+  // 類似画像の画面の奥に取っておいた一覧からも外す（戻ったときに、送ったものへ進まないように）。カードには印を付ける
   views.forEach(v => {
     const s = v.snap;
     if(!s || !s.order || s.order === order) return;
@@ -357,9 +357,11 @@ $('selTag').addEventListener('click', () => { popKind = popKind === 'tag' ? '' :
 $('selAll').addEventListener('click', () => { allCards().forEach(c => setPicked(c._item, true)); syncSelection(); });
 $('selClose').addEventListener('click', clearSelection);
 
+// ---- カードのメニュー（長押し・右クリック）----
 // スマホ：カードを長押しで選択を始める
-// 似た画像の画面では、長押しでカードの近くに［プレビュー］［選択］を出す（PC のマウスでも）。選んでいる最中は、今どおり選択の切り替え
-// 元の一覧の分けた X の投稿は、長押しで［選択］［スタックにする］（スタックにしてあるときは［スタックを解除］）を出す（PC のマウスでも）
+// 類似画像の画面では、長押しでカードの近くに［プレビュー］［選択］を出す（PC のマウスでも）。選んでいる最中は、今どおり選択の切り替え
+// 元の一覧の分けた X の投稿は、長押しで［選択］と、すき間のあとに［同じツイートの画像をスタック］（オンならチェック）を出す（PC のマウスでも）
+// PC の右クリックは、ブラウザのメニューの代わりに全部の操作を出す（Shift を押しながらならブラウザのメニュー）
 const canFold = it => !sim && !views.length && postOf(it).length >= 2;
 let press = null;
 grid.addEventListener('pointerdown', e => {
@@ -369,7 +371,7 @@ grid.addEventListener('pointerdown', e => {
   c._long = false;
   const x = e.clientX, y = e.clientY;
   press = { c, x, y, t:setTimeout(() => {
-    if((sim || canFold(c._item)) && !selected.size){ c._long = true; openPressMenu(c, x, y); return; }
+    if((sim || canFold(c._item)) && !selected.size){ c._long = true; openPressMenu(c, x, y, 'press'); return; }
     if(e.pointerType !== 'touch') return;
     c._long = true;
     pickCard(c._item, false);
@@ -377,25 +379,108 @@ grid.addEventListener('pointerdown', e => {
   }, 450) };
 });
 const pressMenu = $('pressMenu');
-function openPressMenu(c, x, y){
+// サイトの名前（「〜で開く」に使う）。知っているサイトは呼び名で、ほかはドメイン
+const SITE_NAMES = { 'x.com':'Twitter', 'twitter.com':'Twitter', 'pixiv.net':'pixiv', 'pinterest.com':'Pinterest', 'pinterest.jp':'Pinterest', 'youtube.com':'YouTube', 'youtu.be':'YouTube', 'bsky.app':'Bluesky', 'instagram.com':'Instagram', 'tumblr.com':'Tumblr', 'deviantart.com':'DeviantArt', 'artstation.com':'ArtStation', 'reddit.com':'Reddit' };
+function siteLabel(it){
+  let h = '';
+  try{ h = new URL(it.l).hostname.replace(/^(www|m|mobile)\./, ''); }catch(e){}
+  const key = Object.keys(SITE_NAMES).find(k => h === k || h.endsWith('.' + k));
+  return key ? SITE_NAMES[key] : (h || 'サイト');
+}
+// カードに出ている画像の、元の大きさの URL（縮小サービスを通していれば元へ、X は large）。画像がなければ ''
+function fullImageUrl(c){
+  const im = c && c.querySelector('img.thumb');
+  let u = im && (im.currentSrc || im.src) || '';
+  if(!u) return '';
+  try{
+    const p = new URL(u);
+    if(p.hostname === 'wsrv.nl' && p.searchParams.get('url')) u = p.searchParams.get('url');
+    else if(p.hostname === 'rdl.ink' && p.pathname.startsWith('/render/')) u = decodeURIComponent(p.pathname.slice(8));   // Raindrop の画像の中継
+  }catch(e){}
+  return isX(u) ? bigUrl(u) : u;
+}
+// 画像を読み込む。直接読めない（CORS）サイトは縮小サービスを通して元の大きさで
+async function imageBlob(u){
+  try{ const r = await fetch(u, { referrerPolicy:'no-referrer' }); if(r.ok) return await r.blob(); }catch(e){}
+  const r = await fetch(`https://wsrv.nl/?url=${encodeURIComponent(u)}`);
+  if(!r.ok) throw new Error('http');
+  return r.blob();
+}
+// クリップボードは PNG しか受け取らないことが多いので、PNG に描き直す
+async function pngBlob(b){
+  if(b.type === 'image/png') return b;
+  const bmp = await createImageBitmap(b);
+  const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+  cv.getContext('2d').drawImage(bmp, 0, 0);
+  return new Promise((res, rej) => cv.toBlob(x => x ? res(x) : rej(new Error('png')), 'image/png'));
+}
+function copyImage(c){
+  const u = fullImageUrl(c); if(!u) return;
+  // ClipboardItem は押した直後に作る（Safari は、待ったあとに作ると断る）
+  navigator.clipboard.write([new ClipboardItem({ 'image/png':imageBlob(u).then(pngBlob) })])
+    .then(() => showToast('画像をコピーしました', null), () => showToast('画像をコピーできませんでした', null));
+}
+async function saveImage(c){
+  const u = fullImageUrl(c); if(!u) return;
+  try{
+    const b = await imageBlob(u);
+    const ext = (b.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+    const base = (decodeURIComponent(new URL(u).pathname.split('/').pop() || '') || 'image').replace(/\.\w+$/, '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b); a.download = `${base}.${ext}`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  }catch(e){ showToast('画像を保存できませんでした', null); }
+}
+// kind：'press' 長押し（短い） / 'context' 右クリック（全部）
+function openPressMenu(c, x, y, kind){
+  const it = c._item, full = kind === 'context';
+  const hasImg = !!fullImageUrl(c) && !c.querySelector('video');
+  const item = (label, fn) => {
+    const b = el('button', 'menu-item', label); b.type = 'button'; b.setAttribute('role', 'menuitem');
+    b.addEventListener('click', () => { closePressMenu(); fn(); });
+    return b;
+  };
+  const rows = [];
+  if(!full && sim) rows.push(item('プレビュー', () => openPeek(it)));
+  rows.push(item('選択', () => pickCard(it, false)));
+  if(full){
+    if(hasImg){
+      rows.push(item('画像をコピー', () => copyImage(c)));
+      rows.push(item('画像を保存', () => saveImage(c)));
+      rows.push(item('類似画像', () => showSimilar(it)));
+    }
+    rows.push(item(`${siteLabel(it)}で開く`, () => window.open(it.l, '_blank', 'noopener')));
+    rows.push(item('Raindropで開く', () => window.open(raindropUrl(it), '_blank', 'noopener')));
+    if(canTrash(it)) rows.push(item('ゴミ箱へ移動', () => { if(selected.has(it)){ setPicked(it, false); syncSelection(); } trashItems([it]); }));
+  }
+  if(canFold(it)){
+    // すき間のあとに、オン・オフで切り替える設定として（オンならチェック）
+    rows.push(el('div', 'menu-gap'));
+    const f = item('同じツイートの画像をスタック', () => setFold(it, !isFolded(it)));
+    f.setAttribute('role', 'menuitemcheckbox'); f.setAttribute('aria-checked', String(isFolded(it)));
+    rows.push(f);
+  }
+  pressMenu.replaceChildren(...rows);
   pressMenu._card = c;
-  $('pressPeek').hidden = !sim;   // 元の一覧では押せばプレビューなので出さない
-  const fb = $('pressFold'), it = c._item;
-  fb.hidden = !canFold(it);
-  if(!fb.hidden) fb.textContent = isFolded(it) ? 'スタックを解除' : 'スタックにする';
+  pressMenu.classList.toggle('ctx', full);
   pressMenu.hidden = false;
   const w = pressMenu.offsetWidth, h = pressMenu.offsetHeight;
-  const left = Math.max(12, Math.min(x - w / 2, innerWidth - w - 12));
-  // 指の下に出す。入りきらなければ上に
-  const top = y + 16 + h <= innerHeight - 12 ? y + 16 : Math.max(12, y - 16 - h);
+  let left, top;
+  if(full){
+    // 右クリック：ポインタの右下に。入りきらなければ左・上に
+    left = x + w <= innerWidth - 8 ? x : Math.max(8, x - w);
+    top = y + h <= innerHeight - 8 ? y : Math.max(8, y - h);
+  }else{
+    left = Math.max(12, Math.min(x - w / 2, innerWidth - w - 12));
+    // 指の下に出す。入りきらなければ上に
+    top = y + 16 + h <= innerHeight - 12 ? y + 16 : Math.max(12, y - 16 - h);
+    if(navigator.vibrate) navigator.vibrate(10);
+  }
   pressMenu.style.left = (left + scrollX) + 'px';
   pressMenu.style.top = (top + scrollY) + 'px';
-  if(navigator.vibrate) navigator.vibrate(10);
 }
 function closePressMenu(){ pressMenu.hidden = true; pressMenu._card = null; }
-$('pressPeek').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) openPeek(c._item); });
-$('pressPick').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) pickCard(c._item, false); });
-$('pressFold').addEventListener('click', () => { const c = pressMenu._card; closePressMenu(); if(c) setFold(c._item, !isFolded(c._item)); });
 // 外を押したら閉じるだけ（後ろのカードは開かない）。長押しを離したときのクリックは、カードの方で無視する
 document.addEventListener('click', e => {
   if(pressMenu.hidden || e.target.closest('#pressMenu')) return;
@@ -407,4 +492,13 @@ const endPress = () => { if(press){ clearTimeout(press.t); press = null; } };
 grid.addEventListener('pointermove', e => { if(press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) endPress(); });
 grid.addEventListener('pointerup', endPress);
 grid.addEventListener('pointercancel', endPress);
-grid.addEventListener('contextmenu', e => { if(e.target.closest('.card') && (selected.size || (press && press.c._long))) e.preventDefault(); });
+// 右クリック：カードのメニュー。指の長押しで来たもの（Android など）は止めるだけ。上の大きい画像と Shift＋右クリックはブラウザのメニュー
+grid.addEventListener('contextmenu', e => {
+  const c = e.target.closest('.card');
+  if(!c) return;
+  if(e.pointerType === 'touch' || (press && press.c._long)){ e.preventDefault(); return; }
+  if(c._hero || e.shiftKey) return;
+  e.preventDefault();
+  endPress();
+  openPressMenu(c, e.clientX, e.clientY, 'context');
+});

@@ -1,4 +1,4 @@
-/* 似た画像の地図（作る・縮める・Raindrop に置く・合わせる・曲げる）、似た画像を並べる、範囲で探す */
+/* 類似画像の地図（作る・縮める・Raindrop に置く・合わせる・曲げる）、類似画像を並べる、範囲で探す */
 // ===== 似ているもの（印象の地図） =====
 // 本人が試しページで選んだ組み合わせ：DINOv2 small・全体＋何か所か・あなたのタグで曲げた地図（強さ「中」）。
 // 地図は Mac で作り、64個の数字に縮めて Raindrop の「rd-shuffle 地図」フォルダに置く。iPhone はそれを読むだけ。
@@ -314,7 +314,7 @@ async function ensureMap(st){
   if(simMap && simMap.at >= mapKnownAt && mapKnownAt) return simMap;
   let rec = await mapLocalGet();
   if(!rec || rec.at < mapKnownAt || !mapKnownAt){
-    st('似た画像の準備をしています…');
+    st('類似画像の準備をしています…');
     const remote = await readRemoteMap().catch(() => null);
     const merged = await fillFromLab(mergeMaps(rec, remote));
     if(merged !== rec){ rec = merged; await mapLocalSet(rec); }
@@ -513,7 +513,7 @@ async function rebuildMap(){
       done = writes => {
         const head = !appended && !fixed ? '新着はありませんでした' : `新着 ${appended.toLocaleString()}枚を足しました${fixed ? `（サムネイルが変わった ${fixed}枚も入れ直しました）` : ''}`;
         const tail = grown && !hasOriginals ? '。Mac で更新すると、作り直して精度が上がります' : '';
-        console.info(`似た画像：Raindrop の書き換え ${writes} 件`);
+        console.info(`類似画像：Raindrop の書き換え ${writes} 件`);
         return head + tail;
       };
     }else{
@@ -543,7 +543,7 @@ async function rebuildMap(){
         top(r => { if(r === r0 || rowsIt[r].c === it.c) return null; let s = 0; for(let j = 0; j < MAP_DIMS; j++) s += R.V[r0 * MAP_DIMS + j] * R.V[r * MAP_DIMS + j]; return s; }).forEach(r => { if(full.has(r)) same++; });
       });
       const keep = sample.length ? same / sample.length : 0;
-      done = writes => { console.info(`似た画像：作り直し。近い24枚の一致 ${keep.toFixed(1)}、Raindrop の書き換え ${writes} 件`); return `作り直しました（${rec.n.toLocaleString()}枚）`; };
+      done = writes => { console.info(`類似画像：作り直し。近い24枚の一致 ${keep.toFixed(1)}、Raindrop の書き換え ${writes} 件`); return `作り直しました（${rec.n.toLocaleString()}枚）`; };
     }
     let writes = 0;
     if(needsUpload(rec, remote)){
@@ -569,7 +569,7 @@ function updateMapState(){
   const info = store.get('mapinfo', null);
   const d = t => { const x = new Date(t); return `${x.getMonth() + 1}月${x.getDate()}日`; };
   if(info && info.at >= mapKnownAt) el.textContent = `${info.n.toLocaleString()}枚・${d(info.at)}に更新`;
-  else if(mapKnownAt) el.textContent = 'ほかの端末で更新されています。似た画像を開くと読み込みます';
+  else if(mapKnownAt) el.textContent = 'ほかの端末で更新されています。類似画像を開くと読み込みます';
   else el.textContent = 'まだありません。Mac の Chrome で作れます';
 }
 $('mapUpd').addEventListener('click', () => { if(cache) rebuildMap(); });
@@ -584,15 +584,15 @@ async function showSimilarNow(it){
   const st = t => showToast(t, null);
   let m;
   try{ m = await ensureMap(st); }catch(e){ m = null; }
-  if(!m){ st('似た画像はまだ使えません。Mac の設定から準備できます'); return; }
+  if(!m){ st('類似画像はまだ使えません。Mac の設定から準備できます'); return; }
   if(!m.pos.has(it.i)){
     let ok = false;
     try{ ok = await addToMap(it, st); }catch(e){ ok = false; }
-    if(!ok){ st(it.c ? 'この画像はまだ調べていません。Mac の設定で更新すると入ります' : '画像がないので、似た画像は探せません'); return; }
+    if(!ok){ st(it.c ? 'この画像はまだ調べていません。Mac の設定で更新すると入ります' : '画像がないので、類似画像は探せません'); return; }
   }
   const near = nearestSim(it) || [];
   edToast.hidden = true;
-  // プレビューは閉じて、似た画像の一覧を見せる。そこからプレビューを開いて「似た画像」を押すと、さらに一段奥へ
+  // プレビューは閉じて、類似画像の一覧を見せる。そこからプレビューを開いて「類似画像」を押すと、さらに一段奥へ
   if(peek.open){ peekSilent = true; closePeek(); }
   enterView({ kind:'sim', sim:{ center:it, list:[it, ...near.filter(x => x !== it)] }, from:it });
 }
@@ -605,8 +605,8 @@ function exitSimilar(){
 }
 $('peekSim').addEventListener('click', () => showSimilar(peekItem));
 
-// ---- 範囲で探す：画像の一部分を選んで、それに似た画像を並べる ----
-// 似た画像の画面の左上の大きい画像の右下（切り抜きのアイコン）で開く。似た画像の画面の上に重ねる。
+// ---- 範囲で探す：画像の一部分を選んで、それに類似画像を並べる ----
+// 類似画像の画面の左上の大きい画像の右下（切り抜きのアイコン）で開く。類似画像の画面の上に重ねる。
 // なぞって四角を描き、四隅で直し、中をドラッグで動かす。外をなぞると描き直し。
 // 選んだ部分を AI に通し、地図と同じ縮め方で 64 個にして、タグで曲げていない地図と比べる（切り抜いた部分にはタグがないので）
 var cropOpen = false, cropRect = null, cropSrc = null, cropBusy = false;   // cropRect：画像の中の割合 {x,y,w,h}
@@ -803,7 +803,7 @@ async function cropCanvas(){
   if(bmp.close) bmp.close();
   return cv;
 }
-// 切り抜いた部分の画像（似た画像の画面の、上の大きい画像）
+// 切り抜いた部分の画像（類似画像の画面の、上の大きい画像）
 function cropImgEl(url, done){
   const im = new Image(); im.className = 'thumb'; im.alt = ''; im.decoding = 'async';
   im.addEventListener('load', done, { once:true }); im.addEventListener('error', done, { once:true });
@@ -819,7 +819,7 @@ async function cropSearch(){
     let m;
     try{ m = await ensureMap(st); }catch(e){ m = null; }
     const rec = m && m.rec;
-    if(!m || !rec || !rec.basis || !rec.mean){ st('似た画像はまだ使えません。Mac の設定から準備できます'); return; }
+    if(!m || !rec || !rec.basis || !rec.mean){ st('類似画像はまだ使えません。Mac の設定から準備できます'); return; }
     let cv;
     try{ cv = await cropCanvas(); }catch(e){ st('この画像を読み込めませんでした'); return; }
     if(!cropOpen) return;

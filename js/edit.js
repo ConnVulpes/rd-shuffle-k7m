@@ -1,5 +1,5 @@
 /* 情報の画面（開け閉め・大きさ・つまみ・中身）、選ぶための部品（folderPicker tagChooser）、
-   おすすめ（suggestTags）、似た画像からのタグ（aiTags） */
+   おすすめ（suggestTags）、類似画像からのタグ（aiTags） */
 // ---- プレビューから タグ・フォルダ を変える ----
 const edPanel = $('edPanel'), edToast = $('edToast');
 // 最後に押した面（renderEdit で位置を保つのに使う）
@@ -49,7 +49,7 @@ function afterLocalChange(items, { media = false } = {}){
   applyCache();
   clearTimeout(cacheSaveTimer);
   cacheSaveTimer = setTimeout(() => store.set('cache', cache), 800);
-  // 一段奥の画面では元の一覧の条件で見ない（似た画像はその画面の条件だけ、サムネが出ないもの・重複は条件なし）
+  // 一段奥の画面では元の一覧の条件で見ない（類似画像はその画面の条件だけ、サムネが出ないもの・重複は条件なし）
   const match = !views.length ? makeFilter(state.filter) : sim && simF ? makeFilter(simF) : () => true;
   items.forEach(it => {
     const c = cardOf.get(it);
@@ -588,7 +588,7 @@ function candBtn(it, t, kind, key){
   const on = (it.g || []).includes(t);
   const b = el('button', `ed-tag ${kind}${on ? ' on' : ''}`); b.type = 'button';
   b.setAttribute('aria-pressed', String(on));
-  if(kind === 'ai') b.title = '似た画像に付いているタグ';
+  if(kind === 'ai') b.title = '類似画像に付いているタグ';
   b.append(el('span', '', '#' + t));
   if(key && canHover) b.append(el('kbd', '', String(key)));
   b.addEventListener('click', () => toggleTag(it, t));
@@ -614,7 +614,7 @@ function editSugSec(it, force, reuse){
   const box = el('div', 'ed-face');
   const rule = editSugBtns(it, force, reuse);
   const ai = aiShown.ready ? aiShown.list.filter(t => !pins.includes(t)).map(t => candBtn(it, t, 'ai')) : [];
-  // 規則のおすすめ（作者・サイト・一緒に付けるタグ）→ 似た画像からの候補の順
+  // 規則のおすすめ（作者・サイト・一緒に付けるタグ）→ 類似画像からの候補の順
   rule.forEach(x => box.append(x.b));
   ai.forEach(b => box.append(b));
   if(!box.children.length) box.append(el('span', 'ed-note', 'なし'));
@@ -655,8 +655,8 @@ function editSugBtns(it, force, reuse){
     return { b, at };
   });
 }
-// ===== AI の候補：似た画像に付いているタグ =====
-// 似た画像の地図（タグで曲げていない、画像だけの近さ）で近い画像を集め、そこに付いているタグを数える。
+// ===== AI の候補：類似画像に付いているタグ =====
+// 類似画像の地図（タグで曲げていない、画像だけの近さ）で近い画像を集め、そこに付いているタグを数える。
 // 曲げた地図は、今付いているタグが位置に混ざるので使わない。タグなしの画像は「そのタグではない」とは数えない（数に入れない）。
 // 地図は、もう読み込んであるか、この端末に保存してあるものだけを使う（Raindrop から読む・画像を調べることはしない）
 const AI_NEAR = 40, AI_TEMP = 0.07, AI_MAX = 10;

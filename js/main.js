@@ -11,6 +11,24 @@ document.addEventListener('paste', e => {
   if(edView === 'cover' && !inCover && /^https?:\/\/\S+$/.test(u)){ e.preventDefault(); edView = ''; setCover(peekItem, u); }
 });
 
+// 下の帯：下にスクロールしている間は画面の下へ隠し、上にスクロールすると戻す。
+// プレビュー・窓が開いている間と、プログラムで大きく飛んだとき（並べ直し・一段奥から戻るなど）は見ない
+let bandOff = false, bandY = window.scrollY;
+function setBandOff(v){
+  if(bandOff === v) return;
+  bandOff = v;
+  document.body.classList.toggle('band-off', v);
+}
+addEventListener('scroll', () => {
+  const y = window.scrollY, dy = y - bandY;
+  if(Math.abs(dy) < 8) return;
+  bandY = y;
+  if(peek.open || document.documentElement.classList.contains('modal-open') || !viewMenu.hidden || !sortMenu.hidden) return;
+  if(Math.abs(dy) > innerHeight) return;
+  if(dy > 0 && y > 80) setBandOff(true);
+  else if(dy < 0) setBandOff(false);
+}, { passive:true });
+
 // キー操作（プレビュー中と一覧とで分ける）
 document.addEventListener('keydown', e => {
   if(e.key === 'Escape' && !pressMenu.hidden){ closePressMenu(); return; }
@@ -60,13 +78,15 @@ document.addEventListener('keydown', e => {
   if(del && selected.size){ e.preventDefault(); if(!e.repeat) trashSelected(); return; }
   if(e.key === 'Escape' && selected.size){ e.preventDefault(); if(popKind){ popKind = ''; renderSelPop(); } else clearSelection(); return; }
   if(e.key === 'Escape' && views.length){ e.preventDefault(); backUI(); return; }
-  // 一段奥の画面では並び順は使わない。絞り込みは似た画像の画面だけ（似た画像の条件を編集する）
+  // 一段奥の画面では並び順は使わない。絞り込みは類似画像の画面だけ（類似画像の条件を編集する）
   if(views.length && (/^[rR]$/.test(e.key) || (!sim && /^[fF\/]$/.test(e.key)))) return;
   if(e.key === 'f' || e.key === 'F'){ e.preventDefault(); openFilter(); return; }
   if(e.key === '/'){ e.preventDefault(); openFilter('other'); return; }
   if(e.key === 'c' || e.key === 'C') toggleCap();
   if(e.key === 'h' || e.key === 'H') toggleCur();
   if(e.key === 'r' || e.key === 'R'){ e.preventDefault(); shuffle(); }
+  // スペース：下の帯を隠す・出す（ページは送らない）。ボタンにいるときは、そのボタンを押すほうに使う
+  if(e.key === ' ' && !e.target.closest('button, a, [role=button]') && viewMenu.hidden && sortMenu.hidden){ e.preventDefault(); setBandOff(!bandOff); return; }
   if(e.key === '1') setSize(170);
   if(e.key === '2') setSize(250);
   if(e.key === '3') setSize(380);

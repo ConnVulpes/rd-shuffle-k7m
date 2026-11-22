@@ -22,16 +22,16 @@
   js/filter.js    絞り込み・絞り込みの画面・プリセット
   js/list.js      一覧の並べ方（render appendMore 並び順）・石積み・カード・サムネ・一段奥の画面・戻る・サムネが出ないもの
   js/preview.js   プレビュー（開く・送る・閉じる・タップ）・動画・回転・省データ・ズーム・明るさ
-  js/edit.js      情報の画面（開け閉め・大きさ・中身）・選ぶ部品・おすすめ・似た画像からのタグ
+  js/edit.js      情報の画面（開け閉め・大きさ・中身）・選ぶ部品・おすすめ・類似画像からのタグ
   js/select.js    まとめて変える・複数選択・長押しのメニュー
   js/settings.js  設定の画面・トークン・メニュー・表示の切り替え（キャプション・省データ・カーソル・カードの大きさ・読み込む数）
   js/heat-sync.js ♥ と熱・設定の同期
   js/backup.js    バックアップ
   js/xsplit.js    X の投稿の画像を1枚ずつ別のブックマークに分ける（最初の1回の調べと作成・新着の自動）・プレビューの「n/N」
-  js/similar.js   似た画像の地図・似た画像・範囲で探す
+  js/similar.js   類似画像の地図・類似画像・範囲で探す
   js/main.js      貼り付け・キー操作・起動（いちばん最後）
   ?v= は版の番号。公開の前に rd-shuffle-dev の bump.sh で上げる -->
-<link rel="stylesheet" href="app.css?v=202611221741">
+<link rel="stylesheet" href="app.css?v=202611221812">
 </head>
 <body>
 <!-- 下に浮かぶ帯（もとは上のバー。部品の id はそのまま）。PC は左端にアプリ名、右に表示の3つ -->
@@ -94,11 +94,8 @@
   </div>
 </main>
 
-<div class="menu press-menu" id="pressMenu" role="menu" hidden>
-  <button type="button" class="menu-item" id="pressPeek" role="menuitem">プレビュー</button>
-  <button type="button" class="menu-item" id="pressPick" role="menuitem">選択</button>
-  <button type="button" class="menu-item" id="pressFold" role="menuitem" hidden></button>
-</div>
+<!-- カードの長押し・右クリックのメニュー（中身は select.js の openPressMenu が作る） -->
+<div class="menu press-menu" id="pressMenu" role="menu" hidden></div>
 
 <div class="selbar" id="selBar" hidden>
   <div class="sel-pop" id="selPop" hidden></div>
@@ -113,7 +110,7 @@
   </div>
 </div>
 
-<!-- 範囲を選ぶ画面：似た画像の画面の上に重ねる -->
+<!-- 範囲を選ぶ画面：類似画像の画面の上に重ねる -->
 <div class="crop" id="crop" hidden>
     <div class="crop-stage" id="cropStage"><div class="crop-pic" id="cropPic"><div class="crop-shade" id="cropShade" hidden><div class="crop-hole" id="cropHole"></div></div><div class="crop-box" id="cropBox" hidden><i data-c="nw"></i><i data-c="ne"></i><i data-c="sw"></i><i data-c="se"></i></div></div></div>
     <div class="crop-bar"><button type="button" class="lb-btn crop-btn" id="cropCancel">キャンセル</button><button type="button" class="crop-btn crop-go" id="cropGo" disabled>この範囲で探す</button></div>
@@ -137,7 +134,7 @@
   <div class="peek-lvl" id="peekLvl" aria-hidden="true"><span id="peekLvlV"></span><div class="peek-lvl-bar"><i id="peekLvlFill"></i></div></div>
   <button type="button" class="lb-like" id="peekLike" aria-pressed="false" data-n="0"><span id="peekLikeV"></span><span class="lb-like-n" id="peekLikeN"></span></button>
   <button type="button" class="lb-hq" id="peekHq" hidden title="元の大きさで読み込む（Q）">高画質で見る</button>
-  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><button type="button" class="lb-info" id="peekInfo" title="情報（E）"><span class="lb-cap-t" id="peekCapT"></span><span class="lb-cap-d" id="peekCapD"></span></button><div class="lb-sim" id="peekSimBox"><button type="button" id="peekPost" hidden title="同じ投稿の画像" aria-label="同じ投稿の画像"></button><button type="button" id="peekSim" title="似た画像（S）">似た画像</button></div></div>
+  <div class="lb-cap" id="peekCap"><button type="button" class="lb-btn lb-bright" id="peekBright" hidden title="明るさを100%に戻す（B）" aria-label="明るさを100%に戻す"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span id="peekBrightV"></span></button><button type="button" class="lb-info" id="peekInfo" title="情報（E）"><span class="lb-cap-t" id="peekCapT"></span><span class="lb-cap-d" id="peekCapD"></span></button><div class="lb-sim" id="peekSimBox"><button type="button" id="peekPost" hidden title="同じ投稿の画像" aria-label="同じ投稿の画像"></button><button type="button" id="peekSim" title="類似画像（S）">類似画像</button></div></div>
   <div class="lb-edit" id="edPanel" hidden></div>
   <div class="lb-toast" id="edToast" hidden role="status"><span id="edToastMsg"></span><button type="button" id="edUndo">元に戻す</button></div>
 </dialog>
@@ -216,7 +213,7 @@
       </div>
     </div>
     <div class="set-col">
-      <h3>似た画像</h3>
+      <h3>類似画像</h3>
       <div class="set-group">
         <div class="set-row"><span class="map-state" id="mapState"></span><button type="button" class="icon-btn" id="mapUpd">更新</button></div>
       </div>
@@ -241,7 +238,7 @@
       </div>
       <div class="set-pc">
         <h3>キーの一覧</h3>
-        <div class="set-group set-keys"><div class="set-keys-h">一覧</div><kbd>R</kbd><span>シャッフル</span><kbd>F</kbd><span>絞り込み</span><kbd>/</kbd><span>言葉で探す</span><kbd>C</kbd><span>キャプション</span><kbd>H</kbd><span>カーソルを隠す</span><kbd>1 2 3</kbd><span>カードの大きさ</span><kbd>?</kbd><span>キーの一覧（押している間）</span><kbd>Delete</kbd><span>選んだものをゴミ箱へ</span><kbd>⌘Z</kbd><span>元に戻す</span><div class="set-keys-h">プレビュー</div><kbd>← →</kbd><span>前・次</span><kbd>L</kbd><span>♥</span><kbd>S</kbd><span>似た画像</span><kbd>E</kbd><span>情報</span><kbd>T</kbd><span>タグを入力</span><kbd>1〜9</kbd><span>固定タグ</span><kbd>R</kbd><span>回転</span><kbd>F</kbd><span>反転</span><kbd>+ − 0</kbd><span>拡大・縮小・戻す</span><kbd>↑ ↓</kbd><span>明るさ</span><kbd>B</kbd><span>明るさを戻す</span><kbd>Q</kbd><span>高画質</span><kbd>Esc</kbd><span>閉じる</span><kbd>Delete</kbd><span>ゴミ箱へ</span><kbd>⌘Z</kbd><span>元に戻す</span></div>
+        <div class="set-group set-keys"><div class="set-keys-h">一覧</div><kbd>R</kbd><span>シャッフル</span><kbd>F</kbd><span>絞り込み</span><kbd>/</kbd><span>言葉で探す</span><kbd>C</kbd><span>キャプション</span><kbd>H</kbd><span>カーソルを隠す</span><kbd>1 2 3</kbd><span>カードの大きさ</span><kbd>Space</kbd><span>下のメニューを隠す・出す</span><kbd>?</kbd><span>キーの一覧（押している間）</span><kbd>Delete</kbd><span>選んだものをゴミ箱へ</span><kbd>⌘Z</kbd><span>元に戻す</span><div class="set-keys-h">プレビュー</div><kbd>← →</kbd><span>前・次</span><kbd>L</kbd><span>♥</span><kbd>S</kbd><span>類似画像</span><kbd>E</kbd><span>情報</span><kbd>T</kbd><span>タグを入力</span><kbd>1〜9</kbd><span>固定タグ</span><kbd>R</kbd><span>回転</span><kbd>F</kbd><span>反転</span><kbd>+ − 0</kbd><span>拡大・縮小・戻す</span><kbd>↑ ↓</kbd><span>明るさ</span><kbd>B</kbd><span>明るさを戻す</span><kbd>Q</kbd><span>高画質</span><kbd>Esc</kbd><span>閉じる</span><kbd>Delete</kbd><span>ゴミ箱へ</span><kbd>⌘Z</kbd><span>元に戻す</span></div>
       </div>
       <p class="set-ver" id="setVer"></p>
     </div>
@@ -262,17 +259,17 @@
 <!-- 「?」を押している間だけ重ねるキーの一覧（PC）。中身は main.js が設定の画面のキーの一覧から写して作る -->
 <div id="keyPeek" class="key-peek" popover="manual" aria-hidden="true"></div>
 
-<script src="js/core.js?v=202611221741"></script>
-<script src="js/filter.js?v=202611221741"></script>
-<script src="js/list.js?v=202611221741"></script>
-<script src="js/preview.js?v=202611221741"></script>
-<script src="js/edit.js?v=202611221741"></script>
-<script src="js/select.js?v=202611221741"></script>
-<script src="js/settings.js?v=202611221741"></script>
-<script src="js/heat-sync.js?v=202611221741"></script>
-<script src="js/backup.js?v=202611221741"></script>
-<script src="js/xsplit.js?v=202611221741"></script>
-<script src="js/similar.js?v=202611221741"></script>
-<script src="js/main.js?v=202611221741"></script>
+<script src="js/core.js?v=202611221812"></script>
+<script src="js/filter.js?v=202611221812"></script>
+<script src="js/list.js?v=202611221812"></script>
+<script src="js/preview.js?v=202611221812"></script>
+<script src="js/edit.js?v=202611221812"></script>
+<script src="js/select.js?v=202611221812"></script>
+<script src="js/settings.js?v=202611221812"></script>
+<script src="js/heat-sync.js?v=202611221812"></script>
+<script src="js/backup.js?v=202611221812"></script>
+<script src="js/xsplit.js?v=202611221812"></script>
+<script src="js/similar.js?v=202611221812"></script>
+<script src="js/main.js?v=202611221812"></script>
 </body>
 </html>
